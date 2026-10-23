@@ -66,7 +66,7 @@ misbehaves, report the mod's name and version along with `run/logs/last-session.
 ## What this is
 
 *The Simpsons: Hit & Run* shipped in 2003 for Windows XP, Direct3D 8 and 32-bit x86. The original PC
-release survives through compatibility modes, community patches and Wine. This project removes those layers as it is the **original game's code**, compiled for modern operating systems,
+release survives through compatibility modes, community patches and Wine. This project removes those layers and is compiled for modern operating systems,
 with everything Windows-specific under it rewritten:
 
 | Original (2003) | This project |
@@ -77,10 +77,6 @@ with everything Windows-specific under it rewritten:
 | Bink video | FFmpeg |
 | Win32 threads, files, windowing | Portable platform layer |
 | 640x480 to 1600x1200, 4:3 | Any resolution, any aspect ratio, resizable window |
-
-It is **not** an emulator, a remake or a reimplementation that approximates the game. The physics, AI, mission
-scripting and timing are the shipped game's. The only gameplay changes are fixes for bugs that showed up once the
-code left MSVC and Windows.
 
 ## Platforms
 
