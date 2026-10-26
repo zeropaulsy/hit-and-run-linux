@@ -127,6 +127,11 @@ bool Win32Platform::InitializeWindow( HINSTANCE hInstance )
         return false;
     }
 
+    // SDL2 starts with text input on, which hands the keyboard to the desktop's input method: on KDE Plasma holding
+    // a key with accented variants (A, S, D...) then waits for the accent popup before the game sees the press.
+    // The game reads raw keys only, never text.
+    SDL_StopTextInput( );
+
     mhWnd = (HWND) window;
     ShowTheCursor( false );
     return true;
