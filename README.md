@@ -142,13 +142,15 @@ port/play.sh --data "/path/to/simpsons" --mod ~/mods/SomeMod.lmlm --mod ~/mods/A
 - At startup the log (`run/logs/last-session.log`) lists each mod loaded and any launcher hacks it needs that aren't
   supported yet. Those parts of the mod are ignored. For more detail, run with `SHAR_MOD_LOG=1 ./run.sh ...`.
 
-What works so far: Lua scripting, Ogg audio, HD movies, custom text, car shops and skin shops, the 3D phone booth
-preview, custom cars, new dialogue characters, mission script extensions, moved or added interiors, raised engine
-limits, custom traffic and per-road traffic behaviour. 
+What works: nearly every launcher hack, including Lua scripting, Ogg and FLAC audio, HD movies, custom text, car and
+skin shops, the 3D phone booth preview, custom cars and characters, new dialogue characters, mission script
+extensions, custom trigger actions, bonus missions and audio, moved or added interiors, raised engine limits, custom
+traffic, per-road traffic behaviour, shader parameter overrides and video textures.
 
-Not done yet: custom characters' animation sets, custom audio,
-custom bonus missions, skin preview animations, shader parameter overrides, custom trigger actions and hover car
-refraction.
+Not done yet: part of AdditionalScriptFunctionality (passenger animation, stage vehicle settings,
+SetStageCharacterModel, forces and gravity, AddParkedCar, CON commands), the [Sound] limits, skid marks on fake
+wheels, material shaders from more than one mod, and the Hover Car Refraction mod. Many hacks have only been tried
+with small test mods, not in full playthroughs.
 
 Tested so far: the Futurama demo (level 1), Fully Connected Map (level 1) and SHAR Remastered (boots). If a mod
 misbehaves, report the mod's name and version along with `run/logs/last-session.log`.
