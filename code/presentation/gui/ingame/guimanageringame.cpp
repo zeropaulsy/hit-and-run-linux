@@ -88,6 +88,9 @@
 #include <Layer.h>
 #include <Page.h>
 #include <Screen.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //===========================================================================
 // Global Data, Local Data, Local Classes
@@ -578,12 +581,24 @@ void CGuiManagerInGame::HandleMessage
                 m_promptSaveBeforeQuit = false;
                 m_quitAndReload = false;
 #else
+#ifdef RAD_LINUX
+                // Linux port: mods' NoSavedGames hack: on to the next level without asking to save
+                if( shar_ModHackRequired( "NoSavedGames" ) )
+                {
+                    m_promptSaveBeforeQuit = false;
+                }
+                else
+                {
+#endif
                 this->DisplayPrompt( PROMPT_CONFIRM_SAVE_BEFORE_QUIT,
                                      this,
                                      PROMPT_TYPE_YES_NO,
                                      false );
 
                 break;
+#ifdef RAD_LINUX
+                }
+#endif
 #endif // RAD_DEMO
             }
             else
@@ -795,6 +810,9 @@ void CGuiManagerInGame::HandleMessage
             GetGameplayContext()->PauseAllButPresentation( true );
 
             m_promptSaveBeforeQuit = true;
+#ifdef RAD_LINUX
+            m_promptSaveBeforeQuit = !shar_ModHackRequired( "NoSavedGames" );    // Linux port: mods' NoSavedGames hack
+#endif
 
             break;
         }

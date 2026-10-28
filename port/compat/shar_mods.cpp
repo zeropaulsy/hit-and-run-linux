@@ -82,7 +82,7 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "OverrideShaderParameters", "CustomCharacterSupport",
                                         "NoCheats", "NoWrenches", "NoHitAndRunMusic",
                                         "NoBustedHitAndRunMeterReset", "NoFastCarReset",
-                                        "NoAutomaticSavedGameLoad" };
+                                        "NoAutomaticSavedGameLoad", "NoSavedGames" };
 
 void Init( void );
 

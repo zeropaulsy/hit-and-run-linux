@@ -348,7 +348,8 @@ CGuiScreenMemCardCheck::OnMemoryCardCheckDone( radFileError errorCode,
 #ifdef ENABLE_AUTOLOAD_AFTER_MEMCHECK
 #ifdef RAD_LINUX
     // Linux port: mods' NoAutomaticSavedGameLoad hack: start at the main menu with nothing loaded
-    if( mostRecentSaveGameSlot != -1 && !shar_ModHackRequired( "NoAutomaticSavedGameLoad" ) )
+    if( mostRecentSaveGameSlot != -1 && !shar_ModHackRequired( "NoAutomaticSavedGameLoad" ) &&
+        !shar_ModHackRequired( "NoSavedGames" ) )
 #else
     if( mostRecentSaveGameSlot != -1 )
 #endif

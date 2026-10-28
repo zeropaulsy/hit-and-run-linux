@@ -117,7 +117,10 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   NoBustedHitAndRunMeterReset (`HitnRunManager` busted keeps mCurrHitnRun, music skips the caught sting/restart;
   the docs expect the mod to set decay 0; not tried in play). NoFastCarReset (`Vehicle::Update` skips the 200 m/s
   ResetOnSpot). NoAutomaticSavedGameLoad (`CGuiScreenMemCardCheck::OnMemoryCardCheckDone`; checked: menu says New
-  Game).
+  Game). NoSavedGames: Load Game greyed like the locked mini-game (`CGuiScreenMainMenu`), pause Save Game disabled
+  (as RAD_DEMO), no save prompts on quit / next level (`CGuiManagerInGame`), no auto-load; checked: menu and pause.
+  Release builds play the boot movies when no save is loaded: for menu tests point the run dir's movies/ at an
+  empty folder.
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.
