@@ -34,6 +34,8 @@ static void ApplyModShaderOverrides(tShader* shader, const char* name, tEntitySt
         {
             case SHAR_SHADERPARAM_INT:
                 shader->SetInt(p.param, p.intValue);
+                if(p.param == PDDI_SP_BLENDMODE)
+                    shader->mFileBlendMode = p.intValue;
                 break;
             case SHAR_SHADERPARAM_FLOAT:
                 shader->SetFloat(p.param, p.floatValue);
@@ -78,12 +80,18 @@ tShader::tShader()
 {
     shader = p3d::device->NewShader("simple");
     shader->AddRef();
+#ifdef RAD_LINUX
+    mFileBlendMode = -1;
+#endif
 }
 
 tShader::tShader(char* shaderName, char* definition)
 {
     shader = p3d::device->NewShader(shaderName, definition);
     shader->AddRef();
+#ifdef RAD_LINUX
+    mFileBlendMode = -1;
+#endif
 }
 
 tShader::~tShader()
@@ -249,6 +257,10 @@ tEntity* tShaderLoader::LoadObject(tChunkFile* f, tEntityStore* store)
                     unsigned val = f->GetInt();
 
                     shader->SetInt(param, val);
+#ifdef RAD_LINUX
+                    if(param == PDDI_SP_BLENDMODE)
+                        shader->mFileBlendMode = val;
+#endif
                 }
                 break;
 

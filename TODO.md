@@ -30,7 +30,15 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
 
 #### Hacks not implemented (all required by the Futurama demo)
 - [ ] **HoverCarRefraction**: a mod (not a hack) the Futurama demo lists as required
-- [ ] The Mod Launcher's other hacks, none of the three test mods uses: survey its hack list for popular mods
+- [ ] The Mod Launcher's other mod-requirable hacks (docs' All Hacks page, 1.27), none of the test mods uses:
+  - [ ] configured: BugFixes, CustomCollectorCardSupport, CustomDutchAngleNPCCameraTilt, CustomHeadlights,
+    CustomMissionSkipFailCounts, CustomRewardQuestSupport, CustomVideoResolutionSupport, DrunkCamera,
+    IncreasedRewardLimits, PerLevelCoinCount, RefractionShaderSupport, WalkerCameraDataSupport
+  - [ ] switches: NoAutomaticSavedGameLoad, NoBonusGame, NoBustedHitAndRunMeterReset, NoCheats, NoFastCarReset,
+    NoHitAndRunMusic, NoInactiveDynamicObjectCollisions, NoMissionStartCameras, NoNeitherRoadArrowProcessing,
+    NoSavedGames, NoWrenches, ReplayableBonusMissions, SkippableFMVs, UnlockAllMissions, UnlockAllOutfits,
+    UnlockAllVehicles, UnlockBonusGame
+  - [ ] FLACSupport, VideoTextureSupport; HackSupport (the launcher's own plumbing: check what mods rely on)
 
 #### Partly done
 - [ ] **AdditionalScriptFunctionality** (`code/mission/modscript.cpp`): every command registered (unimplemented ones log

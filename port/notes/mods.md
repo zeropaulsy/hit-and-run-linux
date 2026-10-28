@@ -105,6 +105,11 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
 - OverrideShaderParameters (`shar_modshaders.cpp`, end of `tShaderLoader::LoadObject`): type from the parameter name
   (pddishade.hpp table in the .cpp; unlisted = int). DIFF also sets AMBI unless AMBI is given (as the loader).
   Only shaders loaded from files; 2SID draws nothing different (culling off). Checked: docs' red famil_v*.
+- CustomCharacterSupport (`shar_modcharacters.cpp`, by model name): IsLisa/IsMarge in `AddCharacter`; BlendModeSupport
+  via `tShader::mFileBlendMode` (loader's BLMD) in `CharacterRenderable::DisplayModel`, flag set in `SetupCharacter`;
+  IdleAnimationWeight in `WalkerLocomotionAction::Update` (the game's no-repeat rule still turns a repeat into idle0).
+  The Lisa seat offset only applies once `InCar::SequenceAction` turns bouncing on: the `incar` test option skips
+  it (get out and in again). BlendModeSupport not seen in play.
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.

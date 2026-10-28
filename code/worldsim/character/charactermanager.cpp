@@ -62,6 +62,9 @@
 #include <presentation/gui/ingame/guimanageringame.h>
 #include <presentation/gui/ingame/guiscreenhud.h>
 #include <mission/charactersheet/charactersheetmanager.h>
+#ifdef RAD_LINUX
+#include <shar_modcharacters.h>
+#endif
 
 CharacterManager* CharacterManager::spCharacterManager = 0;
 
@@ -776,6 +779,18 @@ Character* CharacterManager::AddCharacter( CharacterType type, const char* chara
     {
         character->SetIsMarge(true);
     }
+#ifdef RAD_LINUX
+    // Linux port: mods' CustomCharacterSupport IsLisa / IsMarge
+    const SharModCharacter* modCharacter = shar_ModCharacter( modelName );
+    if( modCharacter != NULL && modCharacter->isLisa >= 0 )
+    {
+        character->SetIsLisa( modCharacter->isLisa != 0 );
+    }
+    if( modCharacter != NULL && modCharacter->isMarge >= 0 )
+    {
+        character->SetIsMarge( modCharacter->isMarge != 0 );
+    }
+#endif
 
     rAssert( character );
     NewTime = radTimeGetMicroseconds() - NewTime;
@@ -1087,6 +1102,10 @@ MEMTRACK_PUSH_GROUP( "CharacterManager - CharacterRenderable" );
     }
 
     pCharacterRenderable->SetShadowColour( pCharacter->GetShadowColour() );
+#ifdef RAD_LINUX
+    const SharModCharacter* modCharacter = shar_ModCharacter( GetModelName( pCharacter ) );
+    pCharacterRenderable->SetModBlendModeSupport( modCharacter != NULL && modCharacter->blendModeSupport );
+#endif
 
     // Lets find the electrocution effect
     p3d::inventory->SelectSection( P3D_DEFAULT_INV_SECTION );

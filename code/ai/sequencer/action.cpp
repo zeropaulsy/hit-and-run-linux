@@ -41,6 +41,9 @@
 #include <choreo/puppet.hpp>
 #include <radmath/radmath.hpp>
 #include <interiors/interiormanager.h>
+#ifdef RAD_LINUX
+#include <shar_modcharacters.h>
+#endif
 
 inline bool AnyStickMovement(Character* character, float tol = 0.0f)
 {
@@ -352,6 +355,32 @@ void WalkerLocomotionAction::Update( float timeins)
         static int s_idleProbabilityTable[10] = { 0,0,0,0,0,1,1,1,2,2 };
         static int s_lastIdle = 0;
         int idle = s_idleProbabilityTable[sRandom.IntRanged(9)];
+#ifdef RAD_LINUX
+        // Linux port: mods' CustomCharacterSupport IdleAnimationWeight, one per <model>_idle<N>
+        const SharModCharacter* modCharacter = shar_ModCharacter( GetCharacterManager()->GetModelName( mpCharacter ) );
+        if( modCharacter != NULL && modCharacter->numIdleWeights > 0 )
+        {
+            float total = 0.0f;
+            for( int i = 0; i < modCharacter->numIdleWeights; i++ )
+            {
+                total += modCharacter->idleWeights[ i ];
+            }
+            if( total > 0.0f )
+            {
+                float pick = sRandom.Float() * total;
+                idle = modCharacter->numIdleWeights - 1;
+                for( int i = 0; i < modCharacter->numIdleWeights; i++ )
+                {
+                    if( pick < modCharacter->idleWeights[ i ] )
+                    {
+                        idle = i;
+                        break;
+                    }
+                    pick -= modCharacter->idleWeights[ i ];
+                }
+            }
+        }
+#endif
 
         if((s_lastIdle != 0) && (s_lastIdle == idle))
         {

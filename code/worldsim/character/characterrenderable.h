@@ -67,6 +67,10 @@ public:
 
     void SetShocked( bool isShocked ){ mIsShocked = isShocked; }
     bool GetIsShocked()const{ return mIsShocked; }
+#ifdef RAD_LINUX
+    // Linux port: mods' CustomCharacterSupport BlendModeSupport: additive and subtractive shaders keep their mode
+    void SetModBlendModeSupport( bool support ){ mModBlendModeSupport = support; }
+#endif
 
 private:
 	// No default construction.
@@ -93,6 +97,9 @@ private:
     tColour mShadowColour;
     tDrawable* mpShockedDrawable;
     bool mIsShocked;
+#ifdef RAD_LINUX
+    bool mModBlendModeSupport;
+#endif
     bool mDisplayingSkeletonShock;
 };
 
