@@ -123,7 +123,8 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   empty folder.
   Unlock* hacks answer `CheatInputSystem::IsCheatEnabled` for the matching cheat (FINAL builds gate the cheats on
   every story mission done; the hacks don't). UnlockAllMissions: checked on a new game (pause Mission Select).
-  `skipfe` enables the unlock-missions cheat itself: test from the menu.
+  `skipfe` enables the unlock-missions cheat itself: test from the menu. UnlockAllVehicles: checked at the L1 booth
+  (228.7,6.7,-149.6: every car offered, new game).
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.
