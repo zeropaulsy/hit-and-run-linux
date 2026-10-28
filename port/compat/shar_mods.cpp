@@ -83,7 +83,8 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "NoCheats", "NoWrenches", "NoHitAndRunMusic",
                                         "NoBustedHitAndRunMeterReset", "NoFastCarReset",
                                         "NoAutomaticSavedGameLoad", "NoSavedGames",
-                                        "UnlockAllMissions", "UnlockAllVehicles" };
+                                        "UnlockAllMissions", "UnlockAllVehicles",
+                                        "UnlockAllOutfits" };
 
 void Init( void );
 
