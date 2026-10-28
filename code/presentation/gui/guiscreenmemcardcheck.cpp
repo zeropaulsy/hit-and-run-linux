@@ -34,6 +34,9 @@
 #ifdef RAD_GAMECUBE
 #include <main/gamecube_extras/gcmanager.h>
 #endif
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //===========================================================================
 // Global Data, Local Data, Local Classes
@@ -343,7 +346,12 @@ CGuiScreenMemCardCheck::OnMemoryCardCheckDone( radFileError errorCode,
 #endif
 
 #ifdef ENABLE_AUTOLOAD_AFTER_MEMCHECK
+#ifdef RAD_LINUX
+    // Linux port: mods' NoAutomaticSavedGameLoad hack: start at the main menu with nothing loaded
+    if( mostRecentSaveGameSlot != -1 && !shar_ModHackRequired( "NoAutomaticSavedGameLoad" ) )
+#else
     if( mostRecentSaveGameSlot != -1 )
+#endif
     {
         CGuiScreenMemoryCard::s_currentMemoryCardSlot = mostRecentSaveGameDriveIndex;
         GetMemoryCardManager()->SetCurrentDrive( static_cast<unsigned int>( mostRecentSaveGameDriveIndex ) );

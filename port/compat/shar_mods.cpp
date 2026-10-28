@@ -81,7 +81,8 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "CustomTriggerActions", "CustomBonusMissionSupport", "CustomSkinPreviewAnimations",
                                         "OverrideShaderParameters", "CustomCharacterSupport",
                                         "NoCheats", "NoWrenches", "NoHitAndRunMusic",
-                                        "NoBustedHitAndRunMeterReset", "NoFastCarReset" };
+                                        "NoBustedHitAndRunMeterReset", "NoFastCarReset",
+                                        "NoAutomaticSavedGameLoad" };
 
 void Init( void );
 

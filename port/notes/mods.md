@@ -116,7 +116,8 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   NoHitAndRunMusic (`MusicPlayer::HandleEvent` ignores the three EVENT_HIT_AND_RUN_* events; not tried in play).
   NoBustedHitAndRunMeterReset (`HitnRunManager` busted keeps mCurrHitnRun, music skips the caught sting/restart;
   the docs expect the mod to set decay 0; not tried in play). NoFastCarReset (`Vehicle::Update` skips the 200 m/s
-  ResetOnSpot).
+  ResetOnSpot). NoAutomaticSavedGameLoad (`CGuiScreenMemCardCheck::OnMemoryCardCheckDone`; checked: menu says New
+  Game).
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.
