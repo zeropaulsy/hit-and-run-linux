@@ -17,6 +17,9 @@
 //===========================================================================
 #include <cheats/cheatinputsystem.h>
 #include <cheats/cheatinputhandler.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 #include <events/eventmanager.h>
 #include <input/inputmanager.h>
@@ -358,6 +361,14 @@ void
 CheatInputSystem::ReceiveInputs( eCheatInput* cheatInputs,
                                  int numInputs )
 {
+#ifdef RAD_LINUX
+    // Linux port: mods' NoCheats hack
+    static const bool s_noCheats = shar_ModHackRequired( "NoCheats" ) != 0;
+    if( s_noCheats )
+    {
+        return;
+    }
+#endif
     int cheatIndex = CheatsDB::ConvertSequenceToIndex( cheatInputs,
                                                        numInputs );
 

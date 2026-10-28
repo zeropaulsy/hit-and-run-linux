@@ -110,6 +110,8 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   IdleAnimationWeight in `WalkerLocomotionAction::Update` (the game's no-repeat rule still turns a repeat into idle0).
   The Lisa seat offset only applies once `InCar::SequenceAction` turns bouncing on: the `incar` test option skips
   it (get out and in again). BlendModeSupport not seen in play.
+- Switch hacks (only when a mod requires them; the Mod Launcher's Settings page has no equivalent here):
+  NoCheats (`CheatInputSystem::ReceiveInputs` drops entered codes; not tried in play).
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.
