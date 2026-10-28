@@ -100,6 +100,6 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 - [x] OverrideShaderParameters: colour, float, int, vector and texture overrides by shader name (wildcards)
 - [x] Material shaders from every mod's `Shaders/` folder (earlier mods' rules win)
 - [x] CustomCharacterSupport: BlendModeSupport, IsLisa, IsMarge, IdleAnimationWeight
-- [x] Switch hacks: NoCheats
+- [x] Switch hacks: NoCheats, NoWrenches
 - [x] CustomAnimationSetSupport: accepted with no effect (undocumented; custom sets already load where scripts name one)
 - [x] Futurama: Hit & Run demo plays Level 1 with its shops and phone booth; missions m0-m4 run through (autopass)

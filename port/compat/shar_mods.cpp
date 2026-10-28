@@ -80,7 +80,7 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "CustomAnimationSetSupport",  // no-op: see port/notes/mods.md
                                         "CustomTriggerActions", "CustomBonusMissionSupport", "CustomSkinPreviewAnimations",
                                         "OverrideShaderParameters", "CustomCharacterSupport",
-                                        "NoCheats" };
+                                        "NoCheats", "NoWrenches" };
 
 void Init( void );
 
