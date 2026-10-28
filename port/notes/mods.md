@@ -121,6 +121,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   (as RAD_DEMO), no save prompts on quit / next level (`CGuiManagerInGame`), no auto-load; checked: menu and pause.
   Release builds play the boot movies when no save is loaded: for menu tests point the run dir's movies/ at an
   empty folder.
+  Unlock* hacks answer `CheatInputSystem::IsCheatEnabled` for the matching cheat (FINAL builds gate the cheats on
+  every story mission done; the hacks don't). UnlockAllMissions: checked on a new game (pause Mission Select).
+  `skipfe` enables the unlock-missions cheat itself: test from the menu.
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.

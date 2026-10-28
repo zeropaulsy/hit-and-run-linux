@@ -342,6 +342,14 @@ CheatInputSystem::SetCheatEnabled( eCheatID cheatID, bool enable )
 bool
 CheatInputSystem::IsCheatEnabled( eCheatID cheatID ) const
 {
+#ifdef RAD_LINUX
+    // Linux port: mods' Unlock* hacks act as the matching cheats, without the cheats' all-missions-done rule
+    static const bool s_unlockMissions = shar_ModHackRequired( "UnlockAllMissions" ) != 0;
+    if( cheatID == CHEAT_ID_UNLOCK_MISSIONS && s_unlockMissions )
+    {
+        return true;
+    }
+#endif
     return ((s_cheatsEnabled & (1 << cheatID)) > 0);
 }
 
