@@ -105,6 +105,7 @@
 #include <presentation/gui/guisystem.h>
 #ifdef RAD_LINUX
 #include <shar_modcars.h>
+#include <shar_mods.h>
 #endif
 
 using namespace sim;
@@ -2339,7 +2340,13 @@ void Vehicle::Update(float dt)
 
     // cap on huge impulses
     const float hugeSpeed = 200.0f; // that's about 720 kmh
+#ifdef RAD_LINUX
+    // Linux port: mods' NoFastCarReset hack lets cars go faster
+    static const bool s_noFastCarReset = shar_ModHackRequired("NoFastCarReset") != 0;
+    if(this->mSpeed > hugeSpeed && !s_noFastCarReset)
+#else
     if(this->mSpeed > hugeSpeed)
+#endif
     {
         // this is really fucking bad
         //rAssertMsg(0,"tell greg how you did this");

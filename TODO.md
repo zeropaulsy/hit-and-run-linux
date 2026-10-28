@@ -34,7 +34,7 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
   - [ ] configured: BugFixes, CustomCollectorCardSupport, CustomDutchAngleNPCCameraTilt, CustomHeadlights,
     CustomMissionSkipFailCounts, CustomRewardQuestSupport, CustomVideoResolutionSupport, DrunkCamera,
     IncreasedRewardLimits, PerLevelCoinCount, RefractionShaderSupport, WalkerCameraDataSupport
-  - [ ] switches: NoAutomaticSavedGameLoad, NoBonusGame, NoFastCarReset,
+  - [ ] switches: NoAutomaticSavedGameLoad, NoBonusGame,
     NoInactiveDynamicObjectCollisions, NoMissionStartCameras, NoNeitherRoadArrowProcessing,
     NoSavedGames, ReplayableBonusMissions, SkippableFMVs, UnlockAllMissions, UnlockAllOutfits,
     UnlockAllVehicles, UnlockBonusGame
