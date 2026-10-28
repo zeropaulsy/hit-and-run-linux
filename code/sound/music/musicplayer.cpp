@@ -839,6 +839,13 @@ void MusicPlayer::HandleEvent( EventEnum id, void* pEventData )
             break;
 
         case EVENT_HIT_AND_RUN_CAUGHT:
+#ifdef RAD_LINUX
+            // Linux port: mods' NoBustedHitAndRunMeterReset hack: the Hit & Run music carries on
+            if( shar_ModHackRequired( "NoBustedHitAndRunMeterReset" ) )
+            {
+                break;
+            }
+#endif
             TriggerMusicEvent( MEVENT_HIT_AND_RUN_CAUGHT );
             s_HitAndRun = false;
             // begin counter -- (x) ticks until startMusic call...

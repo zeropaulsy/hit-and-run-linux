@@ -52,6 +52,9 @@
 #ifndef RAD_RELEASE
 #include <raddebug.hpp>
 #include <raddebugwatch.hpp>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 #endif
 //******************************************************************************
 //
@@ -635,6 +638,10 @@ void HitnRunManager::HandleEvent( EventEnum id, void* pEventData )
                     {
                         chaseManager->DisableAllActiveVehicleAIs();
                         chaseManager->MarkAllVehiclesForDeletion();
+#ifdef RAD_LINUX
+                        // Linux port: mods' NoBustedHitAndRunMeterReset hack keeps the meter where it is
+                        if( !shar_ModHackRequired( "NoBustedHitAndRunMeterReset" ) )
+#endif
                         mCurrHitnRun = MIN_HITNRUN;
                         mSpawnOn = false;
                         mChaseOn = false;
