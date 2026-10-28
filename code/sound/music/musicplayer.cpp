@@ -38,6 +38,7 @@
 #include <interiors/interiormanager.h>
 
 #include <shar_modaudio.h>
+#include <shar_mods.h>
 
 #include <radload/radload.hpp>
 
@@ -611,6 +612,16 @@ void MusicPlayer::HandleEvent( EventEnum id, void* pEventData )
             s_HitAndRun = false;
     }
     */
+
+#ifdef RAD_LINUX
+    // Linux port: mods' NoHitAndRunMusic hack: the music playing carries on through a Hit & Run
+    static const bool s_noHitAndRunMusic = shar_ModHackRequired( "NoHitAndRunMusic" ) != 0;
+    if( s_noHitAndRunMusic &&
+        ( id == EVENT_HIT_AND_RUN_START || id == EVENT_HIT_AND_RUN_CAUGHT || id == EVENT_HIT_AND_RUN_EVADED ) )
+    {
+        return;
+    }
+#endif
 
     switch( id )
     {
