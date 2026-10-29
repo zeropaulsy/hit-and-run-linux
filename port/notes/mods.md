@@ -170,6 +170,10 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   `pglRefractionMat` (REFC colour, REFI index, REFB kept unused) + `PGL_PROGRAM_REFRACTION`: screen copy
   (`pglPipeline::CaptureScreen`, blit of the bound draw FBO, first refract draw per frame, unit 2) sampled at
   gl_FragCoord + (n.x, -n.y) * REFI * height/448, opaque, as ps2RefractionShader. Tested by mapping spheremap to it.
+- WalkerCameraDataSupport: 0x3000101 chunks were loaded (win32platform.cpp handler) into the current inventory
+  section: level.mfk loads before `SuperCamCentral::Init` adds CameraInventorySection; `CameraDataLoader::Load` adds
+  it first. `WalkerCam::SetTarget` then takes min/max magnitude, start magnitude, elevation, target offset (it set
+  only max twice + elevation). Characters' ID is 9 (CharacterEnum::INVALID). SHAR_MOD_LOG prints the data used.
 - BugFixes (`shar_ModBugFix(section, key, default)`: BugFixes.ini, else the launcher's defaults: on, off for its
   -testing ones and RoadArrowPath...): Physics baby van = clone copies `mTimeComputeInertiaMatrix`
   (articulatedphysicsobject.cpp; else the port's 0); NoAirVentAudio = `EventLocator::OnTrigger` drops BOUNCEPAD

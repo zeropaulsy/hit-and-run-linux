@@ -27,6 +27,9 @@
 #include <camera/supercamcentral.h>
 
 #include <memory/srrmemory.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //******************************************************************************
 //
@@ -135,6 +138,14 @@ MEMTRACK_PUSH_GROUP( "Camera Data Loading" );
         if ( camData )
         {
             p3d::inventory->PushSection();
+#ifdef RAD_LINUX
+            // Linux port: mods' WalkerCameraDataSupport: level.mfk's files load before SuperCamCentral::Init adds
+            // the section (the chunk went to the current one, where WalkerCam::SetTarget does not look)
+            if ( shar_ModHackRequired( "WalkerCameraDataSupport" ) )
+            {
+                p3d::inventory->AddSection( SuperCamCentral::CAMERA_INVENTORY_SECTION );
+            }
+#endif
             p3d::inventory->SelectSection( SuperCamCentral::CAMERA_INVENTORY_SECTION );
             //const tName& name = camData->GetNameObject();
             //p3d::inventory->find( name );

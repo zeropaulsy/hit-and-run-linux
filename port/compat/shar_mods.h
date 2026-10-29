@@ -15,7 +15,8 @@
  * CustomMissionSkipFailCounts (guiscreenmissionover.cpp), CustomVideoResolutionSupport (binkrenderstrategy.cpp);
  * DrunkCamera (supercam.cpp), IncreasedRewardLimits (rewardsmanager.cpp, guiscreenrewards.cpp,
  * charactersheetmanager.cpp), PerLevelCoinCount (charactersheetmanager.cpp),
- * RefractionShaderSupport (pddi/gl gldev.cpp, glmat.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
+ * RefractionShaderSupport (pddi/gl gldev.cpp, glmat.cpp), WalkerCameraDataSupport (cameradataloader.cpp,
+ * walkercam.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
  * NoHitAndRunMusic, NoBustedHitAndRunMeterReset, NoFastCarReset, NoAutomaticSavedGameLoad,
  * NoSavedGames, UnlockAllMissions, UnlockAllVehicles, UnlockAllOutfits, UnlockBonusGame,
  * NoBonusGame, NoMissionStartCameras, NoNeitherRoadArrowProcessing,

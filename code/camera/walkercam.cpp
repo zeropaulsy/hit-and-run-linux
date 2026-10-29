@@ -51,6 +51,7 @@
 #include <choreo/utility.hpp>
 #ifdef RAD_LINUX
 #include <shar_moddutch.h>
+#include <shar_mods.h>
 #endif
 
 
@@ -471,9 +472,30 @@ void WalkerCam::SetTarget( ISuperCamTarget* target )
         if ( wcD->mID == target->GetID() )
         {
             //Load the data.
+#ifdef RAD_LINUX
+            // Linux port: mods' WalkerCameraDataSupport: all of it (the minimum was never set, the offset and the
+            // starting distance not taken)
+            if ( shar_ModHackRequired( "WalkerCameraDataSupport" ) )
+            {
+                mData.SetMinMagnitude( wcD->mMinMagnitude );
+                mData.SetMaxMagnitude( wcD->mMaxMagnitude );
+                mData.SetMagnitude( ( wcD->mMaxMagnitude - wcD->mMinMagnitude ) / 2.0f + wcD->mMinMagnitude );
+                mData.SetElevation( wcD->mElevation );
+                mData.SetTargetOffset( wcD->mTargetOffset );
+                if ( getenv( "SHAR_MOD_LOG" ) )
+                {
+                    fprintf( stderr, "mods: walker camera data %u: magnitude %g-%g elevation %g offset %g %g %g\n",
+                                    wcD->mID, wcD->mMinMagnitude, wcD->mMaxMagnitude, wcD->mElevation,
+                                    wcD->mTargetOffset.x, wcD->mTargetOffset.y, wcD->mTargetOffset.z );
+                }
+            }
+            else
+#endif
+            {
             mData.SetMaxMagnitude( wcD->mMaxMagnitude);
             mData.SetMaxMagnitude( wcD->mMaxMagnitude);
             mData.SetElevation( wcD->mElevation );
+            }
 
             p3d::inventory->Remove( wcD );
 
