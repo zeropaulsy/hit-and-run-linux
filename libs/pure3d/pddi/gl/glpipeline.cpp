@@ -106,7 +106,7 @@ GLint pglProgram::Uniform(const char* name) const
 // shininess > 0 (SPECULARENABLE), point lights cut off at their range. Eye space here is OpenGL's (z negated, see
 // pglContext::LoadHardwareMatrix): x and y, and so lighting and the reflection vector's x and y, are D3D's.
 // Fog distance is |eye z|, as D3D's linear table fog. Each program's source is compiled with a header defining
-// REFLECTION 0 or 1.
+// REFLECTION and REFRACTION 0 or 1.
 static const char* s_vertexDeclarations =
     "in vec3 aPosition;\n"
     "in vec3 aNormal;\n"
@@ -143,6 +143,8 @@ static const char* s_vertexDeclarations =
     "}\n"
     "out vec3 vNormal;\n"
     "out vec3 vEyePosition;\n"
+    "#elif REFRACTION\n"
+    "out vec3 vNormal;\n"
     "#endif\n"
     "out float vFogDistance;\n";
 
@@ -162,8 +164,10 @@ static const char* s_vertexMain =
     "    float nLength = length(n);\n"
     "    if(nLength > 0.0)\n"
     "        n /= nLength;\n"
-    "#if CUSTOM\n"
+    "#if CUSTOM || REFRACTION\n"
     "    vNormal = n;\n"
+    "#endif\n"
+    "#if CUSTOM\n"
     "    vEyePosition = v;\n"
     "#endif\n"
     "#if REFLECTION\n"
@@ -222,6 +226,13 @@ static const char* s_fragmentPrelude =
     "uniform sampler2D uReflection;\n"
     "uniform vec4 uEnvBlend;\n"
     "#endif\n"
+    "#if REFRACTION\n"
+    "in vec3 vNormal;\n"
+    "uniform sampler2D uScreen;\n"
+    "uniform vec4 uRefractColour;\n"
+    "uniform float uRefractIndex;\n"
+    "uniform vec2 uResolution;\n"
+    "#endif\n"
     "#if CUSTOM\n"
     "in vec3 vNormal;\n"
     "in vec3 vEyePosition;\n"
@@ -272,6 +283,12 @@ static const char* s_fragmentPrelude =
     "// the material as the game draws it, before fog\n"
     "vec4 StandardColour()\n"
     "{\n"
+    "#if REFRACTION\n"
+    "    // the PS2's: the screen behind, its position moved by the normal (screen y down there), opaque\n"
+    "    vec2 offset = vec2(vNormal.x, -vNormal.y) * uRefractIndex * (uResolution.y / 448.0);\n"
+    "    vec2 uv = clamp((gl_FragCoord.xy + offset) / uResolution, vec2(0.0), vec2(1.0));\n"
+    "    return vec4(texture(uScreen, uv).rgb * uRefractColour.rgb, 1.0);\n"
+    "#else\n"
     "    vec4 c = vColour;\n"
     "    if(uTextured)\n"
     "        c *= SampleBase();\n"
@@ -283,6 +300,7 @@ static const char* s_fragmentPrelude =
     "#endif\n"
     "    c.rgb = min(c.rgb + vSpecular, 1.0);\n"
     "    return c;\n"
+    "#endif\n"
     "}\n"
     "#if CUSTOM\n"
     "// the base texture (white without one)\n"
@@ -368,8 +386,9 @@ static const char* s_customFragmentMain =
 
 static const struct { const char* name; const char* header; } s_programs[PGL_PROGRAM_COUNT] =
 {
-    { "simple",     "#version 330 core\n#define REFLECTION 0\n#define CUSTOM 0\n#define MATERIAL_VERTEX 0\n" },
-    { "reflection", "#version 330 core\n#define REFLECTION 1\n#define CUSTOM 0\n#define MATERIAL_VERTEX 0\n" },
+    { "simple",     "#version 330 core\n#define REFLECTION 0\n#define REFRACTION 0\n#define CUSTOM 0\n#define MATERIAL_VERTEX 0\n" },
+    { "reflection", "#version 330 core\n#define REFLECTION 1\n#define REFRACTION 0\n#define CUSTOM 0\n#define MATERIAL_VERTEX 0\n" },
+    { "refraction", "#version 330 core\n#define REFLECTION 0\n#define REFRACTION 1\n#define CUSTOM 0\n#define MATERIAL_VERTEX 0\n" },
 };
 
 static const char* s_uniformNames[] =
@@ -379,6 +398,7 @@ static const char* s_uniformNames[] =
     "uGlobalAmbient", "uLightCount", "uLightPosition", "uLightColour", "uLightAtten", "uLightRange",
     "uTextured", "uTexture", "uFog", "uFogColour", "uFogEnd", "uFogScale", "uAlphaCompare", "uAlphaRef",
     "uReflectionTextured", "uReflection", "uEnvBlend", "uAlphaToCoverage", "uTime", "uResolution", "uMipAlpha",
+    "uScreen", "uRefractColour", "uRefractIndex",
 };
 
 static void Identity(float* m)
@@ -405,6 +425,9 @@ pglPipeline::pglPipeline()
     alphaToCoverageState = -1;
     bound = NULL;
     vao = 0;
+    screenTexture = screenFbo = 0;
+    screenWidth = screenHeight = 0;
+    screenFrame = 0;
     streamVerts = NULL;
     streamCount = streamCapacity = 0;
     streamPrim = GL_TRIANGLES;
@@ -506,6 +529,7 @@ bool pglPipeline::BuildProgram(Program& p, const char* name, const char* header,
         p.uniform[u] = p.program.Uniform(s_uniformNames[u]);
     glUniform1i(p.uniform[U_TEXTURE], 0);
     glUniform1i(p.uniform[U_REFLECTION], 1);
+    glUniform1i(p.uniform[U_SCREEN], 2);
     for(int g = 0; g < GROUP_COUNT; g++)
         p.uploaded[g] = version[g] - 1;     // everything to upload
     p.timeFrame = frameCount - 1;
@@ -537,10 +561,10 @@ int pglPipeline::BuildCustomProgram(const char* name, const char* source)
     bool vertexPart = strstr(source, "MaterialVertex") != NULL;
     char vertexHeader[160], fragmentHeader[160];
     snprintf(vertexHeader, sizeof(vertexHeader),
-             "#version 330 core\n#define REFLECTION 1\n#define CUSTOM 1\n#define MATERIAL_VERTEX %d\n#define VERTEX_STAGE 1\n",
+             "#version 330 core\n#define REFLECTION 1\n#define REFRACTION 0\n#define CUSTOM 1\n#define MATERIAL_VERTEX %d\n#define VERTEX_STAGE 1\n",
              vertexPart ? 1 : 0);
     snprintf(fragmentHeader, sizeof(fragmentHeader),
-             "#version 330 core\n#define REFLECTION 1\n#define CUSTOM 1\n#define FRAGMENT_STAGE 1\n");
+             "#version 330 core\n#define REFLECTION 1\n#define REFRACTION 0\n#define CUSTOM 1\n#define FRAGMENT_STAGE 1\n");
     if(!BuildProgram(p, name, vertexHeader, source, true, fragmentHeader, vertexPart ? source : NULL))
         return -1;
     p.cull = CullDirective(source);
@@ -729,8 +753,61 @@ void pglPipeline::UploadUniforms(Program& p)
             glUniform1i(u[U_REFLECTIONTEXTURED], material.reflectionTextured);
             glUniform4fv(u[U_ENVBLEND], 1, material.envBlend);
         }
+        if(u[U_REFRACTINDEX] >= 0)
+        {
+            glUniform4fv(u[U_REFRACTCOLOUR], 1, material.refractColour);
+            glUniform1f(u[U_REFRACTINDEX], material.refractIndex);
+        }
         p.uploaded[GROUP_MATERIAL] = version[GROUP_MATERIAL];
     }
+}
+
+void pglPipeline::CaptureScreen()
+{
+    int width = (int)frameWidth, height = (int)frameHeight;
+    if(screenFrame != frameCount || screenTexture == 0)
+    {
+        screenFrame = frameCount;
+        glActiveTexture(GL_TEXTURE2);
+        if(screenTexture == 0)
+        {
+            glGenTextures(1, &screenTexture);
+            glGenFramebuffers(1, &screenFbo);
+        }
+        GLint drawFbo = 0, readFbo = 0;
+        glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFbo);
+        glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &readFbo);
+        if(width != screenWidth || height != screenHeight)
+        {
+            screenWidth = width;
+            screenHeight = height;
+            glBindTexture(GL_TEXTURE_2D, screenTexture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, screenFbo);
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, screenTexture, 0);
+        }
+        // the frame so far (resolved, when multisampled); blits ignore write masks but not the scissor
+        GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
+        if(scissor)
+            glDisable(GL_SCISSOR_TEST);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, drawFbo);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, screenFbo);
+        glBlitFramebuffer(0, 0, width, height, 0, 0, width, height, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawFbo);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, readFbo);
+        if(scissor)
+            glEnable(GL_SCISSOR_TEST);
+    }
+    else
+    {
+        glActiveTexture(GL_TEXTURE2);
+    }
+    glBindTexture(GL_TEXTURE_2D, screenTexture);
+    glActiveTexture(GL_TEXTURE0);
 }
 
 void pglPipeline::Prepare()

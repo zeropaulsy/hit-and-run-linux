@@ -166,6 +166,10 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   argument): wallet per level, [SharedWallet] Level= groups (each section one wallet). Only when required (the
   launcher's settings page toggle: none). Saved: the current level's wallet in mNumberOfTokens, all in the sidecar
   (`wallet L n`); a save without one: its coins go to its level's wallet. Bonus tracks: the story level's wallet.
+- RefractionShaderSupport: "refract" installed (`pglInstallShaders`) only when required (D3D8 drew it as simple).
+  `pglRefractionMat` (REFC colour, REFI index, REFB kept unused) + `PGL_PROGRAM_REFRACTION`: screen copy
+  (`pglPipeline::CaptureScreen`, blit of the bound draw FBO, first refract draw per frame, unit 2) sampled at
+  gl_FragCoord + (n.x, -n.y) * REFI * height/448, opaque, as ps2RefractionShader. Tested by mapping spheremap to it.
 - BugFixes (`shar_ModBugFix(section, key, default)`: BugFixes.ini, else the launcher's defaults: on, off for its
   -testing ones and RoadArrowPath...): Physics baby van = clone copies `mTimeComputeInertiaMatrix`
   (articulatedphysicsobject.cpp; else the port's 0); NoAirVentAudio = `EventLocator::OnTrigger` drops BOUNCEPAD

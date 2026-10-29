@@ -76,6 +76,22 @@ pddiShadeTextureTable pglReflectionMat::textureTable[] =
     {PDDI_SP_NULL , NULL}
 };
 
+pddiShadeColourTable pglRefractionMat::colourTable[] = 
+{
+    PGL_STDSHADERPARAM_COLOUR,
+    {PDDI_SP_REFRACTCOLOUR , SHADE_COLOUR(&pglRefractionMat::SetRefractionColour)},
+    {PDDI_SP_NULL , NULL}
+};
+
+pddiShadeFloatTable pglRefractionMat::floatTable[] = 
+{
+    {PDDI_SP_SHININESS , SHADE_FLOAT(&pglMat::SetShininess)},
+    {PDDI_SP_ALPHACOMPARE_THRESHOLD , SHADE_FLOAT(&pglMat::SetAlphaRef)},
+    {PDDI_SP_REFRACTINDEX , SHADE_FLOAT(&pglRefractionMat::SetRefractionIndex)},
+    {PDDI_SP_REFRACTBLEND , SHADE_FLOAT(&pglRefractionMat::SetRefractionBlend)},
+    {PDDI_SP_NULL , NULL}
+};
+
 GLenum filterMagTable[5] =
 {
     GL_NEAREST,
@@ -427,6 +443,50 @@ void pglReflectionMat::SetDevPass(unsigned pass)
     FillGLColour(envBlend, m.envBlend);
 
     context->GetDisplay()->GetPipeline()->SetMaterial(m);
+}
+
+//-------------------------------------------------------------------
+// refraction (ps2RefractionShader)
+//-------------------------------------------------------------------
+
+pglRefractionMat::pglRefractionMat(pglContext* c) : pglMat(c, PGL_PROGRAM_REFRACTION)
+{
+    refractColour.Set(255,255,255,255);     // the PS2's defaults
+    refractIndex = 10.0f;
+    refractBlend = 0.0f;
+}
+
+const char* pglRefractionMat::GetType(void)
+{
+    static char type[] = "refract";
+    return type;
+}
+
+void pglRefractionMat::SetRefractionColour(pddiColour c)
+{
+    refractColour = c;
+}
+
+void pglRefractionMat::SetRefractionIndex(float index)
+{
+    refractIndex = index;
+}
+
+void pglRefractionMat::SetRefractionBlend(float blend)
+{
+    refractBlend = blend;
+}
+
+void pglRefractionMat::SetDevPass(unsigned pass)
+{
+    pglPipeline::Material m;
+    SetupStandard(m, pass);
+    FillGLColour(refractColour, m.refractColour);
+    m.refractIndex = refractIndex;
+
+    pglPipeline* pipeline = context->GetDisplay()->GetPipeline();
+    pipeline->CaptureScreen();
+    pipeline->SetMaterial(m);
 }
 
 //-------------------------------------------------------------------

@@ -92,7 +92,7 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "BugFixes", "CustomCollectorCardSupport", "CustomDutchAngleNPCCameraTilt",
                                         "CustomHeadlights", "CustomMissionSkipFailCounts",
                                         "CustomVideoResolutionSupport", "DrunkCamera", "IncreasedRewardLimits",
-                                        "PerLevelCoinCount" };
+                                        "PerLevelCoinCount", "RefractionShaderSupport" };
 
 void Init( void );
 

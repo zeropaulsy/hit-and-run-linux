@@ -138,6 +138,32 @@ private:
     pddiColour envBlend;
 };
 
+// "refract" (the PS2 pddi's ps2RefractionShader; installed for mods' RefractionShaderSupport): the frame drawn so
+// far, looked up where the surface's normal bends it to, times the refraction colour; the base texture is unused
+class pglRefractionMat : public pglMat
+{
+public:
+    pglRefractionMat(pglContext*);
+
+    static pddiShadeColourTable colourTable[];
+    static pddiShadeFloatTable floatTable[];
+
+    const char* GetType(void);
+    pddiShadeColourTable* GetColourTable(void) { return colourTable;}
+    pddiShadeFloatTable*  GetFloatTable(void)  { return floatTable;}
+
+    void SetRefractionColour(pddiColour colour);
+    void SetRefractionIndex(float index);
+    void SetRefractionBlend(float blend);   // the PS2's simple-shader fallback only: kept, unused
+
+    void SetDevPass(unsigned);
+
+private:
+    pddiColour refractColour;
+    float refractIndex;
+    float refractBlend;
+};
+
 // "error" (d3dErrorShader): drawn for shaders a file names but does not contain; lit, pink emissive, no texture
 class pglErrorMat : public pglMat
 {

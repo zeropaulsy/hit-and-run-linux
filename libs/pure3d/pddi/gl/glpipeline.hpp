@@ -64,6 +64,8 @@ enum pglProgramType
 {
     PGL_PROGRAM_SIMPLE,         // "simple": diffuse * texture
     PGL_PROGRAM_REFLECTION,     // "environment", "spheremap": diffuse * texture + envBlend * reflection map
+    PGL_PROGRAM_REFRACTION,     // "refract" (the PS2 pddi's; mods' RefractionShaderSupport): the frame drawn so far,
+                                // looked up offset by the normal, times the refraction colour
     PGL_PROGRAM_COUNT
 };
 
@@ -87,6 +89,8 @@ public:
         float emissive[4];
         float shininess;            // 0: no specular, as D3D8 (SPECULARENABLE = shininess > 0)
         float envBlend[4];          // reflection map multiplier
+        float refractColour[4];     // refraction: multiplier of the screen behind
+        float refractIndex;         // refraction: offset by the eye-space normal, in pixels of a 448 line screen
     };
 
     pglPipeline();
@@ -141,6 +145,10 @@ public:
     // not blend have their alpha raised with distance so they keep their coverage (fences, foliage would thin out)
     void SetTextureFiltering(bool mipmaps, float anisotropy);
 
+    // refraction: copies the frame drawn so far, on the frame's first call (later refracting draws see the same copy,
+    // as on the PS2), and binds the copy to texture unit 2
+    void CaptureScreen();
+
     // after GL calls outside the pipeline that change the program or vertex array object (the gamma pass)
     void Unbind() { bound = 0; }
 
@@ -164,6 +172,7 @@ private:
         U_GLOBALAMBIENT, U_LIGHTCOUNT, U_LIGHTPOSITION, U_LIGHTCOLOUR, U_LIGHTATTEN, U_LIGHTRANGE,
         U_TEXTURED, U_TEXTURE, U_FOG, U_FOGCOLOUR, U_FOGEND, U_FOGSCALE, U_ALPHACOMPARE, U_ALPHAREF,
         U_REFLECTIONTEXTURED, U_REFLECTION, U_ENVBLEND, U_ALPHATOCOVERAGE, U_TIME, U_RESOLUTION, U_MIPALPHA,
+        U_SCREEN, U_REFRACTCOLOUR, U_REFRACTINDEX,
         U_COUNT
     };
 
@@ -193,6 +202,11 @@ private:
     Program* bound;             // the program in use, NULL when unknown
     unsigned version[GROUP_COUNT];
     GLuint vao;
+
+    // CaptureScreen's copy
+    GLuint screenTexture, screenFbo;
+    int screenWidth, screenHeight;
+    unsigned screenFrame;
 
     // streamed vertices: CPU staging, then a ring buffer on the GPU
     pglVertex* streamVerts;

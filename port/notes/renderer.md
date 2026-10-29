@@ -14,7 +14,7 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
   EMISSIVEALPHA = material alpha (fades), D3D8 blend table incl. subtract (shadow volumes). Linear fog on |eye z|.
 - Shaders in retail data: simple, spheremap (car paint), environment. `gldev.cpp` maps names like
   `pddiBaseShader::InstallShader` (unknown -> simple). Reflection = `d3dReflShader` (envBlend set per frame by
-  geometryvehicle.cpp). Not ported (unused): lightmap, layered, projtex, pointsprite, toon, multi-CBV, flat shading.
+  geometryvehicle.cpp). refract (PS2's) only for mods' RefractionShaderSupport (mods.md). Not ported (unused): lightmap, layered, projtex, pointsprite, toon, multi-CBV, flat shading.
 - The game renders with culling OFF (renderflow.cpp) and art winding is inconsistent.
 - Fixed D3D8 mismatches: `SetColourWrite` missing; glClear honours write masks, D3D Clear doesn't (`pglContext::Clear`
   opens them); `alphaRef` uninitialised + `PDDI_SP_ALPHACOMPARE_THRESHOLD` (default 0.5) -> fences vanished;
