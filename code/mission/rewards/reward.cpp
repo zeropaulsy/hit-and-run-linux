@@ -3,12 +3,18 @@
 #include <mission/charactersheet/charactersheetmanager.h>
 #include <p3d/entity.hpp>
 #include<string.h>
+#ifdef RAD_LINUX
+#include <stdlib.h>
+#endif
 
     Reward::Reward ( )
         :   mUID( 0 ),
             mLevel( -1 ),
             mRepairCost( 10 )
     {
+#ifdef RAD_LINUX
+        mModQuestArg[ 0 ] = '\0';
+#endif
         mRewardType = eNULL;
         mQuestType = eBlank;
         strcpy(mName,"NULL");
@@ -19,6 +25,9 @@
         :   mLevel( level ),
             mRepairCost( 10 )
     {
+#ifdef RAD_LINUX
+        mModQuestArg[ 0 ] = '\0';
+#endif
         mUID = tEntity::MakeUID( name );
         strncpy(mName,name,16);
         mName[15] = '\0';
@@ -58,6 +67,19 @@ void Reward::SetFilename(char* file)
         mName[63] = '\0';
     }
 
+
+#ifdef RAD_LINUX
+void Reward::SetModQuestArg( const char* arg )
+{
+    strncpy( mModQuestArg, arg != NULL ? arg : "", sizeof( mModQuestArg ) - 1 );
+    mModQuestArg[ sizeof( mModQuestArg ) - 1 ] = '\0';
+}
+
+int Reward::GetModQuestNumber() const
+{
+    return atoi( mModQuestArg );
+}
+#endif
 
 void Reward::UnlockReward()
 {

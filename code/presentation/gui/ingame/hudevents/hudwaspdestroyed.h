@@ -27,6 +27,9 @@ namespace Scrooby
     class Page;
     class Text;
 }
+#ifdef RAD_LINUX
+class UnicodeString;
+#endif
 
 //===========================================================================
 // Interface Definitions
@@ -43,6 +46,12 @@ public:
     virtual void Update( float elapsedTime );
 
     void SetGagInsteadOfWasp( bool isGagInsteadOfWasp );
+
+#ifdef RAD_LINUX
+    // Linux port: Mod Launcher CustomRewardQuestSupport's quest complete message (replaces a wasp / gag one)
+    void StartModMessage( UnicodeString& text );
+    bool IsShowingModMessage() const { return IsActive() && m_isModMessage; }
+#endif
 
 private:
     enum eSubState
@@ -61,6 +70,11 @@ private:
     // re-use this event handler for gags
     //
     bool m_isGagInsteadOfWasp : 1;
+
+#ifdef RAD_LINUX
+    bool m_isModMessage;
+    int m_modMessageIndex;  // the hard-coded string added to WaspsComplete for it, -1: none
+#endif
 
 };
 

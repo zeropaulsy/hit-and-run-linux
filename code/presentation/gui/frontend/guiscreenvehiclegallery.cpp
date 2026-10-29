@@ -693,10 +693,18 @@ CGuiScreenVehicleGallery::Load2DImages()
 
     // load earnable reward and default vehicles
     //
+#ifdef RAD_LINUX
+    // mods' quest rewards (CustomRewardQuestSupport) included
+    for( int i = 0; i < GetRewardsManager()->GetNumRewards( pScreen->GetCurrentLevel() ); i++ )
+    {
+        pReward = GetRewardsManager()->GetRewardAt( pScreen->GetCurrentLevel(), i );
+        if( pReward != NULL && m_numSelections < MAX_NUM_VEHICLES_PER_LEVEL )
+#else
     for( int i = Reward::eBlank + 1; i < Reward::NUM_QUESTS; i++ )
     {
         pReward = GetRewardsManager()->GetReward( pScreen->GetCurrentLevel(), static_cast<Reward::eQuestType>( i ) );
         if( pReward != NULL )
+#endif
         {
             if( pReward->GetRewardType() == Reward::ALT_PLAYERCAR )
             {

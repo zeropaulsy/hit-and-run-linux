@@ -53,6 +53,7 @@ LINUX_EXTRA = {
              "code/mission/objectives/modobjectives.cpp",
              "code/mission/conditions/modconditions.cpp",
              "code/mission/charactersheet/modstatstotals.cpp",      # CustomStatsTotals
+             "code/mission/rewards/modrewardquests.cpp",            # CustomRewardQuestSupport
              "code/meta/modtriggeractions.cpp"],                    # CustomTriggerActions
     "radmovie": ["libs/radmovie/src/linux/binkffmpeg.cpp",      # the Bink SDK subset radmovie uses, on FFmpeg
                  "libs/radmovie/src/linux/binkvideotexture.cpp"], # mods' VideoTextureSupport

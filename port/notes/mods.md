@@ -184,6 +184,17 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   section: level.mfk loads before `SuperCamCentral::Init` adds CameraInventorySection; `CameraDataLoader::Load` adds
   it first. `WalkerCam::SetTarget` then takes min/max magnitude, start magnitude, elevation, target offset (it set
   only max twice + elevation). Characters' ID is 9 (CharacterEnum::INVALID). SHAR_MOD_LOG prints the data used.
+- CustomRewardQuestSupport (`code/mission/rewards/modrewardquests.cpp`): BindReward keeps every binding
+  (`RewardsManager::BindModReward`: first of a game type fills the slot, the rest and the new types are mod rewards;
+  enumerate with `GetNumRewards`/`GetRewardAt`, used by booth, gallery, bonus-game cars, CustomStatsTotals, shops).
+  New types after `Reward::NUM_QUESTS`. With the hack the game's own slot unlocks are skipped: `ModRewardQuests::Synch`
+  (UpdateRewardsManager, save loaded) sets every reward from the sheet; `Update` (MissionManager::Update) unlocks
+  quests done, relocks coins, queues the HUD message (HudWaspDestroyed, extra hard-coded string; a wasp/gag message
+  gives way). getin polls the player's car (incar/scripts put players in without an event); doorbell =
+  EVENT_DING_DONG (locator name after DB_); H&R counts from the HitnRunManager events. Wager time: best < time.
+  Sidecar lines `questcounts`, `questdone`. Skin shop: the level's quest skins, Price = COMPLETE_QUEST..., ToPurchase
+  extra string TO_UNLOCK. `SHAR_MOD_LOG=1` logs unlocks. Checked: coins/defaultcar/getin unlocks + messages (custom
+  QUEST_COMPLETE_<NAME>), booth list, skin shop texts, sidecar write/read (gdb).
 - BugFixes (`shar_ModBugFix(section, key, default)`: BugFixes.ini, else the launcher's defaults: on, off for its
   -testing ones and RoadArrowPath...): Physics baby van = clone copies `mTimeComputeInertiaMatrix`
   (articulatedphysicsobject.cpp; else the port's 0); NoAirVentAudio = `EventLocator::OnTrigger` drops BOUNCEPAD

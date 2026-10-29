@@ -30,9 +30,8 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
 
 #### Hacks not implemented (all required by the Futurama demo)
 - [ ] **HoverCarRefraction**: a mod (not a hack) the Futurama demo lists as required
-- [ ] The Mod Launcher's other mod-requirable hacks (docs' All Hacks page, 1.27), none of the test mods uses:
-  - [ ] configured:
-    CustomRewardQuestSupport (large: multi-reward quests, 11 new types, save counters, booth/shop text)
+- [ ] CustomRewardQuestSupport, not play-tested: hitandrun / evaded / busted, doorbell, mission, wager, cards /
+  streetrace by number, the phone booth's CompleteQuest text (needs a mod's ingame.p3d)
 
 #### Partly done
 - [ ] **AdditionalScriptFunctionality** (`code/mission/modscript.cpp`): every command registered (unimplemented ones log

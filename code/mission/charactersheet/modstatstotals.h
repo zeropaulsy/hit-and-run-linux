@@ -32,7 +32,7 @@ namespace ModStatsTotals
     int  Gags( int level );
     int  Skins( int level );        // clothing on sale (interior sellers)
     int  Cars( int level );         // earnable + purchasable cars, without the default car (the stats screens' total)
-    int  DefaultCars( int level );  // 1 if the level's default car is a car reward (the scrapbook's vehicle total adds it)
+    int  DefaultCars( int level );  // the level's default car rewards that are cars (the scrapbook's vehicle total adds them)
 
     // completion percentages (0-100) over the totals above, totals of 0 left out
     float PercentLevelCompleted( int level );

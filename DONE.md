@@ -119,6 +119,8 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 - [x] FLACSupport: x.flac serves x.rsd, like OggVorbisSupport
 - [x] VideoTextureSupport: Bink videos (virtual paths) as looping shader textures
 - [x] HackSupport: OverrideTexture; car camera data reloaded with the car (mods loaded)
+- [x] CustomRewardQuestSupport: every binding kept, the 11 new quest types, unlock messages, booth/shop texts, saved
+  progress in the sidecar
 - [x] BugFixes: physics (baby van), air vent audio, wasp collision, stuck lights, steering animations, character
   rotations, HUD coin depth, phone booth camera change, road arrow path size, car deleted during .con load; coin
   count and Unlock All Cameras overflows fixed always; the rest Windows-only, already fixed or not reproduced

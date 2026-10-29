@@ -567,6 +567,7 @@ add_executable(srr2
   code/mission/objectives/modobjectives.cpp
   code/mission/conditions/modconditions.cpp
   code/mission/charactersheet/modstatstotals.cpp
+  code/mission/rewards/modrewardquests.cpp
   code/meta/modtriggeractions.cpp
 )
 target_include_directories(srr2 PRIVATE libs code libs/radcore/inc libs/radmovie/inc libs/radsound/inc libs/radscript/inc libs/radmusic/inc libs/pure3d libs/scrooby/inc libs/scrooby/src libs/radmath libs/sim libs/poser/inc libs/choreo/inc libs/radcontent/inc libs/radcontent)

@@ -1524,6 +1524,12 @@ CGuiScreenMiniMenu::AddRewardVehicle( Reward* pReward )
 //        GetCheatInputSystem()->IsCheatEnabled( CHEAT_ID_UNLOCK_CARDS ) ||
         GetCheatInputSystem()->IsCheatEnabled( CHEAT_ID_UNLOCK_VEHICLES ) )
     {
+#ifdef RAD_LINUX
+        if( m_numUnlockedVehicles >= MAX_NUM_VEHICLES )
+        {
+            return;     // mods with more rewards
+        }
+#endif
         rAssert( m_numUnlockedVehicles < MAX_NUM_VEHICLES );
 
         m_unlockedVehicles[ m_numUnlockedVehicles ] = pReward;
@@ -1538,9 +1544,16 @@ CGuiScreenMiniMenu::PrepareVehicleSelections()
     {
         Reward* pReward = NULL;
 
+#ifdef RAD_LINUX
+        // mods' quest rewards (CustomRewardQuestSupport) included
+        for( int i = 0; i < GetRewardsManager()->GetNumRewards( level ); i++ )
+        {
+            pReward = GetRewardsManager()->GetRewardAt( level, i );
+#else
         for( int i = Reward::eBlank + 1; i < Reward::NUM_QUESTS; i++ )
         {
             pReward = GetRewardsManager()->GetReward( level, static_cast<Reward::eQuestType>( i ) );
+#endif
             if( pReward != NULL )
             {
                 if( pReward->GetRewardType() == Reward::ALT_PLAYERCAR )

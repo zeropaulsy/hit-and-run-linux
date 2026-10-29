@@ -22,6 +22,7 @@
 #include <mission/rewards/rewardsmanager.h>
 #ifdef RAD_LINUX
 #include <mission/charactersheet/modstatstotals.h>
+#include <mission/rewards/modrewardquests.h>
 #include <shar_mods.h>
 #include <stdio.h>
 
@@ -245,6 +246,9 @@ void CharacterSheetManager::SetMissionComplete(RenderEnums::LevelEnum level,char
                 Reward* pReward=GetRewardsManager()->GetReward(level,Reward::eStreetRace);
                 //assert if we there isnt a reward for the streetrace.
                 rTuneAssert(pReward != NULL);
+#ifdef RAD_LINUX
+                if( !ModRewardQuests::Active() )    // CustomRewardQuestSupport: ModRewardQuests::Update
+#endif
                 pReward->UnlockReward();
                 GetEventManager()->TriggerEvent(EVENT_COMPLETED_ALLSTREETRACES);
             }
@@ -263,6 +267,9 @@ void CharacterSheetManager::SetMissionComplete(RenderEnums::LevelEnum level,char
                 Reward* pReward=GetRewardsManager()->GetReward(level,Reward::eBonusMission);
                 //assert if we there isnt a reward for the BonusMission.
                 rTuneAssert(pReward != NULL);
+#ifdef RAD_LINUX
+                if( !ModRewardQuests::Active() )    // CustomRewardQuestSupport: ModRewardQuests::Update
+#endif
                 pReward->UnlockReward();
                 GetEventManager()->TriggerEvent(EVENT_COMPLETED_BONUSMISSIONS);
             }
@@ -906,6 +913,7 @@ void CharacterSheetManager::ModExtraClear()
         s_modExtraCars[ i ].mCurrentHealth = s_modExtraCars[ i ].mMaxHealth = -1.0f;
     }
     memset( s_modExtraPurchased, 0, sizeof( s_modExtraPurchased ) );
+    ModRewardQuests::Clear();
     if( PerLevelCoins() )
     {
         // a new game: every wallet starts with the game's coins (a loaded save: ModExtraRead)
@@ -922,7 +930,8 @@ void CharacterSheetManager::ModExtraClear()
 
 bool CharacterSheetManager::ModExtraWrite( const char* path )
 {
-    bool any = mCharacterSheet.mCarInventory.mCounter > MAX_CARS_OWNED || PerLevelCoins();
+    bool any = mCharacterSheet.mCarInventory.mCounter > MAX_CARS_OWNED || PerLevelCoins() ||
+               ModRewardQuests::HasSaveData();
     for( int l = 0; l < MAX_LEVELS && !any; l++ )
     {
         for( int i = 0; i < MOD_EXTRA_PURCHASES && !any; i++ )
@@ -963,6 +972,7 @@ bool CharacterSheetManager::ModExtraWrite( const char* path )
             }
         }
     }
+    ModRewardQuests::Write( file );
     fclose( file );
     return true;
 }
@@ -1009,6 +1019,10 @@ void CharacterSheetManager::ModExtraRead( const char* path )
                  b >= MAX_PURCHASED_ITEMS && b - MAX_PURCHASED_ITEMS < MOD_EXTRA_PURCHASES )
         {
             s_modExtraPurchased[ a ][ b - MAX_PURCHASED_ITEMS ] = true;
+        }
+        else
+        {
+            ModRewardQuests::ReadLine( line );
         }
     }
     fclose( file );
@@ -1064,6 +1078,9 @@ void CharacterSheetManager::ModExtraRead( const char* path )
             Reward* pReward = GetRewardsManager()->GetReward(level,Reward::eCards);
             //Assert if no reward found
             rTuneAssert(pReward != NULL);
+#ifdef RAD_LINUX
+            if( !ModRewardQuests::Active() )    // CustomRewardQuestSupport: ModRewardQuests::Update
+#endif
             pReward->UnlockReward();
             GetEventManager()->TriggerEvent(EVENT_COLLECTED_ALLCARDS);
         }
@@ -1083,6 +1100,9 @@ void CharacterSheetManager::ModExtraRead( const char* path )
             Reward* pReward = GetRewardsManager()->GetReward(level,Reward::eCards);
             //Assert if no reward found
             rTuneAssert(pReward != NULL);
+#ifdef RAD_LINUX
+            if( !ModRewardQuests::Active() )    // CustomRewardQuestSupport: ModRewardQuests::Update
+#endif
             pReward->UnlockReward();
             GetEventManager()->TriggerEvent(EVENT_COLLECTED_ALLCARDS);
         }
@@ -2086,8 +2106,17 @@ CharacterSheetManager::IsAllStoryMissionsCompleted()
 
     int CharacterSheetManager::UpdateRewardsManager()
     {
+#ifdef RAD_LINUX
+        // Mod Launcher CustomRewardQuestSupport: every quest reward, the game's included
+        ModRewardQuests::Synch();
+        const bool gameQuests = !ModRewardQuests::Active();
+#endif
         for (int i = 0; i<MAX_LEVELS;i++)
         {
+#ifdef RAD_LINUX
+          if( gameQuests )
+          {
+#endif
             //update default vehicle
             if( static_cast<int>( QueryHighestMission().mLevel ) >= i )
             {
@@ -2127,6 +2156,9 @@ CharacterSheetManager::IsAllStoryMissionsCompleted()
             {
                 GetRewardsManager()->GetReward((RenderEnums::LevelEnum) i,Reward::eBonusMission)->LockReward();
             }
+#ifdef RAD_LINUX
+          }
+#endif
 
             //update the purchase rewards now
 

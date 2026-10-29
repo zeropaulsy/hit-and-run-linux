@@ -17,6 +17,7 @@
 //===========================================================================
 #include <presentation/gui/ingame/guiscreenpurchaserewards.h>
 #ifdef RAD_LINUX
+#include <mission/rewards/modrewardquests.h>
 #include <shar_modshops.h>
 #include <shar_modcars.h>
 #include <shar_mods.h>
@@ -831,6 +832,27 @@ CGuiScreenPurchaseRewards::InitMenu()
             }
 
 #ifdef RAD_LINUX
+            // Mod Launcher CustomRewardQuestSupport: the level's skins earned by quests (locked: how to earn them)
+            //
+            if( ModRewardQuests::Active() )
+            {
+                Reward* defaultSkin = GetRewardsManager()->GetReward( currentLevel, Reward::eDefaultSkin );
+                for( int i = 0; i < GetRewardsManager()->GetNumRewards( currentLevel ); i++ )
+                {
+                    pReward = GetRewardsManager()->GetRewardAt( currentLevel, i );
+                    if( pReward != NULL && pReward != defaultSkin &&
+                        ( pReward->GetRewardType() == Reward::ALT_SKIN_OTHER ||
+                          pReward->GetRewardType() == Reward::ALT_SKIN_GOOD ) &&
+                        strcmp( currentSkinName, pReward->GetName() ) != 0 &&
+                        m_numPreviewClothing < MAX_NUM_PREVIEW_CLOTHING )
+                    {
+                        m_numPreviewClothing = this->InsertPreviewObject( m_previewClothing,
+                                                                          m_numPreviewClothing,
+                                                                          pReward );
+                    }
+                }
+            }
+
             // Mod Launcher CustomShopSupport <SkinShop> for this shop: included/excluded/free skins
             //
             m_numPreviewClothing = this->ApplyModShop( m_previewClothing, m_numPreviewClothing, MAX_NUM_PREVIEW_CLOTHING,
@@ -954,10 +976,33 @@ CGuiScreenPurchaseRewards::UpdateRewardPrice()
     const PreviewObject* currentPreviewObject = this->GetCurrentPreviewObject();
     rAssert( currentPreviewObject != NULL );
 
+#ifdef RAD_LINUX
+    if( m_toPurchase != NULL && m_toUnlockIndex >= 0 )
+    {
+        m_toPurchase->SetIndex( 0 );
+    }
+#endif
     if( currentPreviewObject->isUnlocked )
     {
         this->SetButtonVisible( BUTTON_ICON_ACCEPT, true );
     }
+#ifdef RAD_LINUX
+    // Mod Launcher CustomRewardQuestSupport: a locked quest reward says how to earn it
+    else if( ModRewardQuests::IsQuestReward( currentPreviewObject->pReward ) )
+    {
+        UnicodeString text;
+        ModRewardQuests::CompleteQuestText( currentPreviewObject->pReward, text );
+        HeapMgr()->PushHeap( GMA_LEVEL_HUD );
+        rAssert( m_rewardPrice != NULL );
+        m_rewardPrice->SetString( 0, text );
+        HeapMgr()->PopHeap( GMA_LEVEL_HUD );
+        if( m_toPurchase != NULL && m_toUnlockIndex >= 0 )
+        {
+            m_toPurchase->SetIndex( m_toUnlockIndex );
+        }
+        this->SetButtonVisible( BUTTON_ICON_ACCEPT, false );
+    }
+#endif
     else
     {
         Merchandise* pMerchandise = GetRewardsManager()->GetMerchandise( GetGameplayManager()->GetCurrentLevelIndex(),
@@ -1020,6 +1065,12 @@ CGuiScreenPurchaseRewards::PurchaseReward()
         //
         this->LoadSelectedReward();
     }
+#ifdef RAD_LINUX
+    else if( ModRewardQuests::IsQuestReward( currentPreviewObject->pReward ) )
+    {
+        // earned by a quest, not sold (CustomRewardQuestSupport)
+    }
+#endif
     else
     {
         bool boughtReward = GetRewardsManager()->BuyMerchandise( GetGameplayManager()->GetCurrentLevelIndex(),

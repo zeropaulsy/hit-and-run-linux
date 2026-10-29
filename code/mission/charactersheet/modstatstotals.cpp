@@ -195,20 +195,23 @@ int Cars( int level )
         return 0;
     }
     int count = CountMerchandise( level, true );
-    // the earnable cars (the vehicle gallery's quest rewards), only for the races / bonus mission the level has
-    for( int q = Reward::eBlank + 1; q < Reward::NUM_QUESTS; q++ )
+    // the earnable cars (the vehicle gallery's quest rewards, CustomRewardQuestSupport's included), only for the
+    // races / bonus mission the level has
+    for( int i = 0; i < GetRewardsManager()->GetNumRewards( level ); i++ )
     {
+        Reward* reward = GetRewardsManager()->GetRewardAt( level, i );
+        if( reward == NULL || reward->GetRewardType() != Reward::ALT_PLAYERCAR )
+        {
+            continue;
+        }
+        Reward::eQuestType q = reward->GetQuestType();
         if( q == Reward::eDefaultCar ||
             ( q == Reward::eStreetRace && StreetRaces( level ) == 0 ) ||
             ( q == Reward::eBonusMission && BonusMissions( level ) == 0 ) )
         {
             continue;
         }
-        Reward* reward = GetRewardsManager()->GetReward( level, static_cast<Reward::eQuestType>( q ) );
-        if( reward != NULL && reward->GetRewardType() == Reward::ALT_PLAYERCAR )
-        {
-            count++;
-        }
+        count++;
     }
     return count;
 }
@@ -219,8 +222,17 @@ int DefaultCars( int level )
     {
         return 0;
     }
-    Reward* reward = GetRewardsManager()->GetReward( level, Reward::eDefaultCar );
-    return reward != NULL && reward->GetRewardType() == Reward::ALT_PLAYERCAR ? 1 : 0;
+    int count = 0;
+    for( int i = 0; i < GetRewardsManager()->GetNumRewards( level ); i++ )
+    {
+        Reward* reward = GetRewardsManager()->GetRewardAt( level, i );
+        if( reward != NULL && reward->GetQuestType() == Reward::eDefaultCar &&
+            reward->GetRewardType() == Reward::ALT_PLAYERCAR )
+        {
+            count++;
+        }
+    }
+    return count;
 }
 
 float PercentLevelCompleted( int level )

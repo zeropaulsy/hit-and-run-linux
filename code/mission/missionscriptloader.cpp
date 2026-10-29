@@ -43,6 +43,7 @@
 #include <mission/objectives/modobjectives.h>
 #include <mission/conditions/modconditions.h>
 #include <shar_mods.h>
+#include <mission/rewards/modrewardquests.h>
 
 // Linux port: mods' NoMissionStartCameras hack: the scripts' mission start cameras are ignored
 static bool NoMissionStartCameras()
@@ -5020,10 +5021,41 @@ void MissionScriptLoader::BindReward (int argc,char** argv)
         {
             qtype = Reward::eDefaultSkin;
         }
+#ifdef RAD_LINUX
+        else if( ModRewardQuests::Active() && ModRewardQuests::QuestType( argv[ 4 ] ) != Reward::eBlank )
+        {
+            qtype = ModRewardQuests::QuestType( argv[ 4 ] );
+        }
+#endif
         else
         {
             printf("ERROR: Unknown Quest type %s !\n",argv[4]);
         }
+
+#ifdef RAD_LINUX
+        // Mod Launcher CustomRewardQuestSupport: every binding kept, with its extra argument (card / race /
+        // mission number, time, coins, count, car or doorbell name); skins for any quest but defaultcar
+        if( !isMerchandise && ModRewardQuests::Active() )
+        {
+            if( qtype == Reward::eGoldCards )
+            {
+                qtype = Reward::eCards;     // the game stored goldcards in the cards slot
+            }
+            if( qtype == Reward::eBlank || ( qtype == Reward::eDefaultCar && rtype != Reward::ALT_PLAYERCAR ) )
+            {
+                rReleasePrintf( "mods: CustomRewardQuestSupport: BindReward %s %s %s ignored\n", name, argv[ 3 ],
+                                argv[ 4 ] );
+                return;
+            }
+            if( level < 0 || level >= RenderEnums::numLevels )
+            {
+                rReleasePrintf( "mods: CustomRewardQuestSupport: BindReward %s: no level %d\n", name, level + 1 );
+                return;
+            }
+            GetRewardsManager()->BindModReward( name, filename, rtype, qtype, level, argc > 6 ? argv[ 6 ] : "" );
+            return;
+        }
+#endif
         
         if( isMerchandise )
         {

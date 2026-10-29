@@ -181,6 +181,13 @@ protected:
     Scrooby::Group* m_lockedOverlay;
     Scrooby::Text* m_lockedLevel;
     Scrooby::Text* m_rewardPrice;
+#ifdef RAD_LINUX
+    // Mod Launcher CustomRewardQuestSupport: a locked quest reward's "complete quest" text (phone booth: the mod's
+    // Locked/CompleteQuest; skin shop: Price) and "to unlock" (ToPurchase string m_toUnlockIndex, -1: none)
+    Scrooby::Text* m_completeQuest;
+    Scrooby::Text* m_toPurchase;
+    int m_toUnlockIndex;
+#endif
 
     Scrooby::Group* m_statsOverlay;
     Scrooby::Group* m_statsOverlayButton;

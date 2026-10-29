@@ -85,6 +85,15 @@ class RewardsManager : public LoadingManager::ProcessRequestsCallback
 
 
         int BindReward (char* name,char* filename,Reward::eRewardType rtype, Reward::eQuestType qtype,int level);
+#ifdef RAD_LINUX
+        // Linux port: Mod Launcher CustomRewardQuestSupport. Every binding is kept: the first of a game quest type
+        // fills the level's slot (GetReward), the rest and the hack's own quest types are mod rewards.
+        int BindModReward( const char* name, const char* filename, Reward::eRewardType rtype,
+                           Reward::eQuestType qtype, int level, const char* arg );
+        // the level's quest rewards: the game's slots (eBlank+1 .. NUM_QUESTS-1), then the mod rewards
+        int GetNumRewards( int level ) const;
+        Reward* GetRewardAt( int level, int index );
+#endif
                 
         //methods for getting the nubmer of tokens in a level and setting them
         void SetTokensInLevel(int level,int tokens);
@@ -156,6 +165,11 @@ class RewardsManager : public LoadingManager::ProcessRequestsCallback
        //Array with all rewards, Note that index 0 is blank/dummy level
 
         LevelRewardRecord mRewardsList [8];
+#ifdef RAD_LINUX
+        enum { MAX_MOD_REWARDS = 256 };
+        Reward* mModRewards[ 8 ][ MAX_MOD_REWARDS ];
+        int mNumModRewards[ 8 ];
+#endif
         CarAttributeRecord mCarAttributeList [MAX_CAR_ATTRIBUTE_RECORDS];
         int mCarAttributeRecordIndex;
 
