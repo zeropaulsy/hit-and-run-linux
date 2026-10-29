@@ -155,6 +155,8 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   only by FailCountL7MX (else never). Checked by calling InitIntro from gdb in L1 M2 (FailCountL1=0: Skip on).
 - CustomVideoResolutionSupport (`radMovieRenderStrategyBink::ChangeParameters`): tile size = Segment*, default 256;
   max 64 tiles (more: not drawn, was an overflow). Without it the port already plays up to 64 x 256^2 tiles.
+- DrunkCamera (`SuperCam::SetCameraValues`): sine wobble Min..MaxDegrees (default -10..10), 6 s period (the
+  launcher's period unknown), added after the twist easing; `mDrunkTwist` is taken off again before easing.
 - BugFixes (`shar_ModBugFix(section, key, default)`: BugFixes.ini, else the launcher's defaults: on, off for its
   -testing ones and RoadArrowPath...): Physics baby van = clone copies `mTimeComputeInertiaMatrix`
   (articulatedphysicsobject.cpp; else the port's 0); NoAirVentAudio = `EventLocator::OnTrigger` drops BOUNCEPAD

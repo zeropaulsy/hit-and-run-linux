@@ -91,7 +91,7 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "NoInactiveDynamicObjectCollisions", "ReplayableBonusMissions",
                                         "BugFixes", "CustomCollectorCardSupport", "CustomDutchAngleNPCCameraTilt",
                                         "CustomHeadlights", "CustomMissionSkipFailCounts",
-                                        "CustomVideoResolutionSupport" };
+                                        "CustomVideoResolutionSupport", "DrunkCamera" };
 
 void Init( void );
 

@@ -38,6 +38,8 @@
 #include <memory/srrmemory.h>
 #ifdef RAD_LINUX
 #include <meta/modtriggeractions.h>
+#include <radtime.hpp>
+#include <shar_mods.h>
 #endif
 #else
 #include "supercam.h"
@@ -116,6 +118,10 @@ SuperCam::SuperCam() :
     mPlayerID( -1 ),
     mSCBackupFOV( SUPERCAM_FOV ),
     mSCTwist( 0.0f ),
+#ifdef RAD_LINUX
+    mDrunkCamera( NULL ),
+    mDrunkTwist( 0.0f ),
+#endif
     mOldTwist( 0.0f ),
     mTwistDelta( 0.0f ),
     mTwistLag( 0.01f )
@@ -611,6 +617,13 @@ void SuperCam::SetCameraValues( unsigned int milliseconds,
 
     //This will be cool in the halloween level
     float oldTwist = mCamera->GetTwist();
+#ifdef RAD_LINUX
+    if ( mDrunkCamera == mCamera )
+    {
+        oldTwist -= mDrunkTwist;    // DrunkCamera (below): ease from the twist without the wobble
+    }
+    mDrunkCamera = NULL;
+#endif
     float* twistTarget = &mSCTwist;
 #if defined( RAD_LINUX ) && !defined( WORLD_BUILDER )
     // Linux port: Mod Launcher CustomTriggerActions TiltCamera, eased in like the game's own twist
@@ -626,6 +639,31 @@ void SuperCam::SetCameraValues( unsigned int milliseconds,
         MotionCubic( &oldTwist, &mTwistDelta, *twistTarget, mTwistLag );
     }
 
+#if defined( RAD_LINUX ) && !defined( WORLD_BUILDER )
+    // Linux port: mods' DrunkCamera: a slow side to side wobble between MinDegrees and MaxDegrees (on top of the
+    // eased twist, not part of it)
+    static int s_drunk = -1;
+    static float s_drunkMin, s_drunkMax;
+    if ( s_drunk < 0 )
+    {
+        s_drunk = shar_ModHackRequired( "DrunkCamera" ) ? 1 : 0;
+        char value[ 32 ];
+        s_drunkMin = shar_ModConfigValue( "DrunkCamera.ini", "CameraSettings", "MinDegrees", value, sizeof( value ) ) &&
+                     value[ 0 ] != '\0' ? static_cast< float >( atof( value ) ) : -10.0f;
+        s_drunkMax = shar_ModConfigValue( "DrunkCamera.ini", "CameraSettings", "MaxDegrees", value, sizeof( value ) ) &&
+                     value[ 0 ] != '\0' ? static_cast< float >( atof( value ) ) : 10.0f;
+    }
+    if ( s_drunk )
+    {
+        const float PERIOD_MS = 6000.0f;
+        float phase = static_cast< float >( radTimeGetMilliseconds() % 6000u ) / PERIOD_MS * rmt::PI_2;
+        float degrees = 0.5f * ( s_drunkMin + s_drunkMax ) + 0.5f * ( s_drunkMax - s_drunkMin ) * rmt::Sin( phase );
+        mDrunkTwist = rmt::DegToRadian( degrees );
+        mDrunkCamera = mCamera;
+        mCamera->SetTwist( oldTwist + mDrunkTwist );
+    }
+    else
+#endif
     mCamera->SetTwist( oldTwist );
 
     //Write the overriding FOV, aspect and near and far planes.
