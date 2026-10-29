@@ -44,7 +44,7 @@ struct KeyEntry
 {
     uint32_t key;
     int index;              // into s_Files or s_Rules
-    int priority;           // 0: the file's own name, 1: an .ogg standing in for the .rsd of that name
+    int priority;           // 0: the file's own name, 1: an .ogg / .flac standing in for the .rsd of that name
 };
 
 struct Limit
@@ -93,7 +93,7 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "CustomHeadlights", "CustomMissionSkipFailCounts",
                                         "CustomVideoResolutionSupport", "DrunkCamera", "IncreasedRewardLimits",
                                         "PerLevelCoinCount", "RefractionShaderSupport",
-                                        "WalkerCameraDataSupport" };
+                                        "WalkerCameraDataSupport", "FLACSupport" };
 
 void Init( void );
 
@@ -952,11 +952,12 @@ void Init( void )
         KeyEntry e = { KeyOf( key ), i, 0 };
         s_FileKeys[ s_NumFileKeys++ ] = e;
         size_t len = strlen( key );
-        if ( len > 4 && strcmp( key + len - 4, ".ogg" ) == 0 && len < PATH_MAX )
+        size_t ext = len > 4 && strcmp( key + len - 4, ".ogg" ) == 0 ? 4 : len > 5 && strcmp( key + len - 5, ".flac" ) == 0 ? 5 : 0;
+        if ( ext > 0 && len < PATH_MAX )
         {
             char rsd[ PATH_MAX ];
-            memcpy( rsd, key, len - 4 );
-            strcpy( rsd + len - 4, ".rsd" );
+            memcpy( rsd, key, len - ext );
+            strcpy( rsd + len - ext, ".rsd" );
             KeyEntry o = { KeyOf( rsd ), i, 1 };
             s_FileKeys[ s_NumFileKeys++ ] = o;
         }
@@ -1079,11 +1080,17 @@ const ModFile* FindFile( const char* gamePath, const char* key )
     size_t len = strlen( key );
     if ( f == NULL && len > 4 && len < PATH_MAX && strcmp( key + len - 4, ".rsd" ) == 0 )
     {
-        // OggVorbisSupport: a mod's .ogg stands in for the .rsd (decoded in radsound's rsdfiledatasource.cpp)
-        char ogg[ PATH_MAX ];
+        // OggVorbisSupport, FLACSupport: a mod's .ogg or .flac stands in for the .rsd (decoded in radsound's
+        // rsdfiledatasource.cpp)
+        char ogg[ PATH_MAX + 1 ];
         memcpy( ogg, key, len - 4 );
         strcpy( ogg + len - 4, ".ogg" );
         f = (const ModFile*)bsearch( ogg, s_Files, s_NumFiles, sizeof( ModFile ), CompareKey );
+        if ( f == NULL )
+        {
+            strcpy( ogg + len - 4, ".flac" );
+            f = (const ModFile*)bsearch( ogg, s_Files, s_NumFiles, sizeof( ModFile ), CompareKey );
+        }
     }
     return f;
 }

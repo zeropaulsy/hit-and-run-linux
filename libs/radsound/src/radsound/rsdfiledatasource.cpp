@@ -400,9 +400,10 @@ void radSoundRsdFileDataSource::_StateReadingHeader( void )
 	rAssert(  m_refIRadFile->IsOpen( ) );  // If the file isn't open, we shouldn't be here
 
 #ifdef RAD_LINUX
-    if ( radOggIsOgg( m_StateInfo.m_ReadingHeaderInfo.m_pRadSoundHalFileHeader ) )
+    if ( radOggIsOgg( m_StateInfo.m_ReadingHeaderInfo.m_pRadSoundHalFileHeader ) ||
+         radOggIsFlac( m_StateInfo.m_ReadingHeaderInfo.m_pRadSoundHalFileHeader ) )
     {
-        // An Ogg file under an .rsd name: read all of it, then decode as it plays
+        // An Ogg or FLAC file under an .rsd name: read all of it, then decode as it plays
         ::radMemoryFreeAligned( RADMEMORY_ALLOC_TEMP, m_StateInfo.m_ReadingHeaderInfo.m_pRadSoundHalFileHeader );
         m_OggInitialPos = m_StateInfo.m_ReadingHeaderInfo.m_InitialPlaybackPos;
         m_OggInitialPosUnits = m_StateInfo.m_ReadingHeaderInfo.m_InitalPlaybackPosUnits;
@@ -565,6 +566,11 @@ void radSoundRsdFileDataSource::_StateReadingOgg( void )
     }
     radOggDecoderRead( m_pOgg, NULL, start );
     m_FramesLeftInFile = total - start;
+    if ( getenv( "SHAR_RSD_LOG" ) != NULL )
+    {
+        fprintf( stderr, "rsd: %s decoded: rate %u ch %u frames %u from %u\n", name, radOggDecoderRate( m_pOgg ),
+            channels, total, start );
+    }
 
     m_StateInfo.m_State = StateInfo::IDLE;
     ::radSoundHalSystemGet( )->Service( );

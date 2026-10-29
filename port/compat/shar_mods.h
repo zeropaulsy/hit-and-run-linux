@@ -4,7 +4,7 @@
  * A main mod (Meta.ini Main=1) gets its own saved games in ModSaves/<InternalName>/ in the game dir.
  * Supported: CustomFiles (a mod's CustomFiles/ tree overrides game files, also those inside RCF archives, also
  * by the sound system's key strings; CustomFiles.ini redirections, occluded paths and Lua path handlers;
- * CustomFiles.lua), OggVorbisSupport (x.ogg serves x.rsd), CustomLimits (only the limits wired up through
+ * CustomFiles.lua), OggVorbisSupport and FLACSupport (x.ogg or x.flac serves x.rsd), CustomLimits (only the limits wired up through
  * shar_ModLimit); read by the game through shar_ModConfig: CustomShopSupport (shar_modshops.h), CustomCarSupport (shar_modcars.h),
  * CustomDialogueCharacterCodes (dialogline.cpp, dialoglist.cpp), CustomText (guitextbible.cpp; Language setting), 3DPhoneBoothPreviewSupport (guiscreenphonebooth.cpp),
  * CustomInteriorSupport (shar_modinteriors.h), CustomRoadBehaviour (shar_modroads.h), CustomAudioSupport (shar_modaudio.h),

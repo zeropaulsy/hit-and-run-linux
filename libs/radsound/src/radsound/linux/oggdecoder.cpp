@@ -116,11 +116,12 @@ radOggDecoder* radOggDecoderOpen( unsigned char* data, unsigned int size, const 
     const AVCodec* codec = NULL;
     AVCodecParameters* par = NULL;
     AVChannelLayout layout;
-    if ( avformat_open_input( &d->fmt, NULL, av_find_input_format( "ogg" ), NULL ) < 0 ||
+    const char* format = size >= 4 && radOggIsOgg( data ) ? "ogg" : size >= 4 && data[ 0 ] == 'f' ? "flac" : NULL;
+    if ( avformat_open_input( &d->fmt, NULL, format ? av_find_input_format( format ) : NULL, NULL ) < 0 ||
          avformat_find_stream_info( d->fmt, NULL ) < 0 ||
          ( d->stream = av_find_best_stream( d->fmt, AVMEDIA_TYPE_AUDIO, -1, -1, &codec, 0 ) ) < 0 )
     {
-        fprintf( stderr, "radsound: %s: not a decodable Ogg file\n", name );
+        fprintf( stderr, "radsound: %s: not a decodable Ogg or FLAC file\n", name );
         radOggDecoderClose( d );
         return NULL;
     }
@@ -129,7 +130,7 @@ radOggDecoder* radOggDecoderOpen( unsigned char* data, unsigned int size, const 
     if ( avcodec_parameters_to_context( d->codec, par ) < 0 || avcodec_open2( d->codec, codec, NULL ) < 0 ||
          par->ch_layout.nb_channels < 1 || par->ch_layout.nb_channels > 2 || par->sample_rate <= 0 )
     {
-        fprintf( stderr, "radsound: %s: unsupported Ogg stream (%d channels)\n", name, par->ch_layout.nb_channels );
+        fprintf( stderr, "radsound: %s: unsupported audio stream (%d channels)\n", name, par->ch_layout.nb_channels );
         radOggDecoderClose( d );
         return NULL;
     }
@@ -140,7 +141,7 @@ radOggDecoder* radOggDecoderOpen( unsigned char* data, unsigned int size, const 
                               &d->codec->ch_layout, d->codec->sample_fmt, par->sample_rate, 0, NULL ) < 0 ||
          swr_init( d->swr ) < 0 )
     {
-        fprintf( stderr, "radsound: %s: cannot convert Ogg samples\n", name );
+        fprintf( stderr, "radsound: %s: cannot convert its samples\n", name );
         radOggDecoderClose( d );
         return NULL;
     }

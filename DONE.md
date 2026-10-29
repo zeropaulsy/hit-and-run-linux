@@ -116,6 +116,7 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 - [x] PerLevelCoinCount: separate coin counts per level, shared wallets
 - [x] RefractionShaderSupport: the PS2 refract shader in the GL pddi
 - [x] WalkerCameraDataSupport: walker camera data chunks from level files
+- [x] FLACSupport: x.flac serves x.rsd, like OggVorbisSupport
 - [x] BugFixes: physics (baby van), air vent audio, wasp collision, stuck lights, steering animations, character
   rotations, HUD coin depth, phone booth camera change, road arrow path size, car deleted during .con load; coin
   count and Unlock All Cameras overflows fixed always; the rest Windows-only, already fixed or not reproduced

@@ -33,7 +33,7 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
 - [ ] The Mod Launcher's other mod-requirable hacks (docs' All Hacks page, 1.27), none of the test mods uses:
   - [ ] configured:
     CustomRewardQuestSupport (large: multi-reward quests, 11 new types, save counters, booth/shop text)
-  - [ ] FLACSupport, VideoTextureSupport; HackSupport (the launcher's own plumbing: check what mods rely on)
+  - [ ] VideoTextureSupport; HackSupport (the launcher's own plumbing: check what mods rely on)
 
 #### Partly done
 - [ ] **AdditionalScriptFunctionality** (`code/mission/modscript.cpp`): every command registered (unimplemented ones log

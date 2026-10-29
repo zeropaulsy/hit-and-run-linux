@@ -18,7 +18,8 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
 - Logs: `SHAR_MOD_LOG=1` (files provided, passengers, checkpoints), `SHAR_MOD_DUMP=dir`.
 
 ## Hacks implemented (where)
-- OggVorbisSupport: x.ogg serves x.rsd (`radsound/linux/oggdecoder.cpp`, "OggS" in `rsdfiledatasource.cpp`).
+- OggVorbisSupport, FLACSupport: x.ogg / x.flac serves x.rsd (`radsound/linux/oggdecoder.cpp`, "OggS" / "fLaC" / ID3
+  in `rsdfiledatasource.cpp`; `SHAR_RSD_LOG=1` logs "decoded"). Test FE sounds: soundfx/optionsmenu/button_22, scroll.
 - CustomLimits (doubles; several mods: largest wins, smallest for BoundsMinimumY):
   [Billboards]; [Regions] Limit/EntityLimit/RoadSegmentLimit; [Scripting] ArgumentLengthLimit; [Roads] RoadManager;
   [Pedestrians] PathLimit/GroupLimit (PathManager, `GetMaxModelGroups`, allocated); [TreeNodes] DrawDistance/Bounds*
