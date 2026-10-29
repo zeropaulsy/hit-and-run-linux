@@ -49,6 +49,7 @@
 #include <worldsim/coins/sparkle.h>
 #ifdef RAD_LINUX
 #include <shar_modcars.h>
+#include <shar_mods.h>
 #endif
 
 //#define SHADOW_EDITTING
@@ -2260,6 +2261,26 @@ bool GeometryVehicle::GetArt( const char* name)
             EnableLights( false );
         }
     }        
+#ifdef RAD_LINUX
+    // Linux port: mods' CustomHeadlights: per level (0-6; bonus game tracks 8-14) head and tail light brightness
+    if( shar_ModHackRequired( "CustomHeadlights" ) )
+    {
+        char key[ 8 ], value[ 32 ];
+        sprintf( key, "%d", static_cast< int >( GetGameplayManager()->GetCurrentLevelIndex() ) );
+        if( shar_ModConfigValue( "CustomHeadlights.ini", "CustomHeadlights", key, value, sizeof( value ) ) &&
+            value[ 0 ] != '\0' )
+        {
+            mHeadLightScale = static_cast< float >( atof( value ) );
+        }
+        // the docs spell the section both ways
+        if( ( shar_ModConfigValue( "CustomHeadlights.ini", "CustomTaillights", key, value, sizeof( value ) ) ||
+              shar_ModConfigValue( "CustomHeadlights.ini", "CustomTailights", key, value, sizeof( value ) ) ) &&
+            value[ 0 ] != '\0' )
+        {
+            mBrakeLightScale = static_cast< float >( atof( value ) );
+        }
+    }
+#endif
 
 
 
