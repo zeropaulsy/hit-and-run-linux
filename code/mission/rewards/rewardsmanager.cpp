@@ -26,6 +26,9 @@
 #include <mission/missionscriptloader.h>
 
 #include <string.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //******************************************************************************
 //
@@ -156,6 +159,12 @@ void RewardsManager::ClearRewards()
     {
         for (int k=0;k<MAX_INVENTORY;k++)
         {
+#ifdef RAD_LINUX
+            if( mLevelTokenStoreList[j].mInventoryList[k] == NULL )
+            {
+                continue;   // not added (IncreasedRewardLimits)
+            }
+#endif
             mLevelTokenStoreList[j].mInventoryList[k]->LockReward();
         }
     }
@@ -336,7 +345,12 @@ Reward* RewardsManager::GetReward( int level, tUID id )
 int RewardsManager::SetCarAttributes(char* carname,float speed,float acceleration,float toughness,float stability)
 {
     //check if the array is full
+#ifdef RAD_LINUX
+    static const int limit = shar_ModHackRequired( "IncreasedRewardLimits" ) ? MAX_CAR_ATTRIBUTE_RECORDS : 50;
+    if (mCarAttributeRecordIndex >= limit)
+#else
     if (mCarAttributeRecordIndex >= MAX_CAR_ATTRIBUTE_RECORDS)
+#endif
     {
         rTuneAssertMsg(0,"Cant Set any more Car Attributes the Records Array  is FULL!!!\n");
         return -1;
@@ -419,6 +433,13 @@ void RewardsManager::InitTokenStore()
         mLevelTokenStoreList[i].mCounter =0;
         for (int j=0;j<MAX_INVENTORY;j++)
         {
+#ifdef RAD_LINUX
+            if( j >= VANILLA_MAX_INVENTORY )
+            {
+                mLevelTokenStoreList[i].mInventoryList[j] = NULL;   // allocated in AddMerchandise
+                continue;
+            }
+#endif
             mLevelTokenStoreList[i].mInventoryList[j] = new (GMA_PERSISTENT) Merchandise;
         }
 
@@ -431,7 +452,17 @@ int RewardsManager::AddMerchandise(char* name,char* filename,Reward::eRewardType
 {
 
     //check if the array of merchandise is full
+#ifdef RAD_LINUX
+   static const int limit = shar_ModHackRequired( "IncreasedRewardLimits" ) ? MAX_INVENTORY : VANILLA_MAX_INVENTORY;
+   if( mLevelTokenStoreList[level].mCounter < limit &&
+       mLevelTokenStoreList[level].mInventoryList[mLevelTokenStoreList[level].mCounter] == NULL )
+   {
+        mLevelTokenStoreList[level].mInventoryList[mLevelTokenStoreList[level].mCounter] = new (GMA_PERSISTENT) Merchandise;
+   }
+   if(mLevelTokenStoreList[level].mCounter < limit)
+#else
    if(mLevelTokenStoreList[level].mCounter < MAX_INVENTORY)
+#endif
    {
         mLevelTokenStoreList[level].mInventoryList[mLevelTokenStoreList[level].mCounter]->SetName(name);
         mLevelTokenStoreList[level].mInventoryList[mLevelTokenStoreList[level].mCounter]->SetLevel(level);

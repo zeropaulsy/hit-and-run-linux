@@ -213,6 +213,17 @@ class CharacterSheetManager: GameDataHandler
         Record* GetCollectableRecord(RenderEnums::LevelEnum level,eCollectableType type, int index);
 
         CarCharacterSheet* GetCarCharacterSheet(char * name);
+#ifdef RAD_LINUX
+    public:
+        // Linux port: cars past MAX_CARS_OWNED and purchases past MAX_PURCHASED_ITEMS (mods with more rewards,
+        // the Mod Launcher's IncreasedRewardLimits); not in the saved CharacterSheet: the save's sidecar
+        // (GameDataManager) holds them
+        CarCharacterSheet* ModCarRecord( int index );
+        void ModExtraClear();
+        bool ModExtraWrite( const char* path );     // false: nothing to write
+        void ModExtraRead( const char* path );      // missing file: cleared
+    private:
+#endif
 
         //implement if dusit doesnt do the above.
         //CardRecord* GetCardRecord(eLevelID,char* name);

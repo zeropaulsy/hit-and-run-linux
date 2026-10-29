@@ -209,6 +209,10 @@ private:
 
 	radFileError m_lastError;
 
+#ifdef RAD_LINUX
+    // Linux port: "<saved game>.mods", what the saved CharacterSheet has no room for (charactersheetmanager.h)
+    char m_modSidecar[ 512 ];
+#endif
 };
 
 // A little syntactic sugar for getting at this singleton.

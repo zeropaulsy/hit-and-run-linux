@@ -328,6 +328,27 @@ IGuiScreenRewards::ApplyModShop( PreviewObject* previewObjects,
 }
 #endif
 
+#ifdef RAD_LINUX
+int
+IGuiScreenRewards::PreviewLimit( const PreviewObject* previewObjects ) const
+{
+    static int s_carLimit = -1, s_skinLimit = -1;
+    if( s_carLimit < 0 )
+    {
+        bool increased = shar_ModHackRequired( "IncreasedRewardLimits" ) != 0;
+        s_carLimit = increased ? shar_ModConfigInt( "IncreasedRewardLimits.ini", "Previews", "CarLimit", 64 ) : 64;
+        s_skinLimit = increased ? shar_ModConfigInt( "IncreasedRewardLimits.ini", "Previews", "SkinLimit", 64 ) : 16;
+        s_carLimit = s_carLimit < 1 ? 1 : s_carLimit > MAX_NUM_PREVIEW_VEHICLES ? MAX_NUM_PREVIEW_VEHICLES : s_carLimit;
+        s_skinLimit = s_skinLimit < 1 ? 1 : s_skinLimit > MAX_NUM_PREVIEW_CLOTHING ? MAX_NUM_PREVIEW_CLOTHING : s_skinLimit;
+    }
+    if( previewObjects == m_previewClothing )
+    {
+        return s_skinLimit;
+    }
+    return s_carLimit;      // the vehicle list, or a copy of it (ApplyModShop)
+}
+#endif
+
 //===========================================================================
 // IGuiScreenRewards::
 //===========================================================================
@@ -659,6 +680,13 @@ IGuiScreenRewards::InsertPreviewObject( PreviewObject* previewObjects,
     rAssert( previewObjects != NULL );
     rAssert( pReward != NULL );
 
+#ifdef RAD_LINUX
+    // Linux port: the list is full (was written past its end)
+    if( numPreviewObjects >= this->PreviewLimit( previewObjects ) )
+    {
+        return numPreviewObjects;
+    }
+#endif
     int newSlot = numPreviewObjects;
 
     if( isSorted )

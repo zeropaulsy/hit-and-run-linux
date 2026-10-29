@@ -107,6 +107,9 @@ protected:
                              int numPreviewObjects,
                              Reward* pReward,
                              bool isSorted = false );
+#ifdef RAD_LINUX
+    int PreviewLimit( const PreviewObject* previewObjects ) const;   // Linux port: IncreasedRewardLimits
+#endif
 
 #ifdef RAD_LINUX
     int ApplyModShop( PreviewObject* previewObjects,
@@ -128,10 +131,13 @@ protected:
     void SetVehicleStatsVisible( bool isVisible );
     void UpdateVehicleStats();
 
-    static const int MAX_NUM_PREVIEW_VEHICLES = 64;
 #ifdef RAD_LINUX
-    static const int MAX_NUM_PREVIEW_CLOTHING = 16; // room for mods' free skins (CustomShopSupport)
+    // room for mods' rewards: the limits are PreviewLimit (64 cars, 16 skins; IncreasedRewardLimits CarLimit /
+    // SkinLimit, 64 by default)
+    static const int MAX_NUM_PREVIEW_VEHICLES = 256;
+    static const int MAX_NUM_PREVIEW_CLOTHING = 256;
 #else
+    static const int MAX_NUM_PREVIEW_VEHICLES = 64;
     static const int MAX_NUM_PREVIEW_CLOTHING = 4;
 #endif
 

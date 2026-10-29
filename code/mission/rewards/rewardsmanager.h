@@ -7,7 +7,14 @@
 #include <mission/charactersheet/charactersheet.h>
 
 //maximum number of cars that can get purchase via coins.
+#ifdef RAD_LINUX
+// Linux port: mods' IncreasedRewardLimits: up to 64 "forsale" rewards per level (past the game's 8 allocated
+// when added); 512 car attributes
+const int VANILLA_MAX_INVENTORY = 8;
+const int MAX_INVENTORY = 64;
+#else
 const int MAX_INVENTORY = 8;
+#endif
 
 struct TokenStoreInventory
 {
@@ -43,7 +50,11 @@ struct CarAttributeRecord
     float mStability;
 };
 
+#ifdef RAD_LINUX
+const int MAX_CAR_ATTRIBUTE_RECORDS = 512;
+#else
 const int MAX_CAR_ATTRIBUTE_RECORDS = 50;
+#endif
 
 
 //Rewards Manager. 

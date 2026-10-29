@@ -37,6 +37,8 @@
 #include <radtime.hpp>
 #ifdef RAD_LINUX
 #include <shar_mods.h>
+#include <mission/charactersheet/charactersheetmanager.h>
+#include <stdio.h>
 #endif
 
 #ifdef RAD_PS2
@@ -435,6 +437,9 @@ GameDataManager::LoadGame( unsigned int slot, GameDataLoadCallback* callback, co
 									slot );
 	else
 		strcpy( filename, load_filename ); // filename is passed in for xbox
+#ifdef RAD_LINUX
+    snprintf( m_modSidecar, sizeof( m_modSidecar ), "%s.mods", filename );
+#endif
     IRadDrive* currentDrive = GetMemoryCardManager()->GetCurrentDrive();
     rAssert( currentDrive );
 #ifndef RAD_WIN32
@@ -480,6 +485,13 @@ radFileError GameDataManager::DeleteGame( const char *fileName,
 {
 	rAssert(m_currentFileOperation == FILE_OP_NONE);
 	m_currentFileOperation = FILE_OP_DELETE;
+#ifdef RAD_LINUX
+    {
+        char sidecar[ 512 ];
+        snprintf( sidecar, sizeof( sidecar ), "%s.mods", fileName );
+        remove( sidecar );
+    }
+#endif
 	
 	IRadDrive* currentDrive = GetMemoryCardManager()->GetCurrentDrive();
 
@@ -563,6 +575,9 @@ GameDataManager::SaveGame( unsigned int slot, GameDataSaveCallback* callback )
     this->FormatSavedGameFilename( filename,
                                    sizeof( filename ),
                                    slot );
+#ifdef RAD_LINUX
+    snprintf( m_modSidecar, sizeof( m_modSidecar ), "%s.mods", filename );
+#endif
 
 	IRadDrive* currentDrive = GetMemoryCardManager()->GetCurrentDrive();
 	rAssert( currentDrive );
@@ -925,6 +940,12 @@ GameDataManager::OnFileOperationsComplete( void* pUserData )
             m_radFile = NULL;
 
             bool loadOK = this->LoadAllData();
+#ifdef RAD_LINUX
+            if( loadOK )
+            {
+                GetCharacterSheetManager()->ModExtraRead( m_modSidecar );
+            }
+#endif
             if( loadOK )
             {
 #ifdef ENABLE_MINIMUM_LOAD_SAVE_TIME
@@ -997,6 +1018,12 @@ GameDataManager::OnFileOperationsComplete( void* pUserData )
             m_radFile->Release();
             m_radFile = NULL;
 
+#ifdef RAD_LINUX
+            if( !GetCharacterSheetManager()->ModExtraWrite( m_modSidecar ) )
+            {
+                remove( m_modSidecar );     // a stale one from an earlier save in this slot
+            }
+#endif
 #ifdef ENABLE_MINIMUM_LOAD_SAVE_TIME
             m_currentFileOperation = FILE_OP_SAVE_COMPLETED;
 #else

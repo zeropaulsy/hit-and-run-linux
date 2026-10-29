@@ -157,6 +157,11 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   max 64 tiles (more: not drawn, was an overflow). Without it the port already plays up to 64 x 256^2 tiles.
 - DrunkCamera (`SuperCam::SetCameraValues`): sine wobble Min..MaxDegrees (default -10..10), 6 s period (the
   launcher's period unknown), added after the twist easing; `mDrunkTwist` is taken off again before easing.
+- IncreasedRewardLimits: forsale merchandise 8 -> 64 per level (`RewardsManager::AddMerchandise`, slots past 8
+  allocated there), SetCarAttributes 50 -> 512, previews `IGuiScreenRewards::PreviewLimit` ([Previews] CarLimit /
+  SkinLimit, 64; without: 64 / 16), arrays 256. Always on: car inventory past MAX_CARS_OWNED (60) and purchases past
+  MAX_PURCHASED_ITEMS (12) go to `<save>.mods` (`CharacterSheetManager::ModExtraWrite/Read`, text; removed when
+  empty or the save is deleted); the saved CharacterSheet stays vanilla-sized (count clamped to 60).
 - BugFixes (`shar_ModBugFix(section, key, default)`: BugFixes.ini, else the launcher's defaults: on, off for its
   -testing ones and RoadArrowPath...): Physics baby van = clone copies `mTimeComputeInertiaMatrix`
   (articulatedphysicsobject.cpp; else the port's 0); NoAirVentAudio = `EventLocator::OnTrigger` drops BOUNCEPAD

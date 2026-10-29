@@ -23,6 +23,16 @@
 #ifdef RAD_LINUX
 #include <mission/charactersheet/modstatstotals.h>
 #include <shar_mods.h>
+#include <stdio.h>
+
+// Linux port: rewards past the saved CharacterSheet's arrays (see ModCarRecord)
+static const int MOD_EXTRA_CARS = 1024;
+static const int MOD_EXTRA_PURCHASES = 256;
+static CarCharacterSheet s_modExtraCars[ MOD_EXTRA_CARS ];
+static bool s_modExtraPurchased[ MAX_LEVELS ][ MOD_EXTRA_PURCHASES ];
+#define CAR_RECORD( i ) ( *ModCarRecord( i ) )
+#else
+#define CAR_RECORD( i ) ( mCharacterSheet.mCarInventory.mCars[ i ] )
 #endif
 
 #include <cards/cardgallery.h>
@@ -493,6 +503,9 @@ void CharacterSheetManager::InitCharacterSheet()
             strcpy(mCharacterSheet.mCarInventory.mCars[i].mName,"n/a");
         }
         mCharacterSheet.mCarInventory.mCounter=0;
+#ifdef RAD_LINUX
+        ModExtraClear();
+#endif
 
 
 /*        
@@ -785,7 +798,122 @@ void CharacterSheetManager::SaveData(GameDataByte* dataBuffer,unsigned int numBy
         {
             memcpy(dataBuffer,&mCharacterSheet,sizeof(CharacterSheet));
         }
+#ifdef RAD_LINUX
+        // Linux port: the saved count stays within the saved array; the rest go to the sidecar (ModExtraWrite)
+        CharacterSheet* saved = reinterpret_cast< CharacterSheet* >( dataBuffer );
+        if( saved->mCarInventory.mCounter > MAX_CARS_OWNED )
+        {
+            saved->mCarInventory.mCounter = MAX_CARS_OWNED;
+        }
+#endif
     }
+
+#ifdef RAD_LINUX
+CarCharacterSheet* CharacterSheetManager::ModCarRecord( int index )
+{
+    if( index >= 0 && index < MAX_CARS_OWNED )
+    {
+        return &mCharacterSheet.mCarInventory.mCars[ index ];
+    }
+    if( index >= MAX_CARS_OWNED && index < MAX_CARS_OWNED + MOD_EXTRA_CARS )
+    {
+        return &s_modExtraCars[ index - MAX_CARS_OWNED ];
+    }
+    static CarCharacterSheet s_none;       // out of range (GetCarCharacterSheet reads one past the count)
+    strcpy( s_none.mName, "n/a" );
+    s_none.mCurrentHealth = s_none.mMaxHealth = -1.0f;
+    return &s_none;
+}
+
+void CharacterSheetManager::ModExtraClear()
+{
+    for( int i = 0; i < MOD_EXTRA_CARS; i++ )
+    {
+        strcpy( s_modExtraCars[ i ].mName, "n/a" );
+        s_modExtraCars[ i ].mCurrentHealth = s_modExtraCars[ i ].mMaxHealth = -1.0f;
+    }
+    memset( s_modExtraPurchased, 0, sizeof( s_modExtraPurchased ) );
+    if( mCharacterSheet.mCarInventory.mCounter > MAX_CARS_OWNED )
+    {
+        mCharacterSheet.mCarInventory.mCounter = MAX_CARS_OWNED;
+    }
+}
+
+bool CharacterSheetManager::ModExtraWrite( const char* path )
+{
+    bool any = mCharacterSheet.mCarInventory.mCounter > MAX_CARS_OWNED;
+    for( int l = 0; l < MAX_LEVELS && !any; l++ )
+    {
+        for( int i = 0; i < MOD_EXTRA_PURCHASES && !any; i++ )
+        {
+            any = s_modExtraPurchased[ l ][ i ];
+        }
+    }
+    if( !any )
+    {
+        return false;
+    }
+    FILE* file = fopen( path, "w" );
+    if( file == NULL )
+    {
+        rReleasePrintf( "Could not write %s\n", path );
+        return false;
+    }
+    fprintf( file, "cars %d\n", mCharacterSheet.mCarInventory.mCounter );
+    for( int i = MAX_CARS_OWNED; i < mCharacterSheet.mCarInventory.mCounter; i++ )
+    {
+        const CarCharacterSheet* car = ModCarRecord( i );
+        fprintf( file, "car %d %s %g %g\n", i, car->mName, car->mCurrentHealth, car->mMaxHealth );
+    }
+    for( int l = 0; l < MAX_LEVELS; l++ )
+    {
+        for( int i = 0; i < MOD_EXTRA_PURCHASES; i++ )
+        {
+            if( s_modExtraPurchased[ l ][ i ] )
+            {
+                fprintf( file, "purchased %d %d\n", l, i + MAX_PURCHASED_ITEMS );
+            }
+        }
+    }
+    fclose( file );
+    return true;
+}
+
+void CharacterSheetManager::ModExtraRead( const char* path )
+{
+    ModExtraClear();
+    FILE* file = fopen( path, "r" );
+    if( file == NULL )
+    {
+        return;
+    }
+    char line[ 128 ];
+    while( fgets( line, sizeof( line ), file ) != NULL )
+    {
+        int a, b;
+        char name[ 32 ];
+        float current, max;
+        if( sscanf( line, "cars %d", &a ) == 1 && a > MAX_CARS_OWNED && a <= MAX_CARS_OWNED + MOD_EXTRA_CARS )
+        {
+            mCharacterSheet.mCarInventory.mCounter = a;
+        }
+        else if( sscanf( line, "car %d %31s %f %f", &a, name, &current, &max ) == 4 &&
+                 a >= MAX_CARS_OWNED && a < MAX_CARS_OWNED + MOD_EXTRA_CARS )
+        {
+            CarCharacterSheet* car = ModCarRecord( a );
+            snprintf( car->mName, sizeof( car->mName ), "%s", name );
+            car->mCurrentHealth = current;
+            car->mMaxHealth = max;
+        }
+        else if( sscanf( line, "purchased %d %d", &a, &b ) == 2 && a >= 0 && a < MAX_LEVELS &&
+                 b >= MAX_PURCHASED_ITEMS && b - MAX_PURCHASED_ITEMS < MOD_EXTRA_PURCHASES )
+        {
+            s_modExtraPurchased[ a ][ b - MAX_PURCHASED_ITEMS ] = true;
+        }
+    }
+    fclose( file );
+}
+#endif
    
 
 //updates the charactersheets current mission struct
@@ -1075,6 +1203,17 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
     //Called from the Rewards Manager, basically records which reward the player has purchased from the RewardManager's token store 
     void CharacterSheetManager::SetPurchasedRewards(RenderEnums::LevelEnum level,int index)
     {
+#ifdef RAD_LINUX
+        // Linux port: past the saved array (was written past it), in the sidecar
+        if( index >= MAX_PURCHASED_ITEMS )
+        {
+            if( index - MAX_PURCHASED_ITEMS < MOD_EXTRA_PURCHASES )
+            {
+                s_modExtraPurchased[ level ][ index - MAX_PURCHASED_ITEMS ] = true;
+            }
+        }
+        else
+#endif
         mCharacterSheet.mLevelList[level].mPurchasedRewards[index] = true;
         
         Merchandise* pmerchandise = NULL;
@@ -1109,6 +1248,12 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
         {
             return  mCharacterSheet.mLevelList[level].mPurchasedRewards[index] != 0;
         }
+#ifdef RAD_LINUX
+        else if( index >= MAX_PURCHASED_ITEMS && index - MAX_PURCHASED_ITEMS < MOD_EXTRA_PURCHASES )
+        {
+            return s_modExtraPurchased[ level ][ index - MAX_PURCHASED_ITEMS ];
+        }
+#endif
         else
         {
             //invalid index as input
@@ -1120,17 +1265,25 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
     //add a car to carinventory to the charactersheet
     int CharacterSheetManager::AddCarToInventory( const char* Name )
     {
+#ifdef RAD_LINUX
+        if( mCharacterSheet.mCarInventory.mCounter >= MAX_CARS_OWNED + MOD_EXTRA_CARS )
+        {
+            rReleasePrintf( "Car inventory is full: %s not added\n", Name );
+            return mCharacterSheet.mCarInventory.mCounter - 1;
+        }
+#else
         rAssertMsg( mCharacterSheet.mCarInventory.mCounter < MAX_CARS_OWNED, "Car inventory is full.\n" );
+#endif
         int i = 0;
         Vehicle* pVehicle = NULL;
         for( i = 0; i < mCharacterSheet.mCarInventory.mCounter; ++i )
         {
-            if( strcmp( mCharacterSheet.mCarInventory.mCars[ i ].mName, Name ) == 0 )
+            if( strcmp( CAR_RECORD( i ).mName, Name ) == 0 )
             {
                 return i;
             }
         }
-        mCharacterSheet.mCarInventory.mCars[ i ].mCurrentHealth = 1.0f;
+        CAR_RECORD( i ).mCurrentHealth = 1.0f;
         
         pVehicle = GetVehicleCentral()->GetVehicleByName(Name);
 
@@ -1139,9 +1292,9 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
         //check if vehicle is intialized already.
         if ( pVehicle != NULL)
         {
-            mCharacterSheet.mCarInventory.mCars[ i ].mMaxHealth = pVehicle->mDesignerParams.mHitPoints;
+            CAR_RECORD( i ).mMaxHealth = pVehicle->mDesignerParams.mHitPoints;
         }
-        strcpy( mCharacterSheet.mCarInventory.mCars[ i ].mName, Name );
+        strcpy( CAR_RECORD( i ).mName, Name );
         ++mCharacterSheet.mCarInventory.mCounter;
         return i;
     }
@@ -1151,7 +1304,7 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
         // Simple sequential search.
         for( int i = 0; i < mCharacterSheet.mCarInventory.mCounter; ++i )
         {
-            if( strcmp( mCharacterSheet.mCarInventory.mCars[ i ].mName, Name ) == 0 )
+            if( strcmp( CAR_RECORD( i ).mName, Name ) == 0 )
             {
                 return i;
             }
@@ -1173,11 +1326,11 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
         {
             return eNull;
         }
-        else if( mCharacterSheet.mCarInventory.mCars[ CarIndex ].mCurrentHealth >= 1.0f )
+        else if( CAR_RECORD( CarIndex ).mCurrentHealth >= 1.0f )
         {
             return eNoDamage;
         }
-        else if( mCharacterSheet.mCarInventory.mCars[ CarIndex ].mCurrentHealth <= 0.0f )
+        else if( CAR_RECORD( CarIndex ).mCurrentHealth <= 0.0f )
         {
             return eHusk;
         }
@@ -1194,14 +1347,14 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
         {
             return -1.0f;
         }
-        return mCharacterSheet.mCarInventory.mCars[ CarIndex ].mCurrentHealth;
+        return CAR_RECORD( CarIndex ).mCurrentHealth;
     }
 
      void CharacterSheetManager::UpdateCarHealth( int CarIndex, float Health )
     {
         if( CarIndex >= 0 && CarIndex < mCharacterSheet.mCarInventory.mCounter )
         {
-            mCharacterSheet.mCarInventory.mCars[ CarIndex ].mCurrentHealth = Health;
+            CAR_RECORD( CarIndex ).mCurrentHealth = Health;
         }
     }
 
@@ -1651,9 +1804,9 @@ CarCharacterSheet* CharacterSheetManager::GetCarCharacterSheet(char* name)
 {
     for (int i=0;i<=mCharacterSheet.mCarInventory.mCounter;i++)
     {
-        if ( strcmp(name,mCharacterSheet.mCarInventory.mCars[i].mName) ==0)
+        if ( strcmp(name,CAR_RECORD( i ).mName) ==0)
         {        
-            return (&mCharacterSheet.mCarInventory.mCars[i]);
+            return (&CAR_RECORD( i ));
         }
     }
     return NULL;
