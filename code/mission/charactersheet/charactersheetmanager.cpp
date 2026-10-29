@@ -1884,7 +1884,11 @@ CharacterSheetManager::IsAllStoryMissionsCompleted()
     bool CharacterSheetManager::IsMiniGameUnlocked() const
     {
 #ifdef RAD_LINUX
-        // Linux port: mods' UnlockBonusGame hack
+        // Linux port: mods' NoBonusGame and UnlockBonusGame hacks
+        if( shar_ModHackRequired( "NoBonusGame" ) )
+        {
+            return false;
+        }
         if( shar_ModHackRequired( "UnlockBonusGame" ) )
         {
             return true;
