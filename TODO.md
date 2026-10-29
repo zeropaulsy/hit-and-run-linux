@@ -34,9 +34,7 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
   - [ ] configured: BugFixes, CustomCollectorCardSupport, CustomDutchAngleNPCCameraTilt, CustomHeadlights,
     CustomMissionSkipFailCounts, CustomRewardQuestSupport, CustomVideoResolutionSupport, DrunkCamera,
     IncreasedRewardLimits, PerLevelCoinCount, RefractionShaderSupport, WalkerCameraDataSupport
-  - [ ] switches:
-    NoInactiveDynamicObjectCollisions,
-    ReplayableBonusMissions
+  - [ ] switches: ReplayableBonusMissions
   - [ ] FLACSupport, VideoTextureSupport; HackSupport (the launcher's own plumbing: check what mods rely on)
 
 #### Partly done

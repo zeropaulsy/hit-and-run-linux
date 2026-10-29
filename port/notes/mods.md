@@ -133,7 +133,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   scripts' SetAnimatedCameraName / SetAnimCamMulticontName / SetMissionStart* and SetInitialWalk do nothing
   (mod objectives' cameras still play); checked on L1 M1's start. NoNeitherRoadArrowProcessing:
   `MissionObjective::UpdateLightPath` returns for NEITHER arrow stages, as `LightPath` already did (no crash case
-  known to test).
+  known to test). NoInactiveDynamicObjectCollisions (guess, docs give no detail): a dynamic at rest when
+  `SubmitDynamicsPseudoCallback` adds it is not auto-paired, so it collides only with its submitter (player, car);
+  smoke-tested driving in L1 only.
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.
