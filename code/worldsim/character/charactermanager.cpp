@@ -64,6 +64,7 @@
 #include <mission/charactersheet/charactersheetmanager.h>
 #ifdef RAD_LINUX
 #include <shar_modcharacters.h>
+#include <shar_mods.h>
 #endif
 
 CharacterManager* CharacterManager::spCharacterManager = 0;
@@ -2145,6 +2146,13 @@ char CharacterManager::sInitialWalkLocator[64] = "";
 
 void CharacterManager::SetInitialWalk(int argc, char** argv)
 {
+#ifdef RAD_LINUX
+    // Linux port: mods' NoMissionStartCameras hack also drops the walk to a locator at the start
+    if( shar_ModHackRequired( "NoMissionStartCameras" ) )
+    {
+        return;
+    }
+#endif
     strcpy(sInitialWalkLocator, argv[1]);
 }
 

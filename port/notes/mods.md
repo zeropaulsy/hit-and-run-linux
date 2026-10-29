@@ -129,7 +129,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   no track is enabled): checked from a fresh profile. NoBonusGame: `IsMiniGameUnlocked` false (wins over
   UnlockBonusGame), menu entry greyed; the card-deck "track unlocked" message stays (docs: the mod's to change).
   SkippableFMVs: accepted, no effect: the port never defines FINAL, so `FMVPlayer::Play` never disables skipping
-  (retail's unskippable intro / unseen mission movies only exist in FINAL builds).
+  (retail's unskippable intro / unseen mission movies only exist in FINAL builds). NoMissionStartCameras: the
+  scripts' SetAnimatedCameraName / SetAnimCamMulticontName / SetMissionStart* and SetInitialWalk do nothing
+  (mod objectives' cameras still play); checked on L1 M1's start.
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.

@@ -42,6 +42,14 @@
 #include <mission/modscript.h>
 #include <mission/objectives/modobjectives.h>
 #include <mission/conditions/modconditions.h>
+#include <shar_mods.h>
+
+// Linux port: mods' NoMissionStartCameras hack: the scripts' mission start cameras are ignored
+static bool NoMissionStartCameras()
+{
+    static const bool s_noCameras = shar_ModHackRequired( "NoMissionStartCameras" ) != 0;
+    return s_noCameras;
+}
 #endif
 #include <mission/missionstage.h>
 #include <mission/nodamagebonusobjective.h>
@@ -3295,6 +3303,12 @@ void MissionScriptLoader::SetPresentationBitmap( int argc, char** argv )
 void MissionScriptLoader::SetAnimatedCameraMulticontrollerName( int argc, char** argv )
 {
     rAssert( argc > 1 );
+#ifdef RAD_LINUX
+    if( NoMissionStartCameras() )
+    {
+        return;
+    }
+#endif
     AnimatedCam::SetMulticontroller( argv[ 1 ] );
 }
 
@@ -3311,6 +3325,12 @@ void MissionScriptLoader::SetAnimatedCameraMulticontrollerName( int argc, char**
 void MissionScriptLoader::SetAnimatedCameraName( int argc, char** argv )
 {
     rAssert( argc > 1 );
+#ifdef RAD_LINUX
+    if( NoMissionStartCameras() )
+    {
+        return;
+    }
+#endif
     AnimatedCam::ClearCamera();
     AnimatedCam::SetCamera( argv[ 1 ] );
 }
@@ -3328,6 +3348,12 @@ void MissionScriptLoader::SetAnimatedCameraName( int argc, char** argv )
 void MissionScriptLoader::SetMissionStartMulticontrollerName( int argc, char** argv )
 {
     rAssert( argc > 1 );
+#ifdef RAD_LINUX
+    if( NoMissionStartCameras() )
+    {
+        return;
+    }
+#endif
     AnimatedCam::SetMissionStartMulticontroller( argv[ 1 ] );
 }
 
@@ -3344,6 +3370,12 @@ void MissionScriptLoader::SetMissionStartMulticontrollerName( int argc, char** a
 void MissionScriptLoader::SetMissionStartCameraName ( int argc, char** argv )
 {
     rAssert( argc > 1 );
+#ifdef RAD_LINUX
+    if( NoMissionStartCameras() )
+    {
+        return;
+    }
+#endif
     AnimatedCam::SetMissionStartCamera( argv[ 1 ] );
 }
 
