@@ -36,7 +36,7 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
     IncreasedRewardLimits, PerLevelCoinCount, RefractionShaderSupport, WalkerCameraDataSupport
   - [ ] switches:
     NoInactiveDynamicObjectCollisions, NoMissionStartCameras, NoNeitherRoadArrowProcessing,
-    ReplayableBonusMissions, SkippableFMVs
+    ReplayableBonusMissions
   - [ ] FLACSupport, VideoTextureSupport; HackSupport (the launcher's own plumbing: check what mods rely on)
 
 #### Partly done
