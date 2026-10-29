@@ -40,6 +40,9 @@
 #include <mission/gameplaymanager.h>
 #include <mission/charactersheet/charactersheetmanager.h>
 #include <p3d/displayaspect.hpp>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 /* Watcher stuff */
 #ifndef RAD_RELEASE
@@ -1090,7 +1093,25 @@ void CoinManager::HUDRender( void )
             }
             --mHUDSparkle;
             p3d::pddi->PushMultMatrix( PDDI_MATRIX_MODELVIEW, &transform );
+#ifdef RAD_LINUX
+            // Linux port: mods' BugFixes HUDCoinDepth: the spinning coin depth-tested against itself (drawn after
+            // the world: its depth is cleared first), not with its faces in submission order
+            static const bool s_coinDepth = shar_ModBugFix( "Visual", "HUDCoinDepth", 1 ) != 0;
+            if( s_coinDepth )
+            {
+                p3d::pddi->Clear( PDDI_BUFFER_DEPTH );
+                p3d::pddi->SetZWrite( true );
+                p3d::pddi->SetZCompare( PDDI_COMPARE_LESSEQUAL );
+            }
+#endif
             m_pCoinDrawable->Display();
+#ifdef RAD_LINUX
+            if( s_coinDepth )
+            {
+                p3d::pddi->SetZWrite( false );
+                p3d::pddi->SetZCompare( PDDI_COMPARE_ALWAYS );
+            }
+#endif
             p3d::pddi->PopMatrix( PDDI_MATRIX_MODELVIEW );
         }
 	    p3d::stack->LoadIdentity();

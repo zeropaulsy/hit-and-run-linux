@@ -141,6 +141,26 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   reload. One-shot arg 0 replays at once with or without the hack (2nd briefing shows the default picture). Mod
   scripts go under `CustomFiles/`. Checked: L1 Cletus with completion forced in gdb, `SHAR_RACE_TALK=1
   SHAR_RACE_AGAIN=1 skipfe race5 autopass8`.
+- BugFixes (`shar_ModBugFix(section, key, default)`: BugFixes.ini, else the launcher's defaults: on, off for its
+  -testing ones and RoadArrowPath...): Physics baby van = clone copies `mTimeComputeInertiaMatrix`
+  (articulatedphysicsobject.cpp; else the port's 0); NoAirVentAudio = `EventLocator::OnTrigger` drops BOUNCEPAD
+  for a player in a car; RestoreWaspCollision = `ActorManager::CreateActor` re-enables a banked actor's collision;
+  FixStuckBrakeAndReverseLights = `Vehicle::ResetFlagsOnly` and `Avatar::SetOutOfCarController` hide them;
+  FixSteeringAnimations = `VehicleController::GetEffectiveSteering` (stick or keys, as VehicleCentral) in
+  `InCar` (state.cpp; GetSteering is stick only: no steer/sway anims on PC) and `SteerAction::ShouldRelease` (read
+  the character's stick: released at once); checked by counting SteerActions while turning (0 vs 1 held);
+  FixCharacterRotations = shadow (`Character::Display`) and radar (`CharacterTarget::GetHeading`) rotated by the
+  parent transform; HUDCoinDepth = depth cleared, test/write on for the spinning HUD coin (`CoinManager::HUDRender`);
+  FixRelativeAnimatedCamCameraChange = `AllowCameraToggle` false for RELATIVE_ANIMATED_CAM;
+  RoadArrowPathItemLimitIncludeIntersectionCount = `MissionObjective::ArrowPathCapacity` (+intersections; Add is
+  bounds-checked, the path was cut short); FixCarDeletedWhileLoadingCONFileCrash = the under-construction queue
+  holds a reference (vehiclecentral.cpp). Always on (memory safety): coin counts of 8+ digits overflowed 8-byte
+  buffers (`UpdateNumCoinsDisplay`, `HudCoinCollected::SetItemCount`, shown capped at 9999999 =
+  FixHighCoinCountCrash); Unlock All Cameras set the PC walking camera count to the console list's 4, read past
+  `PC_CAMERAS_FOR_WALKING` (guiscreenpausesettings.cpp). No code: FixCursorPosition (`FEMouse::Update` already maps
+  to the 4:3 page), FixLateFocusFreeze and FixTimeSkip (Win32 focus / modal drag loop), FixZoneLoadOnExitCrash (quit
+  sweeps incl. mid-load clean); FixMainMenuCheatCodeEnterCrash not reproduced (every cheat enabled at the main menu
+  in gdb: no crash).
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.

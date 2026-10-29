@@ -14,7 +14,7 @@
  * NoHitAndRunMusic, NoBustedHitAndRunMeterReset, NoFastCarReset, NoAutomaticSavedGameLoad,
  * NoSavedGames, UnlockAllMissions, UnlockAllVehicles, UnlockAllOutfits, UnlockBonusGame,
  * NoBonusGame, NoMissionStartCameras, NoNeitherRoadArrowProcessing,
- * NoInactiveDynamicObjectCollisions, ReplayableBonusMissions;
+ * NoInactiveDynamicObjectCollisions, ReplayableBonusMissions; BugFixes (shar_ModBugFix);
  * DynamicTreeNodeEntityLimits (WorldScene).
  * Other hacks a mod's Meta.ini requires are reported at startup and ignored. Mod settings are
  * their Meta.ini defaults unless ModSettings.ini in the game dir sets them ([InternalName] Name=value).
@@ -103,6 +103,10 @@ const char* shar_ModConfigFolderLanguage(const char* folder);
 /* Whether a loaded mod's Meta.ini has RequiredHack=hack (case-insensitive): for behaviour the Mod Launcher enables
  * only for mods that ask for it. */
 int shar_ModHackRequired(const char* hack);
+
+/* One of the BugFixes hack's fixes (port/notes/mods.md): 0 unless a mod requires BugFixes, else its BugFixes.ini
+ * [section] key, defaultValue when missing (the Mod Launcher's settings default: 1, 0 for its -testing ones). */
+int shar_ModBugFix(const char* section, const char* key, int defaultValue);
 
 #ifdef __cplusplus
 }

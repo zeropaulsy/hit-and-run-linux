@@ -43,6 +43,9 @@
 #include <interiors/interiormanager.h>
 #ifdef RAD_LINUX
 #include <shar_modcharacters.h>
+#include <shar_mods.h>
+#include <worldsim/vehiclecentral.h>
+#include <worldsim/redbrick/vehiclecontroller/vehiclecontroller.h>
 #endif
 
 inline bool AnyStickMovement(Character* character, float tol = 0.0f)
@@ -688,6 +691,20 @@ bool SteerAction::ShouldRelease(void)
    }
 
    float steer = GetCharacterManager()->GetCharacter(0)->GetController()->GetValue(CharacterController::LeftStickX);
+#ifdef RAD_LINUX
+   // Linux port: mods' BugFixes FixSteeringAnimations: the character's stick reads nothing while driving (keyboard),
+   // so the animation was released as it started and restarted every frame; the car's steering instead
+   static const bool s_fixSteering = shar_ModBugFix( "Visual", "FixSteeringAnimations", 1 ) != 0;
+   if( s_fixSteering )
+   {
+       VehicleController* v = GetVehicleCentral()->GetVehicleController(
+           GetVehicleCentral()->GetVehicleId( mpCharacter->GetTargetVehicle(), false ) );
+       if( v != NULL )
+       {
+           steer = v->GetEffectiveSteering();
+       }
+   }
+#endif
    return (rmt::Abs(steer) < 0.1f) || (mpCharacter->GetTargetVehicle()->IsInReverse()); 
 ;
 }

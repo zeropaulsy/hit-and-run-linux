@@ -4932,6 +4932,14 @@ void Character::Display(void)
         rmt::Vector characterFacing;
 		GetTerrainIntersect( groundPos, groundNormal );
         GetFacing( characterFacing );
+#ifdef RAD_LINUX
+        // Linux port: mods' BugFixes FixCharacterRotations: the facing is relative to what the character stands on
+        static const bool s_fixRotations = shar_ModBugFix( "Visual", "FixCharacterRotations", 1 ) != 0;
+        if( s_fixRotations )
+        {
+            mParentTransform.RotateVector( characterFacing, &characterFacing );
+        }
+#endif
         struct BlobShadowParams p( groundPos, groundNormal, characterFacing );
         const rmt::Vector& pos = rPosition();
         p.ShadowScale = 1.0f - ( ( pos.y - groundPos.y ) * JumpRatio );

@@ -20,6 +20,9 @@
 //========================================
 #include <worldsim/character/charactertarget.h>
 #include <worldsim/character/character.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 
 
@@ -99,6 +102,15 @@ Return:         void
 void CharacterTarget::GetHeading( rmt::Vector* heading )
 {
     mpCharacter->GetFacing( *heading );
+#ifdef RAD_LINUX
+    // Linux port: mods' BugFixes FixCharacterRotations: in world space when standing on a moving car or platform
+    // (the radar icon)
+    static const bool s_fixRotations = shar_ModBugFix( "Visual", "FixCharacterRotations", 1 ) != 0;
+    if( s_fixRotations )
+    {
+        mpCharacter->GetParentTransform().RotateVector( *heading, heading );
+    }
+#endif
 }
 /*
 ==============================================================================

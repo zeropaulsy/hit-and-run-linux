@@ -28,6 +28,10 @@
 #include <sstream>
 
 #include <stack>
+#ifdef RAD_LINUX
+#include <ai/actor/actordsg.h>
+#include <shar_mods.h>
+#endif
 
 static const int MAX_NUM_ACTORS = 50;
 
@@ -613,6 +617,15 @@ ActorManager::CreateActor( tUID typeName, tUID instanceName, const rmt::Matrix& 
         GetEventManager()->TriggerEvent( EVENT_ACTOR_CREATED, pActor );        
         pActor->SetTransform( transform );
         pActor->SetState( 0 );
+#ifdef RAD_LINUX
+        // Linux port: mods' BugFixes RestoreWaspCollision: an actor from the bank may be one destroyed earlier,
+        // whose stateprop turned its collision off (eRemoveCollisionVolume); cars then pass through it
+        static const bool s_restoreCollision = shar_ModBugFix( "Actors", "RestoreWaspCollision", 1 ) != 0;
+        if( s_restoreCollision && pActor->GetDSG() != NULL )
+        {
+            const_cast< ActorDSG* >( pActor->GetDSG() )->EnableCollisionVolume( true );
+        }
+#endif
         // remove it from the actorbank list
         m_ActorBank.Remove( i );
         pActor->Release();

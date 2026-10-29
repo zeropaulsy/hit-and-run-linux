@@ -1165,6 +1165,15 @@ void Vehicle::ResetFlagsOnly(bool resetDamage)
     mBuildingUpSpeedBurst = false;
     mDoSpeedBurst = false;
     mDoingJumpBoost = false;
+#ifdef RAD_LINUX
+    // Linux port: mods' BugFixes FixStuckBrakeAndReverseLights: the flags were cleared with the lights left showing
+    static const bool s_fixStuckLights = shar_ModBugFix( "Visual", "FixStuckBrakeAndReverseLights", 1 ) != 0;
+    if( s_fixStuckLights && mGeometryVehicle != NULL )
+    {
+        mGeometryVehicle->HideBrakeLights();
+        mGeometryVehicle->HideReverseLights();
+    }
+#endif
     mBrakeLightsOn = false;
     mReverseLightsOn = false;
     mCMOffsetSetToOriginal = false;

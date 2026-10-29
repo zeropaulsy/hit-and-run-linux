@@ -59,7 +59,12 @@ InteriorObjective::InteriorObjective() :
     mHUDID( -1 ),
     mAnimatedIcon( NULL )
 {
+#ifdef RAD_LINUX
+    // Linux port: mods' BugFixes RoadArrowPathItemLimitIncludeIntersectionCount (the path holds intersections too)
+    mArrowPath.mPathRoute.Allocate( MissionObjective::ArrowPathCapacity() );
+#else
     mArrowPath.mPathRoute.Allocate( RoadManager::GetInstance()->GetNumRoads() );    
+#endif
 
     mIcon[0] = '\0';
 }

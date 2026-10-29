@@ -88,7 +88,8 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "NoBonusGame",
                                         "SkippableFMVs",  // no-op: see port/notes/mods.md
                                         "NoMissionStartCameras", "NoNeitherRoadArrowProcessing",
-                                        "NoInactiveDynamicObjectCollisions", "ReplayableBonusMissions" };
+                                        "NoInactiveDynamicObjectCollisions", "ReplayableBonusMissions",
+                                        "BugFixes" };
 
 void Init( void );
 
@@ -1822,6 +1823,15 @@ extern "C" int shar_ModConfigInt( const char* file, const char* section, const c
         return defaultValue;
     }
     return atoi( value );
+}
+
+extern "C" int shar_ModBugFix( const char* section, const char* key, int defaultValue )
+{
+    if ( !shar_ModHackRequired( "BugFixes" ) )
+    {
+        return 0;
+    }
+    return shar_ModConfigInt( "BugFixes.ini", section, key, defaultValue ) != 0;
 }
 
 static const Mod* s_FolderMod = NULL;   // the mod the last shar_ModConfigFolder call read from

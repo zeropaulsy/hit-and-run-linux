@@ -49,6 +49,9 @@
 #include <gameflow/gameflow.h>
 #include <supersprint/supersprintmanager.h>
 #include <worldsim/traffic/trafficmanager.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 //******************************************************************************
 //
 // Global Data, Local Data, Local Classes
@@ -612,6 +615,18 @@ void Avatar::SetOutOfCarController( void )
         GetVehicle()->SetOutOfCarSimState();
 
         GetVehicle()->SetUserDrivingCar( false );
+#ifdef RAD_LINUX
+        // Linux port: mods' BugFixes FixStuckBrakeAndReverseLights: getting out while braking or reversing left the
+        // lights on (the reverse lights are geometry, not switched off with the others above)
+        static const bool s_fixStuckLights = shar_ModBugFix( "Visual", "FixStuckBrakeAndReverseLights", 1 ) != 0;
+        if( s_fixStuckLights )
+        {
+            GetVehicle()->mGeometryVehicle->HideBrakeLights();
+            GetVehicle()->mBrakeLightsOn = false;
+            GetVehicle()->mGeometryVehicle->HideReverseLights();
+            GetVehicle()->mReverseLightsOn = false;
+        }
+#endif
     }
 
     // Then, make a new character controller.

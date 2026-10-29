@@ -158,6 +158,9 @@ protected:
     };
 
     void UpdateLightPath( PathStruct& orPathStruct );
+#ifdef RAD_LINUX
+    static int ArrowPathCapacity();     // Linux port: size of an objective's road arrow path (mods' BugFixes)
+#endif
     void UpdateGroundHeights( SwapArray<RoadManager::PathElement>& orPathRoute );
     void UpdateLongRoadArrows( PathStruct& orPathStruct );
     void UpdateAnimPosition( AnimEntityDSG* pAnimEntityDSG, rmt::Vector& irPosn );

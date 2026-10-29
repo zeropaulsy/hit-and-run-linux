@@ -325,7 +325,13 @@ CGuiScreenPauseSettings::OnCheatEntered( eCheatID cheatID, bool isEnabled )
     if( cheatID == CHEAT_ID_UNLOCK_CAMERAS && isEnabled )
     {
         m_numCameraSelections[ CAMERA_SELECTION_FOR_DRIVING ] = NUM_CAMERAS_FOR_DRIVING;
+#ifdef RAD_WIN32
+        // PC port fix (Linux port): the walking list is PC_CAMERAS_FOR_WALKING here (one shorter: read past its end,
+        // the Mod Launcher's BugFixes FixUnlockAllCamerasSettingsCrash)
+        m_numCameraSelections[ CAMERA_SELECTION_FOR_WALKING ] = NUM_PC_CAMERAS_FOR_WALKING;
+#else
         m_numCameraSelections[ CAMERA_SELECTION_FOR_WALKING ] = NUM_CAMERAS_FOR_WALKING;
+#endif
     }
 }
 

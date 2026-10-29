@@ -64,6 +64,9 @@
 #include <presentation/gui/guisystem.h>
 #include <presentation/gui/ingame/guimanageringame.h>
 #include <presentation/gui/ingame/guiscreeniriswipe.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 
 namespace CharacterAi
@@ -484,6 +487,15 @@ void InCar::Update( float timeins )
         {
             bool duh;
             float steer = v->GetSteering(duh);
+#ifdef RAD_LINUX
+            // Linux port: mods' BugFixes FixSteeringAnimations: keyboard / d-pad steering too (GetSteering is only the
+            // stick, so on PC the steer and sway animations never started)
+            static const bool s_fixSteering = shar_ModBugFix( "Visual", "FixSteeringAnimations", 1 ) != 0;
+            if( s_fixSteering )
+            {
+                steer = v->GetEffectiveSteering();
+            }
+#endif
 
             Action* action = NULL;
 
