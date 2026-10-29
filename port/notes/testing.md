@@ -47,6 +47,8 @@
   uninitialised path elements: now lights no path.
 
 ## Robustness / shutdown
+- Phone booth, car without a 2D image (rocke_v, cBlbart, mods' cars): the image kept the previous car's unloaded
+  sprite and corrupted memory (crashes in sound / Scrooby): now hidden (`CGuiScreenPhoneBooth`, 2D preview).
 - Quit sweeps done (release + debug, all contexts incl. mid-load, bonus game): clean.
   Quit in context 0 (before bootup `WorldPhysicsManager::Init`): dtor skips its uninitialised arrays.
 - Debug-build teardown asserts are the original's (SimEnvironment/SimUnits refs, loading managers' state,

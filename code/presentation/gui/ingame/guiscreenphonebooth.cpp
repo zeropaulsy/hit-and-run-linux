@@ -967,7 +967,14 @@ CGuiScreenPhoneBooth::On3DModelLoaded( const PreviewObject* previewObject )
         }
         else
         {
+#ifdef RAD_LINUX
+            // Linux port: a car without a 2D image (rocke_v, cBlbart, mods' cars): the previous car's sprite
+            // was unloaded with its section, drawing it corrupted memory; show none
+            m_previewImage->SetRawSprite( NULL, true );
+            m_previewImage->SetVisible( false );
+#else
             rAssertMsg( false, "*** Can't find 2D vehicle image!!" );
+#endif
         }
     }
 }
