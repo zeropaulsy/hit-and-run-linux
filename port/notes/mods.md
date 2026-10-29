@@ -146,6 +146,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   icon (`mModCollectionThing`: the game's effect is one static for all cards, inited by the first card created),
   updated by `UpdateThing` while it plays. Checked: L1 cards (quotes in gdb, phone_icon in the world, collection
   through gdb-called OnEnter; card 1 is up the house wall, L1 224.3,7.2,-201.5).
+- CustomDutchAngleNPCCameraTilt (`shar_moddutch.cpp`, `WalkerCam` "creepy twist" near peds, game: L7 only,
+  0.176 rad): mission = `GetCurrentMissionIndex` (story mission; its Sunday drive and bonus missions share it).
+  Checked in gdb forcing pedPCT (L1: off vanilla, 45 deg with the mod).
 - BugFixes (`shar_ModBugFix(section, key, default)`: BugFixes.ini, else the launcher's defaults: on, off for its
   -testing ones and RoadArrowPath...): Physics baby van = clone copies `mTimeComputeInertiaMatrix`
   (articulatedphysicsobject.cpp; else the port's 0); NoAirVentAudio = `EventLocator::OnTrigger` drops BOUNCEPAD

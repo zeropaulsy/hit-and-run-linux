@@ -206,7 +206,7 @@ def main():
     out.append("# Win32 API subset implemented on POSIX (threads/sync/timers); linked after the libraries using it")
     out.append(f"add_library(shar_compat STATIC {COMPAT_DIR}/win32_threads.cpp {COMPAT_DIR}/win32_misc.cpp "
                f"{COMPAT_DIR}/pddi_heap.cpp {COMPAT_DIR}/shar_mods.cpp {COMPAT_DIR}/shar_modlua.cpp "
-               f"{COMPAT_DIR}/shar_modshops.cpp {COMPAT_DIR}/shar_modcars.cpp {COMPAT_DIR}/shar_modinteriors.cpp {COMPAT_DIR}/shar_modroads.cpp {COMPAT_DIR}/shar_modaudio.cpp {COMPAT_DIR}/shar_modbonus.cpp {COMPAT_DIR}/shar_modshaders.cpp {COMPAT_DIR}/shar_modcharacters.cpp {COMPAT_DIR}/shar_modtraffic.cpp {COMPAT_DIR}/shar_modcards.cpp "
+               f"{COMPAT_DIR}/shar_modshops.cpp {COMPAT_DIR}/shar_modcars.cpp {COMPAT_DIR}/shar_modinteriors.cpp {COMPAT_DIR}/shar_modroads.cpp {COMPAT_DIR}/shar_modaudio.cpp {COMPAT_DIR}/shar_modbonus.cpp {COMPAT_DIR}/shar_modshaders.cpp {COMPAT_DIR}/shar_modcharacters.cpp {COMPAT_DIR}/shar_modtraffic.cpp {COMPAT_DIR}/shar_modcards.cpp {COMPAT_DIR}/shar_moddutch.cpp "
                f"{COMPAT_DIR}/shar_crash.cpp)")
     out.append("# the renderer allocates from its own heap, as pddidx8.dll did on Windows (port/compat/pddi_heap.cpp)")
     # operator new's mangled name carries its size type: unsigned int (j) on 32-bit, unsigned long (m) on 64-bit

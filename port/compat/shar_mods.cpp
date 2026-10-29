@@ -89,7 +89,7 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "SkippableFMVs",  // no-op: see port/notes/mods.md
                                         "NoMissionStartCameras", "NoNeitherRoadArrowProcessing",
                                         "NoInactiveDynamicObjectCollisions", "ReplayableBonusMissions",
-                                        "BugFixes", "CustomCollectorCardSupport" };
+                                        "BugFixes", "CustomCollectorCardSupport", "CustomDutchAngleNPCCameraTilt" };
 
 void Init( void );
 

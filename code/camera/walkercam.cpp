@@ -49,6 +49,9 @@
 #include <ai/actor/intersectionlist.h>
 
 #include <choreo/utility.hpp>
+#ifdef RAD_LINUX
+#include <shar_moddutch.h>
+#endif
 
 
 //******************************************************************************
@@ -274,7 +277,20 @@ void WalkerCam::Update( unsigned int milliseconds )
 
         //---------  Goofin' with the twist
         //Are we on level 7?
-        if ( GetGameplayManager()->GetCurrentLevelIndex() == RenderEnums::L7 && pedPCT > 0.0f)
+        bool creepyLevel = GetGameplayManager()->GetCurrentLevelIndex() == RenderEnums::L7;
+        float creepyTwist = CREEPY_TWIST_WALKER;
+#ifdef RAD_LINUX
+        // Linux port: mods' CustomDutchAngleNPCCameraTilt: which levels / missions tilt, and by how much
+        float tiltDegrees;
+        int modTilt = shar_ModDutchTilt( static_cast< int >( GetGameplayManager()->GetCurrentLevelIndex() ),
+                                         GetGameplayManager()->GetCurrentMissionIndex(), &tiltDegrees );
+        if( modTilt >= 0 )
+        {
+            creepyLevel = modTilt != 0;
+            creepyTwist = rmt::DegToRadian( tiltDegrees );
+        }
+#endif
+        if ( creepyLevel && pedPCT > 0.0f)
         {
             rmt::Vector velocity;
             mTarget->GetVelocity( &velocity );
@@ -283,7 +299,7 @@ void WalkerCam::Update( unsigned int milliseconds )
 
             if ( velocity.MagnitudeSqr() < minCharSpeed )
             {
-                SetTwist( CREEPY_TWIST_WALKER * pedPCT );
+                SetTwist( creepyTwist * pedPCT );
             }
             else
             {
