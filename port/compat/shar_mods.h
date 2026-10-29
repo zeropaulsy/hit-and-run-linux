@@ -10,7 +10,7 @@
  * CustomInteriorSupport (shar_modinteriors.h), CustomRoadBehaviour (shar_modroads.h), CustomAudioSupport (shar_modaudio.h),
  * CustomTriggerActions (code/meta/modtriggeractions.h), CustomBonusMissionSupport (shar_modbonus.h),
  * CustomSkinPreviewAnimations (guiscreenpurchaserewards.cpp), OverrideShaderParameters (shar_modshaders.h),
- * CustomCharacterSupport (shar_modcharacters.h); switches (port/notes/mods.md): NoCheats, NoWrenches,
+ * CustomCharacterSupport (shar_modcharacters.h), CustomCollectorCardSupport (shar_modcards.h); switches (port/notes/mods.md): NoCheats, NoWrenches,
  * NoHitAndRunMusic, NoBustedHitAndRunMeterReset, NoFastCarReset, NoAutomaticSavedGameLoad,
  * NoSavedGames, UnlockAllMissions, UnlockAllVehicles, UnlockAllOutfits, UnlockBonusGame,
  * NoBonusGame, NoMissionStartCameras, NoNeitherRoadArrowProcessing,

@@ -141,6 +141,11 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   reload. One-shot arg 0 replays at once with or without the hack (2nd briefing shows the default picture). Mod
   scripts go under `CustomFiles/`. Checked: L1 Cletus with completion forced in gdb, `SHAR_RACE_TALK=1
   SHAR_RACE_AGAIN=1 skipfe race5 autopass8`.
+- CustomCollectorCardSupport (`shar_modcards.cpp`): quotes replace `s_cardsDB` quotes in `CardsDB::LoadCards`
+  (custom indices pass the card assert); Drawable in `CollectibleCard::Create`; CollectDrawable is the card's own
+  icon (`mModCollectionThing`: the game's effect is one static for all cards, inited by the first card created),
+  updated by `UpdateThing` while it plays. Checked: L1 cards (quotes in gdb, phone_icon in the world, collection
+  through gdb-called OnEnter; card 1 is up the house wall, L1 224.3,7.2,-201.5).
 - BugFixes (`shar_ModBugFix(section, key, default)`: BugFixes.ini, else the launcher's defaults: on, off for its
   -testing ones and RoadArrowPath...): Physics baby van = clone copies `mTimeComputeInertiaMatrix`
   (articulatedphysicsobject.cpp; else the port's 0); NoAirVentAudio = `EventLocator::OnTrigger` drops BOUNCEPAD

@@ -114,6 +114,7 @@
 #include <shar_mods.h>
 #include <shar_modxml.h>
 #include <shar_modshops.h>
+#include <shar_modcards.h>
 #endif
 
 //******************************************************************************
@@ -3648,6 +3649,9 @@ void CollectibleFood::OnEnter( Character* pCharacter )
 
 AnimatedIcon* CollectibleCard::mAnimatedCollectionThing = NULL;
 unsigned int CollectibleCard::mCollectibleCardCount = 0;
+#ifdef RAD_LINUX
+AnimatedIcon* CollectibleCard::sModCollectionPlaying = NULL;
+#endif
 
 
 /*
@@ -3667,6 +3671,9 @@ CollectibleCard::CollectibleCard( ActionEventLocator* pActionEventLocator )
 Collectible( pActionEventLocator )
 {  
     mCollectibleCardCount++;
+#ifdef RAD_LINUX
+    mModCollectionThing = NULL;
+#endif
 }
 /*
 ==============================================================================
@@ -3683,6 +3690,14 @@ Return:         CollectibleCard
 CollectibleCard::~CollectibleCard()
 {
     mCollectibleCardCount--;
+#ifdef RAD_LINUX
+    if( sModCollectionPlaying == mModCollectionThing )
+    {
+        sModCollectionPlaying = NULL;
+    }
+    delete mModCollectionThing;
+    mModCollectionThing = NULL;
+#endif
 
     if ( mCollectibleCardCount == 0 )
     {
@@ -3750,9 +3765,26 @@ MEMTRACK_PUSH_GROUP( "Collectible - Cards" );
 
         mAnimatedIcon = new(GMA_LEVEL_OTHER) AnimatedIcon();
 
+        const char* idleDrawable = "card_idle";
+#ifdef RAD_LINUX
+        // Linux port: mods' CustomCollectorCardSupport: this card's Drawable / CollectDrawable (its own icon: the
+        // game's collection effect is one for every card)
+        const SharModCard* modCard = card != NULL ?
+            shar_ModCollectorCard( static_cast< int >( card->GetLevel() ) - 1, static_cast< int >( card->GetLevelID() ) - 1 ) : NULL;
+        if( modCard != NULL && modCard->drawable[ 0 ] != '\0' )
+        {
+            idleDrawable = modCard->drawable;
+        }
+        if( modCard != NULL && modCard->collectDrawable[ 0 ] != '\0' && mModCollectionThing == NULL )
+        {
+            mModCollectionThing = new(GMA_LEVEL_OTHER) AnimatedIcon();
+            mModCollectionThing->Init( modCard->collectDrawable, rmt::Vector(0.0f, 0.0f, 0.0f), false, true );
+        }
+#endif
+
         rmt::Vector pos;
         mpActionEventLocator->GetLocation( &pos );
-        mAnimatedIcon->Init( "card_idle", pos, true );
+        mAnimatedIcon->Init( idleDrawable, pos, true );
 
         if ( mAnimatedCollectionThing == NULL )
         {
@@ -3796,11 +3828,23 @@ void CollectibleCard::OnEnter( Character* pCharacter )
 
         // Maybe play an animation?
         //
-        mAnimatedCollectionThing->Reset();
+        AnimatedIcon* collectionThing = mAnimatedCollectionThing;
+#ifdef RAD_LINUX
+        if( mModCollectionThing != NULL )
+        {
+            collectionThing = mModCollectionThing;
+            sModCollectionPlaying = mModCollectionThing;
+            if( getenv( "SHAR_MOD_LOG" ) != NULL )
+            {
+                fprintf( stderr, "mods: collector card collected: its own collection effect\n" );
+            }
+        }
+#endif
+        collectionThing->Reset();
         rmt::Vector pos;
         mpActionEventLocator->GetLocation( &pos );
-        mAnimatedCollectionThing->ShouldRender( true );
-        mAnimatedCollectionThing->Move( pos );
+        collectionThing->ShouldRender( true );
+        collectionThing->Move( pos );
 
         // Maybe play a sound effect.
         //
@@ -3834,6 +3878,12 @@ void CollectibleCard::UpdateThing( unsigned int milliseconds )
     {
         mAnimatedCollectionThing->Update( milliseconds );
     }
+#ifdef RAD_LINUX
+    if ( sModCollectionPlaying )
+    {
+        sModCollectionPlaying->Update( milliseconds );
+    }
+#endif
 }
 
 

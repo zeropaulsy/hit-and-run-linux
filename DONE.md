@@ -105,6 +105,7 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
   UnlockAllOutfits, UnlockBonusGame, NoBonusGame; NoMissionStartCameras, NoNeitherRoadArrowProcessing,
   NoInactiveDynamicObjectCollisions (a guess at the mechanism), ReplayableBonusMissions; SkippableFMVs accepted (movies are
   always skippable here)
+- [x] CustomCollectorCardSupport: per-card world and collection drawables, quote characters (custom ones too)
 - [x] BugFixes: physics (baby van), air vent audio, wasp collision, stuck lights, steering animations, character
   rotations, HUD coin depth, phone booth camera change, road arrow path size, car deleted during .con load; coin
   count and Unlock All Cameras overflows fixed always; the rest Windows-only, already fixed or not reproduced

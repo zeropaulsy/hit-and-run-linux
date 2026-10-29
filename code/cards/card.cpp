@@ -57,7 +57,9 @@ Card::Card
 
     for( int i = 0; i < numQuotes; i++ )
     {
+#ifndef RAD_LINUX     // Linux port: mods' CustomCollectorCardSupport adds quote characters past the game's
         rAssert( quotes[ i ] < NUM_QUOTE_IDS );
+#endif
 
         m_quotes[ i ] = quotes[ i ];
 

@@ -1107,7 +1107,7 @@ else()
 endif()
 
 # Win32 API subset implemented on POSIX (threads/sync/timers); linked after the libraries using it
-add_library(shar_compat STATIC port/compat/win32_threads.cpp port/compat/win32_misc.cpp port/compat/pddi_heap.cpp port/compat/shar_mods.cpp port/compat/shar_modlua.cpp port/compat/shar_modshops.cpp port/compat/shar_modcars.cpp port/compat/shar_modinteriors.cpp port/compat/shar_modroads.cpp port/compat/shar_modaudio.cpp port/compat/shar_modbonus.cpp port/compat/shar_modshaders.cpp port/compat/shar_modcharacters.cpp port/compat/shar_modtraffic.cpp port/compat/shar_crash.cpp)
+add_library(shar_compat STATIC port/compat/win32_threads.cpp port/compat/win32_misc.cpp port/compat/pddi_heap.cpp port/compat/shar_mods.cpp port/compat/shar_modlua.cpp port/compat/shar_modshops.cpp port/compat/shar_modcars.cpp port/compat/shar_modinteriors.cpp port/compat/shar_modroads.cpp port/compat/shar_modaudio.cpp port/compat/shar_modbonus.cpp port/compat/shar_modshaders.cpp port/compat/shar_modcharacters.cpp port/compat/shar_modtraffic.cpp port/compat/shar_modcards.cpp port/compat/shar_crash.cpp)
 # the renderer allocates from its own heap, as pddidx8.dll did on Windows (port/compat/pddi_heap.cpp)
 if(SHAR_64BIT)
   set(SHAR_NEW_SYM m)
