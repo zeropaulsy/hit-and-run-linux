@@ -80,6 +80,9 @@
 #include <ai/actionbuttonmanager.h>
 
 #include <camera/supercammanager.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 
 //******************************************************************************
@@ -518,7 +521,11 @@ void GameplayManager::Update( int elapsedTime )
             if ( s_raceWait <= 0 )
             {
                 int race = CommandLineOptions::GetDefaultRace();
-                if ( race < mNumBonusMissions )
+                if ( race < mNumBonusMissions && GetBonusMissionInfo( race )->GetMissionNum() == -1 )
+                {
+                    fprintf( stderr, "race: bonus mission %d was removed (completed one-shot)\n", race );
+                }
+                else if ( race < mNumBonusMissions )
                 {
                     fprintf( stderr, "race: starting bonus mission %d\n", race );
                     mDesiredBonusMission = race + MAX_MISSIONS;
@@ -538,6 +545,15 @@ void GameplayManager::Update( int elapsedTime )
                     fprintf( stderr, "race: the level has no bonus mission %d\n", race );
                 }
             }
+        }
+        // SHAR_RACE_AGAIN=1: once back in the Sunday drive, the same bonus mission again (replay tests)
+        static bool s_raceAgain = getenv( "SHAR_RACE_AGAIN" ) != NULL;
+        if ( s_raceAgain && s_raceWait <= 0 && sundayDrive != NULL && sundayDrive->IsSundayDrive() &&
+             mDesiredBonusMission == -1 && !mIsInBonusMission )
+        {
+            s_raceAgain = false;
+            s_raceWait = 6000;
+            fprintf( stderr, "race: again\n" );
         }
     }
 #endif
@@ -2120,9 +2136,16 @@ MEMTRACK_PUSH_GROUP( "GamePlayManager::BonusMissionInfo" );
 int missionNum = GetMissionNumByName( missionName );
     rAssert( missionNum >= 0 && missionNum >= MAX_MISSIONS && missionNum < MAX_BONUS_MISSIONS + MAX_MISSIONS );
 
+#ifdef RAD_LINUX
+    // Linux port: mods' ReplayableBonusMissions hack: a completed bonus mission is offered again after a level
+    // load (one-shot ones too: not removed here); a mod passing 0 for one-shot gets it back straight away
+    static const bool s_replayable = shar_ModHackRequired( "ReplayableBonusMissions" ) != 0;
+#else
+    static const bool s_replayable = false;
+#endif
     if ( missionNum >= MAX_MISSIONS )
     {
-        if (strcmp(missionName,"bm1") ==0)
+        if (strcmp(missionName,"bm1") ==0 && !s_replayable)
         {
             if (GetCharacterSheetManager()->QueryBonusMissionCompleted(GetMissionManager()->GetCurrentLevelIndex()) == true)
             {
@@ -2201,7 +2224,7 @@ int missionNum = GetMissionNumByName( missionName );
             mBonusMissions[ missionIndex ].SetUpAlternateIcon( alternateIconName, charPos );
         }
 
-        mBonusMissions[ missionIndex ].SetCompleted( wasCompletedAlready );
+        mBonusMissions[ missionIndex ].SetCompleted( wasCompletedAlready && !( s_replayable && isOneShot ) );
 
     }
 MEMTRACK_POP_GROUP( "GamePlayManager::BonusMissionInfo" );

@@ -135,7 +135,12 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   `MissionObjective::UpdateLightPath` returns for NEITHER arrow stages, as `LightPath` already did (no crash case
   known to test). NoInactiveDynamicObjectCollisions (guess, docs give no detail): a dynamic at rest when
   `SubmitDynamicsPseudoCallback` adds it is not auto-paired, so it collides only with its submitter (player, car);
-  smoke-tested driving in L1 only.
+  smoke-tested driving in L1 only. ReplayableBonusMissions (`GameplayManager::SetBonusMissionInfo`): the
+  game drops a completed "bm1" NPC at level load (by name: `AddNPCCharacterBonusMission` never gets bm1's record)
+  and a completed one-shot's (`BonusMissionInfo::SetCompleted`); the hack skips both, so it is offered again after a
+  reload. One-shot arg 0 replays at once with or without the hack (2nd briefing shows the default picture). Mod
+  scripts go under `CustomFiles/`. Checked: L1 Cletus with completion forced in gdb, `SHAR_RACE_TALK=1
+  SHAR_RACE_AGAIN=1 skipfe race5 autopass8`.
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.

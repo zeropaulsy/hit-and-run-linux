@@ -6,6 +6,8 @@
 - `raceN`: 2 s after HUD, bonus mission N in level.mfk order (1 time trial, 2 circuit, 3 waypoint, 4 wager); briefing
   waits for Enter. Only loaded zones exist: teleport first (`skipfe tp11 race1`, `skipfe coins tp4 race4`; fee 20).
   `SHAR_RACE_TALK=1`: through the host's dialogue first (not wagers), as walking up to them does; Enter accepts.
+  `race5` on L1 = Cletus (bm1; removed at load once completed). `SHAR_RACE_AGAIN=1`: the same mission again 6 s
+  after returning to the Sunday drive (replay tests).
 - `demo lN`: attract demo, race AI drives the family car, no time limit (driving tests without input).
 - `incar`: 2 s after loading, into the mission car wherever parked (not from interiors).
 - `tpN`: AddTeleportDest list in level.mfk, from 1 (L1 tp2 = Kwik-E-Mart). `SHAR_TP_POS` goes to a point instead
