@@ -91,6 +91,7 @@
 
 #ifdef RAD_LINUX
 void pglPostProcessScene();     // pddi/gl/glpost.hpp: the user's scene post-processing shaders
+void radMovieUpdateVideoTextures();    // radmovie linux/binkvideotexture.cpp: mods' VideoTextureSupport
 #endif
 //******************************************************************************
 //
@@ -531,6 +532,10 @@ void RenderManager::ContextUpdate( unsigned int iElapsedTime )
     {
         TransitionMoodLighting( iElapsedTime );
     }
+
+#ifdef RAD_LINUX
+    radMovieUpdateVideoTextures();      // Linux port: mods' VideoTextureSupport (radmovie binkvideotexture.cpp)
+#endif
 
     BEGIN_PROFILE( "Begin Frame" );
     p3d::context->BeginFrame();

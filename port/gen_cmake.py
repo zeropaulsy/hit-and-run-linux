@@ -54,7 +54,8 @@ LINUX_EXTRA = {
              "code/mission/conditions/modconditions.cpp",
              "code/mission/charactersheet/modstatstotals.cpp",      # CustomStatsTotals
              "code/meta/modtriggeractions.cpp"],                    # CustomTriggerActions
-    "radmovie": ["libs/radmovie/src/linux/binkffmpeg.cpp"],     # the Bink SDK subset radmovie uses, on FFmpeg
+    "radmovie": ["libs/radmovie/src/linux/binkffmpeg.cpp",      # the Bink SDK subset radmovie uses, on FFmpeg
+                 "libs/radmovie/src/linux/binkvideotexture.cpp"], # mods' VideoTextureSupport
     "radsound": ["libs/radsound/src/hal/linux/linuxhal.cpp",
                  "libs/radsound/src/hal/win32/bufferloader.cpp",          # platform-neutral, reused as is
                  "libs/radsound/src/hal/common/softwarelistener.cpp",     # software 3D (as PS2/GameCube)

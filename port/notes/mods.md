@@ -20,6 +20,11 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
 ## Hacks implemented (where)
 - OggVorbisSupport, FLACSupport: x.ogg / x.flac serves x.rsd (`radsound/linux/oggdecoder.cpp`, "OggS" / "fLaC" / ID3
   in `rsdfiledatasource.cpp`; `SHAR_RSD_LOG=1` logs "decoded"). Test FE sounds: soundfx/optionsmenu/button_22, scroll.
+- VideoTextureSupport (`radmovie/src/linux/binkvideotexture.cpp`): shader texture names starting with / (file's TEX
+  param or OverrideShaderParameters, `SetModVideoTexture` in p3d `shader.cpp`) open a Bink via `shar_ModVfsResolve`
+  (`BinkOpen` with `BINKLINUXNOAUDIO`), looped; advanced before `BeginFrame` in RenderManager; freed when only the
+  tTexture holds the pddi texture (`pddiObject::GetRefCount`). Power-of-two only (retail movies are 640x480: test
+  by cropping the copy to 512x256). Failed paths logged once.
 - CustomLimits (doubles; several mods: largest wins, smallest for BoundsMinimumY):
   [Billboards]; [Regions] Limit/EntityLimit/RoadSegmentLimit; [Scripting] ArgumentLengthLimit; [Roads] RoadManager;
   [Pedestrians] PathLimit/GroupLimit (PathManager, `GetMaxModelGroups`, allocated); [TreeNodes] DrawDistance/Bounds*

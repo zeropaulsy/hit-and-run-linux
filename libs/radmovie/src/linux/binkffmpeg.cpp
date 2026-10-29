@@ -177,7 +177,7 @@ void BinkSetSoundTrack( U32 total_tracks, U32* tracks )
     s_SoundTrack = s_HasSoundTrack ? tracks[ 0 ] : 0;
 }
 
-HBINK BinkOpen( const char* name, U32 /*flags*/ )
+HBINK BinkOpen( const char* name, U32 flags )
 {
     // Mods (port/compat/shar_mods.h): occluded movies do not exist, others may be redirected or replaced; a
     // replacement inside a .lmlm package is opened as a byte range of it (FFmpeg's subfile protocol)
@@ -185,10 +185,10 @@ HBINK BinkOpen( const char* name, U32 /*flags*/ )
     SharModFile modFile;
     const char* redirect = NULL;
     int modFd = -1;
-    switch ( shar_ModResolve( name, &modFile, &redirect ) )
+    switch ( name[ 0 ] == '/' ? shar_ModVfsResolve( name, &modFile, &redirect ) : shar_ModResolve( name, &modFile, &redirect ) )
     {
     case SHAR_MOD_MISSING:
-        snprintf( s_Error, sizeof( s_Error ), "occluded by a mod: %s", name );
+        snprintf( s_Error, sizeof( s_Error ), "%s: %s", name[ 0 ] == '/' ? "not found" : "occluded by a mod", name );
         return NULL;
     case SHAR_MOD_FILE:
         if ( modFile.fd >= 0 )
@@ -258,7 +258,7 @@ HBINK BinkOpen( const char* name, U32 /*flags*/ )
     }
 
     // Bink's track ids; FFmpeg keeps them as stream ids (fall back to the n-th audio stream)
-    if ( s_HasSoundTrack )
+    if ( s_HasSoundTrack && !( flags & BINKLINUXNOAUDIO ) )
     {
         int nth = 0, byIndex = -1;
         for ( unsigned int i = 0; i < fmt->nb_streams; i++ )

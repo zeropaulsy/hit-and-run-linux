@@ -904,6 +904,7 @@ add_library(radmovie STATIC
   libs/radmovie/src/common/binkrenderstrategy.cpp
   libs/radmovie/src/pch/pch.cpp
   libs/radmovie/src/linux/binkffmpeg.cpp
+  libs/radmovie/src/linux/binkvideotexture.cpp
 )
 target_include_directories(radmovie PRIVATE libs/radmovie/src/linux libs libs/radmovie/inc libs/radcore/inc libs/radsound/inc libs/pure3d/p3d libs/pure3d libs/radmath libs/radmath/radmath libs/radcontent/inc code libs/radmovie/src/pch)
 if(SHAR_RAD_DEBUG)

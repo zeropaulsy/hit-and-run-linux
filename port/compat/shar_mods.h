@@ -16,7 +16,7 @@
  * DrunkCamera (supercam.cpp), IncreasedRewardLimits (rewardsmanager.cpp, guiscreenrewards.cpp,
  * charactersheetmanager.cpp), PerLevelCoinCount (charactersheetmanager.cpp),
  * RefractionShaderSupport (pddi/gl gldev.cpp, glmat.cpp), WalkerCameraDataSupport (cameradataloader.cpp,
- * walkercam.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
+ * walkercam.cpp), VideoTextureSupport (radmovie binkvideotexture.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
  * NoHitAndRunMusic, NoBustedHitAndRunMeterReset, NoFastCarReset, NoAutomaticSavedGameLoad,
  * NoSavedGames, UnlockAllMissions, UnlockAllVehicles, UnlockAllOutfits, UnlockBonusGame,
  * NoBonusGame, NoMissionStartCameras, NoNeitherRoadArrowProcessing,
@@ -63,6 +63,11 @@ int shar_ModResolve(const char* gamePath, SharModFile* file, const char** redire
 /* The radcore drive's half of an open whose shar_ModResolve the file request (requests.cpp) already made on this
  * thread: SHAR_MOD_FILE and *file when that was for gamePath, else resolves now. */
 int shar_ModTakeResolved(const char* gamePath, SharModFile* file, const char** redirect);
+
+/* A path in the Mod Launcher's virtual file system ("/GameData/movies/x.bik", "/Mods/<InternalName>/...",
+ * "/GameDir/..."): SHAR_MOD_FILE and *file, SHAR_MOD_REDIRECT and the game path (a /GameData one no mod or loose
+ * file provides), or SHAR_MOD_MISSING. *file and *redirect stay valid until the next call on this thread. */
+int shar_ModVfsResolve(const char* vpath, SharModFile* file, const char** redirect);
 
 /* The game-relative folder holding the main mod's saved games ("ModSaves/<InternalName>"), or NULL. */
 const char* shar_ModSaveDir(void);

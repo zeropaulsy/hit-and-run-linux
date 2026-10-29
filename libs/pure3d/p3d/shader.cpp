@@ -13,7 +13,18 @@
 
 #ifdef RAD_LINUX
 #include <shar_modshaders.h>
+#include <shar_mods.h>
 void pglSetMaterialName(pddiShader* shader, const char* name, const char* file);     // pddi/gl/glmat.cpp
+bool radMovieSetVideoTexture(pddiShader* shader, unsigned param, const char* path);  // radmovie binkvideotexture.cpp
+
+// Linux port: mods' VideoTextureSupport: a texture named by a virtual path ("/GameData/x.bik") is a Bink video
+static bool SetModVideoTexture(tShader* shader, unsigned param, const char* name)
+{
+    static int s_Enabled = -1;
+    if(s_Enabled < 0)
+        s_Enabled = shar_ModHackRequired("VideoTextureSupport");
+    return s_Enabled && name[0] == '/' && radMovieSetVideoTexture(shader->GetShader(), param, name);
+}
 
 // Linux port: mods' OverrideShaderParameters.xml (port/compat/shar_modshaders.h), as the shader loads
 static void ApplyModShaderOverrides(tShader* shader, const char* name, tEntityStore* store)
@@ -59,6 +70,8 @@ static void ApplyModShaderOverrides(tShader* shader, const char* name, tEntitySt
                 break;
             case SHAR_SHADERPARAM_TEXTURE:
                 {
+                    if(SetModVideoTexture(shader, p.param, p.texture))
+                        break;
                     tTexture* tex = p3d::find<tTexture>(store, p.texture);
                     if(!tex)
                         tex = p3d::find<tTexture>(p.texture);
@@ -244,6 +257,10 @@ tEntity* tShaderLoader::LoadObject(tChunkFile* f, tEntityStore* store)
                         foundEvilChainlink = true;
                     }
 
+#ifdef RAD_LINUX
+                    if(SetModVideoTexture(shader, param, texName))
+                        break;
+#endif
                     shader->SetTexture(param, tex);
                 }
                 break;

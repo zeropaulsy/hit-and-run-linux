@@ -33,6 +33,9 @@ public:
     virtual void AddRef();
     virtual void Release();
     virtual int GetLastError();
+#ifdef RAD_LINUX
+    int GetRefCount() const { return refCount; }    // Linux port: for mods' video textures (binkvideotexture.cpp)
+#endif
 
 protected:
     virtual ~pddiObject();
