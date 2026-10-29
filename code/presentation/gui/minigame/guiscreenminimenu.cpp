@@ -53,6 +53,9 @@
 #include <raddebug.hpp>
 
 #include <string.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //===========================================================================
 // Global Data, Local Data, Local Classes
@@ -1116,7 +1119,11 @@ void CGuiScreenMiniMenu::InitIntro()
     // disable track(s) that are not unlocked
     //
     rAssert( m_pTrackMenu != NULL );
-    if( !CommandLineOptions::Get( CLO_SKIP_FE ) && !CommandLineOptions::Get( CLO_UNLOCK_BONUS ) ) // Linux port test option
+    if( !CommandLineOptions::Get( CLO_SKIP_FE ) && !CommandLineOptions::Get( CLO_UNLOCK_BONUS ) // Linux port test option
+#ifdef RAD_LINUX
+        && !shar_ModHackRequired( "UnlockBonusGame" )   // Linux port: mods' UnlockBonusGame hack: every track
+#endif
+      )
     {
         for( int i = 0; i < NUM_TRACKS; i++ )
         {

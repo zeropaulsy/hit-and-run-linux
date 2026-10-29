@@ -12,7 +12,7 @@
  * CustomSkinPreviewAnimations (guiscreenpurchaserewards.cpp), OverrideShaderParameters (shar_modshaders.h),
  * CustomCharacterSupport (shar_modcharacters.h); switches (port/notes/mods.md): NoCheats, NoWrenches,
  * NoHitAndRunMusic, NoBustedHitAndRunMeterReset, NoFastCarReset, NoAutomaticSavedGameLoad,
- * NoSavedGames, UnlockAllMissions, UnlockAllVehicles, UnlockAllOutfits;
+ * NoSavedGames, UnlockAllMissions, UnlockAllVehicles, UnlockAllOutfits, UnlockBonusGame;
  * DynamicTreeNodeEntityLimits (WorldScene).
  * Other hacks a mod's Meta.ini requires are reported at startup and ignored. Mod settings are
  * their Meta.ini defaults unless ModSettings.ini in the game dir sets them ([InternalName] Name=value).

@@ -22,6 +22,7 @@
 #include <mission/rewards/rewardsmanager.h>
 #ifdef RAD_LINUX
 #include <mission/charactersheet/modstatstotals.h>
+#include <shar_mods.h>
 #endif
 
 #include <cards/cardgallery.h>
@@ -1882,6 +1883,13 @@ CharacterSheetManager::IsAllStoryMissionsCompleted()
 
     bool CharacterSheetManager::IsMiniGameUnlocked() const
     {
+#ifdef RAD_LINUX
+        // Linux port: mods' UnlockBonusGame hack
+        if( shar_ModHackRequired( "UnlockBonusGame" ) )
+        {
+            return true;
+        }
+#endif
         return( GetCardGallery()->GetNumCardDecksCompleted() > 0 );
     }
 
