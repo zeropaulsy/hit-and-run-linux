@@ -219,6 +219,7 @@ class CharacterSheetManager: GameDataHandler
         // the Mod Launcher's IncreasedRewardLimits); not in the saved CharacterSheet: the save's sidecar
         // (GameDataManager) holds them
         CarCharacterSheet* ModCarRecord( int index );
+        int* ModWallet( int level );                // PerLevelCoinCount: the level's wallet
         void ModExtraClear();
         bool ModExtraWrite( const char* path );     // false: nothing to write
         void ModExtraRead( const char* path );      // missing file: cleared

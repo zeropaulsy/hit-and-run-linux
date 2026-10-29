@@ -14,7 +14,7 @@
  * CustomDutchAngleNPCCameraTilt (shar_moddutch.h), CustomHeadlights (geometryvehicle.cpp),
  * CustomMissionSkipFailCounts (guiscreenmissionover.cpp), CustomVideoResolutionSupport (binkrenderstrategy.cpp);
  * DrunkCamera (supercam.cpp), IncreasedRewardLimits (rewardsmanager.cpp, guiscreenrewards.cpp,
- * charactersheetmanager.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
+ * charactersheetmanager.cpp), PerLevelCoinCount (charactersheetmanager.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
  * NoHitAndRunMusic, NoBustedHitAndRunMeterReset, NoFastCarReset, NoAutomaticSavedGameLoad,
  * NoSavedGames, UnlockAllMissions, UnlockAllVehicles, UnlockAllOutfits, UnlockBonusGame,
  * NoBonusGame, NoMissionStartCameras, NoNeitherRoadArrowProcessing,

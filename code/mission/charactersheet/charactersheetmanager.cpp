@@ -30,6 +30,62 @@ static const int MOD_EXTRA_CARS = 1024;
 static const int MOD_EXTRA_PURCHASES = 256;
 static CarCharacterSheet s_modExtraCars[ MOD_EXTRA_CARS ];
 static bool s_modExtraPurchased[ MAX_LEVELS ][ MOD_EXTRA_PURCHASES ];
+
+// Linux port: mods' PerLevelCoinCount: a coin count per wallet; s_walletOf[ level ] is the wallet's first level
+static int s_wallets[ MAX_LEVELS ];
+static int s_walletOf[ MAX_LEVELS ];
+static int s_perLevelCoins = -1;
+static int s_walletFirst;         // the [SharedWallet] being read: its first level, -1 before one
+static int s_walletAssigned;      // levels already in a SharedWallet (bit per level)
+
+static void OnWalletIni( const char* section, const char* key, const char* value, void* )
+{
+    if( strcasecmp( section, "SharedWallet" ) != 0 )
+    {
+        return;
+    }
+    if( key == NULL )
+    {
+        s_walletFirst = -1;
+        return;
+    }
+    int level = atoi( value ) - 1;
+    if( strcasecmp( key, "Level" ) != 0 || level < 0 || level >= MAX_LEVELS )
+    {
+        return;
+    }
+    if( s_walletAssigned & ( 1 << level ) )
+    {
+        fprintf( stderr, "mods: PerLevelCoinCount.ini: level %d is in more than one SharedWallet\n", level + 1 );
+        return;
+    }
+    s_walletAssigned |= 1 << level;
+    if( s_walletFirst < 0 )
+    {
+        s_walletFirst = level;
+    }
+    s_walletOf[ level ] = s_walletFirst;
+}
+
+static bool PerLevelCoins()
+{
+    if( s_perLevelCoins < 0 )
+    {
+        s_perLevelCoins = shar_ModHackRequired( "PerLevelCoinCount" ) ? 1 : 0;
+        for( int l = 0; l < MAX_LEVELS; l++ )
+        {
+            s_walletOf[ l ] = l;
+        }
+        if( s_perLevelCoins )
+        {
+            s_walletFirst = -1;
+            s_walletAssigned = 0;
+            shar_ModConfigIni( "PerLevelCoinCount.ini", OnWalletIni, NULL, NULL );
+        }
+        memset( s_wallets, 0, sizeof( s_wallets ) );
+    }
+    return s_perLevelCoins != 0;
+}
 #define CAR_RECORD( i ) ( *ModCarRecord( i ) )
 #else
 #define CAR_RECORD( i ) ( mCharacterSheet.mCarInventory.mCars[ i ] )
@@ -805,6 +861,10 @@ void CharacterSheetManager::SaveData(GameDataByte* dataBuffer,unsigned int numBy
         {
             saved->mCarInventory.mCounter = MAX_CARS_OWNED;
         }
+        if( PerLevelCoins() )
+        {
+            saved->mNumberOfTokens = *ModWallet( mCharacterSheet.mCurrentMissionInfo.mLevel );   // the rest: sidecar
+        }
 #endif
     }
 
@@ -825,6 +885,19 @@ CarCharacterSheet* CharacterSheetManager::ModCarRecord( int index )
     return &s_none;
 }
 
+int* CharacterSheetManager::ModWallet( int level )
+{
+    if( level < 0 || level >= MAX_LEVELS )
+    {
+        level = mCharacterSheet.mCurrentMissionInfo.mLevel;    // bonus game tracks: the story level's
+        if( level < 0 || level >= MAX_LEVELS )
+        {
+            level = 0;
+        }
+    }
+    return &s_wallets[ s_walletOf[ level ] ];
+}
+
 void CharacterSheetManager::ModExtraClear()
 {
     for( int i = 0; i < MOD_EXTRA_CARS; i++ )
@@ -833,6 +906,14 @@ void CharacterSheetManager::ModExtraClear()
         s_modExtraCars[ i ].mCurrentHealth = s_modExtraCars[ i ].mMaxHealth = -1.0f;
     }
     memset( s_modExtraPurchased, 0, sizeof( s_modExtraPurchased ) );
+    if( PerLevelCoins() )
+    {
+        // a new game: every wallet starts with the game's coins (a loaded save: ModExtraRead)
+        for( int l = 0; l < MAX_LEVELS; l++ )
+        {
+            s_wallets[ l ] = mCharacterSheet.mNumberOfTokens;
+        }
+    }
     if( mCharacterSheet.mCarInventory.mCounter > MAX_CARS_OWNED )
     {
         mCharacterSheet.mCarInventory.mCounter = MAX_CARS_OWNED;
@@ -841,7 +922,7 @@ void CharacterSheetManager::ModExtraClear()
 
 bool CharacterSheetManager::ModExtraWrite( const char* path )
 {
-    bool any = mCharacterSheet.mCarInventory.mCounter > MAX_CARS_OWNED;
+    bool any = mCharacterSheet.mCarInventory.mCounter > MAX_CARS_OWNED || PerLevelCoins();
     for( int l = 0; l < MAX_LEVELS && !any; l++ )
     {
         for( int i = 0; i < MOD_EXTRA_PURCHASES && !any; i++ )
@@ -860,6 +941,13 @@ bool CharacterSheetManager::ModExtraWrite( const char* path )
         return false;
     }
     fprintf( file, "cars %d\n", mCharacterSheet.mCarInventory.mCounter );
+    for( int l = 0; l < MAX_LEVELS && PerLevelCoins(); l++ )
+    {
+        if( s_walletOf[ l ] == l )
+        {
+            fprintf( file, "wallet %d %d\n", l, s_wallets[ l ] );
+        }
+    }
     for( int i = MAX_CARS_OWNED; i < mCharacterSheet.mCarInventory.mCounter; i++ )
     {
         const CarCharacterSheet* car = ModCarRecord( i );
@@ -882,6 +970,14 @@ bool CharacterSheetManager::ModExtraWrite( const char* path )
 void CharacterSheetManager::ModExtraRead( const char* path )
 {
     ModExtraClear();
+    if( PerLevelCoins() )
+    {
+        for( int l = 0; l < MAX_LEVELS; l++ )
+        {
+            s_wallets[ l ] = 0;
+        }
+        *ModWallet( mCharacterSheet.mCurrentMissionInfo.mLevel ) = mCharacterSheet.mNumberOfTokens;
+    }
     FILE* file = fopen( path, "r" );
     if( file == NULL )
     {
@@ -904,6 +1000,10 @@ void CharacterSheetManager::ModExtraRead( const char* path )
             snprintf( car->mName, sizeof( car->mName ), "%s", name );
             car->mCurrentHealth = current;
             car->mMaxHealth = max;
+        }
+        else if( sscanf( line, "wallet %d %d", &a, &b ) == 2 && a >= 0 && a < MAX_LEVELS && PerLevelCoins() )
+        {
+            *ModWallet( a ) = b < 0 ? 0 : b;
         }
         else if( sscanf( line, "purchased %d %d", &a, &b ) == 2 && a >= 0 && a < MAX_LEVELS &&
                  b >= MAX_PURCHASED_ITEMS && b - MAX_PURCHASED_ITEMS < MOD_EXTRA_PURCHASES )
@@ -993,6 +1093,12 @@ void CharacterSheetManager::ModExtraRead( const char* path )
     //Returns the number of tokens that the character has in their inventory for that level
     int CharacterSheetManager::GetNumberOfTokens(RenderEnums::LevelEnum level)
     {
+#ifdef RAD_LINUX
+        if( PerLevelCoins() )
+        {
+            return *spInstance->ModWallet( level );
+        }
+#endif
         return spInstance->mCharacterSheet.mNumberOfTokens;
     }
 
@@ -1008,6 +1114,15 @@ void CharacterSheetManager::ModExtraRead( const char* path )
     //add number to the current number of tokens
     void CharacterSheetManager::AddTokens(RenderEnums::LevelEnum level,int number)
     {
+#ifdef RAD_LINUX
+        int* tokens = PerLevelCoins() ? spInstance->ModWallet( level ) : &spInstance->mCharacterSheet.mNumberOfTokens;
+        *tokens += number;
+        if( *tokens < 0 )
+        {
+            *tokens = 0;
+        }
+        return;
+#endif
         spInstance->mCharacterSheet.mNumberOfTokens += number;
 
         if( spInstance->mCharacterSheet.mNumberOfTokens < 0 )
@@ -1019,6 +1134,15 @@ void CharacterSheetManager::ModExtraRead( const char* path )
     //subtracts the number from the current number of tokens
     void CharacterSheetManager::SubtractTokens(RenderEnums::LevelEnum level,int number)
     {
+#ifdef RAD_LINUX
+        int* tokens = PerLevelCoins() ? spInstance->ModWallet( level ) : &spInstance->mCharacterSheet.mNumberOfTokens;
+        *tokens -= number;
+        if( *tokens < 0 )
+        {
+            *tokens = 0;
+        }
+        return;
+#endif
         spInstance->mCharacterSheet.mNumberOfTokens -= number;
 
         if( spInstance->mCharacterSheet.mNumberOfTokens < 0 )

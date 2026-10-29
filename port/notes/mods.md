@@ -162,6 +162,10 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   SkinLimit, 64; without: 64 / 16), arrays 256. Always on: car inventory past MAX_CARS_OWNED (60) and purchases past
   MAX_PURCHASED_ITEMS (12) go to `<save>.mods` (`CharacterSheetManager::ModExtraWrite/Read`, text; removed when
   empty or the save is deleted); the saved CharacterSheet stays vanilla-sized (count clamped to 60).
+- PerLevelCoinCount (`CharacterSheetManager::ModWallet`, used by Get/Add/SubtractTokens, which always had a level
+  argument): wallet per level, [SharedWallet] Level= groups (each section one wallet). Only when required (the
+  launcher's settings page toggle: none). Saved: the current level's wallet in mNumberOfTokens, all in the sidecar
+  (`wallet L n`); a save without one: its coins go to its level's wallet. Bonus tracks: the story level's wallet.
 - BugFixes (`shar_ModBugFix(section, key, default)`: BugFixes.ini, else the launcher's defaults: on, off for its
   -testing ones and RoadArrowPath...): Physics baby van = clone copies `mTimeComputeInertiaMatrix`
   (articulatedphysicsobject.cpp; else the port's 0); NoAirVentAudio = `EventLocator::OnTrigger` drops BOUNCEPAD
