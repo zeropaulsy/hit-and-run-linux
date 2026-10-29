@@ -27,6 +27,10 @@
 
 #include <radprofiler.hpp>
 #include "binkrenderstrategy.hpp"
+#ifdef RAD_LINUX
+#include <stdio.h>
+#include <shar_mods.h>
+#endif
 
 extern bool inLoop;
 
@@ -153,6 +157,24 @@ void radMovieRenderStrategyBink::ChangeParameters( unsigned int width, unsigned 
     // Only allocate things if the width or height has changed
     //
 
+#ifdef RAD_LINUX
+    // Linux port: mods' CustomVideoResolutionSupport sets the tile (segment) size
+    static unsigned int tileWidth = 0, tileHeight = 0;
+    if( tileWidth == 0 )
+    {
+        tileWidth = tileHeight = RMV_TEXTURE_MAX_TEX_DIM;
+        if( shar_ModHackRequired( "CustomVideoResolutionSupport" ) )
+        {
+            int w = shar_ModConfigInt( "CustomVideoResolutionSupport.ini", "Miscellaneous", "SegmentWidth", RMV_TEXTURE_MAX_TEX_DIM );
+            int h = shar_ModConfigInt( "CustomVideoResolutionSupport.ini", "Miscellaneous", "SegmentHeight", RMV_TEXTURE_MAX_TEX_DIM );
+            tileWidth = w < 16 ? 16 : w > 8192 ? 8192 : w;
+            tileHeight = h < 16 ? 16 : h > 8192 ? 8192 : h;
+        }
+    }
+#else
+    const unsigned int tileWidth = RMV_TEXTURE_MAX_TEX_DIM, tileHeight = RMV_TEXTURE_MAX_TEX_DIM;
+#endif
+
     if( width != m_MovieWidth || height != m_MovieHeight )
     {
         // Remember the new dimensions
@@ -164,10 +186,20 @@ void radMovieRenderStrategyBink::ChangeParameters( unsigned int width, unsigned 
 
         // How many tiles will this movie require?
 
-        unsigned int horizontalTiles = ( width / RMV_TEXTURE_MAX_TEX_DIM ) + 1;
-        unsigned int verticalTiles = ( height / RMV_TEXTURE_MAX_TEX_DIM ) + 1;
+        unsigned int horizontalTiles = ( width / tileWidth ) + 1;
+        unsigned int verticalTiles = ( height / tileHeight ) + 1;
         m_NumTiles = horizontalTiles * verticalTiles;
         rAssert( m_NumTiles <= RMV_MAX_NUM_TILES );
+#ifdef RAD_LINUX
+        if( m_NumTiles > RMV_MAX_NUM_TILES )
+        {
+            // Linux port: more tiles than m_pTile holds (was written past it): not drawn
+            fprintf( stderr, "movie: %ux%u needs %u %ux%u tiles, more than %d: not shown\n", width, height,
+                     m_NumTiles, tileWidth, tileHeight, RMV_MAX_NUM_TILES );
+            m_NumTiles = 0;
+            return;
+        }
+#endif
 
         // Create the required number of textures and fill in tile info
 
@@ -192,7 +224,7 @@ void radMovieRenderStrategyBink::ChangeParameters( unsigned int width, unsigned 
                 //
 
                 #ifdef RAD_WIN32
-                bool wasTextureCreated = m_pTile[ tileIndex ].m_pTexture->Create( RMV_TEXTURE_MAX_TEX_DIM, RMV_TEXTURE_MAX_TEX_DIM, RMV_TEXTURE_BITDEPTH, 0, 0, PDDI_TEXTYPE_RGB );
+                bool wasTextureCreated = m_pTile[ tileIndex ].m_pTexture->Create( tileWidth, tileHeight, RMV_TEXTURE_BITDEPTH, 0, 0, PDDI_TEXTYPE_RGB );
                 #elif RAD_XBOX
                 bool wasTextureCreated = m_pTile[ tileIndex ].m_pTexture->Create( m_MovieWidth, m_MovieHeight, RMV_TEXTURE_BITDEPTH, 0, 0, PDDI_TEXTYPE_LINEAR );
                 #elif RAD_GAMECUBE
@@ -201,25 +233,25 @@ void radMovieRenderStrategyBink::ChangeParameters( unsigned int width, unsigned 
 
                 rAssert( wasTextureCreated == true );
 
-                m_pTile[ tileIndex ].m_PosX = x * RMV_TEXTURE_MAX_TEX_DIM;
-                m_pTile[ tileIndex ].m_PosY = y * RMV_TEXTURE_MAX_TEX_DIM;
+                m_pTile[ tileIndex ].m_PosX = x * tileWidth;
+                m_pTile[ tileIndex ].m_PosY = y * tileHeight;
                 
-                if( ( x + 1 ) * RMV_TEXTURE_MAX_TEX_DIM > m_MovieWidth )
+                if( ( x + 1 ) * tileWidth > m_MovieWidth )
                 {
-                    m_pTile[ tileIndex ].m_Width = m_MovieWidth % RMV_TEXTURE_MAX_TEX_DIM;
+                    m_pTile[ tileIndex ].m_Width = m_MovieWidth % tileWidth;
                 }
                 else
                 {
-                    m_pTile[ tileIndex ].m_Width = RMV_TEXTURE_MAX_TEX_DIM;
+                    m_pTile[ tileIndex ].m_Width = tileWidth;
                 }
 
-                if( ( y + 1 ) * RMV_TEXTURE_MAX_TEX_DIM > m_MovieHeight )
+                if( ( y + 1 ) * tileHeight > m_MovieHeight )
                 {
-                    m_pTile[ tileIndex ].m_Height = m_MovieHeight % RMV_TEXTURE_MAX_TEX_DIM;
+                    m_pTile[ tileIndex ].m_Height = m_MovieHeight % tileHeight;
                 }
                 else
                 {
-                    m_pTile[ tileIndex ].m_Height = RMV_TEXTURE_MAX_TEX_DIM;
+                    m_pTile[ tileIndex ].m_Height = tileHeight;
                 }
 
                 tileIndex++;

@@ -12,7 +12,8 @@
  * CustomSkinPreviewAnimations (guiscreenpurchaserewards.cpp), OverrideShaderParameters (shar_modshaders.h),
  * CustomCharacterSupport (shar_modcharacters.h), CustomCollectorCardSupport (shar_modcards.h),
  * CustomDutchAngleNPCCameraTilt (shar_moddutch.h), CustomHeadlights (geometryvehicle.cpp),
- * CustomMissionSkipFailCounts (guiscreenmissionover.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
+ * CustomMissionSkipFailCounts (guiscreenmissionover.cpp), CustomVideoResolutionSupport (binkrenderstrategy.cpp);
+ * switches (port/notes/mods.md): NoCheats, NoWrenches,
  * NoHitAndRunMusic, NoBustedHitAndRunMeterReset, NoFastCarReset, NoAutomaticSavedGameLoad,
  * NoSavedGames, UnlockAllMissions, UnlockAllVehicles, UnlockAllOutfits, UnlockBonusGame,
  * NoBonusGame, NoMissionStartCameras, NoNeitherRoadArrowProcessing,

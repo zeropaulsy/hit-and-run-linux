@@ -109,6 +109,7 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 - [x] CustomDutchAngleNPCCameraTilt: per level / mission NPC camera tilt and angle
 - [x] CustomHeadlights: head and tail light brightness per level and bonus track
 - [x] CustomMissionSkipFailCounts: failures before Skip per game, level and mission
+- [x] CustomVideoResolutionSupport: movie segment (tile) size
 - [x] BugFixes: physics (baby van), air vent audio, wasp collision, stuck lights, steering animations, character
   rotations, HUD coin depth, phone booth camera change, road arrow path size, car deleted during .con load; coin
   count and Unlock All Cameras overflows fixed always; the rest Windows-only, already fixed or not reproduced
