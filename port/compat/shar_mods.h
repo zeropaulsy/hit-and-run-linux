@@ -16,7 +16,8 @@
  * DrunkCamera (supercam.cpp), IncreasedRewardLimits (rewardsmanager.cpp, guiscreenrewards.cpp,
  * charactersheetmanager.cpp), PerLevelCoinCount (charactersheetmanager.cpp),
  * RefractionShaderSupport (pddi/gl gldev.cpp, glmat.cpp), WalkerCameraDataSupport (cameradataloader.cpp,
- * walkercam.cpp), VideoTextureSupport (radmovie binkvideotexture.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
+ * walkercam.cpp), VideoTextureSupport (radmovie binkvideotexture.cpp), HackSupport (OverrideTexture: p3d shader.cpp;
+ * car camera data reloads: cameradataloader.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
  * NoHitAndRunMusic, NoBustedHitAndRunMeterReset, NoFastCarReset, NoAutomaticSavedGameLoad,
  * NoSavedGames, UnlockAllMissions, UnlockAllVehicles, UnlockAllOutfits, UnlockBonusGame,
  * NoBonusGame, NoMissionStartCameras, NoNeitherRoadArrowProcessing,
@@ -68,6 +69,9 @@ int shar_ModTakeResolved(const char* gamePath, SharModFile* file, const char** r
  * "/GameDir/..."): SHAR_MOD_FILE and *file, SHAR_MOD_REDIRECT and the game path (a /GameData one no mod or loose
  * file provides), or SHAR_MOD_MISSING. *file and *redirect stay valid until the next call on this thread. */
 int shar_ModVfsResolve(const char* vpath, SharModFile* file, const char** redirect);
+
+/* Whether any mod is loaded (for the Mod Launcher's always-on HackSupport changes). */
+int shar_ModsLoaded(void);
 
 /* The game-relative folder holding the main mod's saved games ("ModSaves/<InternalName>"), or NULL. */
 const char* shar_ModSaveDir(void);

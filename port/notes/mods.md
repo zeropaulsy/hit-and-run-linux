@@ -25,6 +25,10 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   (`BinkOpen` with `BINKLINUXNOAUDIO`), looped; advanced before `BeginFrame` in RenderManager; freed when only the
   tTexture holds the pddi texture (`pddiObject::GetRefCount`). Power-of-two only (retail movies are 640x480: test
   by cropping the copy to 512x256). Failed paths logged once.
+- HackSupport: HackSupport.ini [Miscellaneous] OverrideTexture (`ApplyModOverrideTexture`, p3d `shader.cpp`: base
+  texture of every shader loaded after the texture is; a / path is a video). With any mod loaded, a car's follow
+  camera data loaded again replaces the first copy (`cameradataloader.cpp`, `shar_ModsLoaded`). The rest is Windows
+  plumbing (window title/icon, crash dialogs, D3D hooks): not ported.
 - CustomLimits (doubles; several mods: largest wins, smallest for BoundsMinimumY):
   [Billboards]; [Regions] Limit/EntityLimit/RoadSegmentLimit; [Scripting] ArgumentLengthLimit; [Roads] RoadManager;
   [Pedestrians] PathLimit/GroupLimit (PathManager, `GetMaxModelGroups`, allocated); [TreeNodes] DrawDistance/Bounds*

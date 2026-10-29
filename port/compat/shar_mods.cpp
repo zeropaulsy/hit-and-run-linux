@@ -93,7 +93,7 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "CustomHeadlights", "CustomMissionSkipFailCounts",
                                         "CustomVideoResolutionSupport", "DrunkCamera", "IncreasedRewardLimits",
                                         "PerLevelCoinCount", "RefractionShaderSupport",
-                                        "WalkerCameraDataSupport", "FLACSupport", "VideoTextureSupport" };
+                                        "WalkerCameraDataSupport", "FLACSupport", "VideoTextureSupport", "HackSupport" };
 
 void Init( void );
 
@@ -1699,6 +1699,12 @@ extern "C" int shar_ModVfsResolve( const char* vpath, SharModFile* file, const c
         return SHAR_MOD_REDIRECT;
     }
     return SHAR_MOD_MISSING;
+}
+
+extern "C" int shar_ModsLoaded( void )
+{
+    pthread_once( &s_Once, Init );
+    return g_NumMods > 0;
 }
 
 extern "C" const char* shar_ModSaveDir( void )

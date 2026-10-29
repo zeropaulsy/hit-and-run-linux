@@ -96,7 +96,22 @@ MEMTRACK_PUSH_GROUP( "Camera Data Loading" );
 
     if ( f->GetCurrentID() == SRR2::ChunkID::FOLLOWCAM )
     {
-        if ( !SuperCamCentral::FindFCD( id ) )
+        FollowCamDataChunk* existing = SuperCamCentral::FindFCD( id );
+#ifdef RAD_LINUX
+        // Linux port: mods' HackSupport (always on in the Mod Launcher): a car loaded again (a phone booth car)
+        // brings its camera data again; keep the new data instead of the first copy's
+        if ( existing != NULL && shar_ModsLoaded() )
+        {
+            existing->mRotation = f->GetFloat();
+            existing->mElevation = f->GetFloat();
+            existing->mMagnitude = f->GetFloat();
+
+            existing->mTargetOffset.x = f->GetFloat();
+            existing->mTargetOffset.y = f->GetFloat();
+            existing->mTargetOffset.z = f->GetFloat();
+        }
+#endif
+        if ( !existing )
         {
             //Load and create a FOLLOWCAM data chunk
             FollowCamDataChunk& fcD = SuperCamCentral::GetNewFollowCamDataChunk();

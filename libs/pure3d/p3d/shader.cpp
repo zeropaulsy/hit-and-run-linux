@@ -26,6 +26,28 @@ static bool SetModVideoTexture(tShader* shader, unsigned param, const char* name
     return s_Enabled && name[0] == '/' && radMovieSetVideoTexture(shader->GetShader(), param, name);
 }
 
+// Linux port: mods' HackSupport.ini [Miscellaneous] OverrideTexture: one texture on every shader (animated ones
+// set their own each frame)
+static void ApplyModOverrideTexture(tShader* shader, tEntityStore* store)
+{
+    static int s_Read = 0;
+    static char s_Texture[256];
+    if(!s_Read)
+    {
+        if(!shar_ModHackRequired("HackSupport") ||
+           !shar_ModConfigValue("HackSupport.ini", "Miscellaneous", "OverrideTexture", s_Texture, sizeof(s_Texture)))
+            s_Texture[0] = '\0';
+        s_Read = 1;
+    }
+    if(s_Texture[0] == '\0' || SetModVideoTexture(shader, PDDI_SP_BASETEX, s_Texture))
+        return;
+    tTexture* tex = p3d::find<tTexture>(store, s_Texture);
+    if(!tex)
+        tex = p3d::find<tTexture>(s_Texture);
+    if(tex)
+        shader->SetTexture(PDDI_SP_BASETEX, tex);
+}
+
 // Linux port: mods' OverrideShaderParameters.xml (port/compat/shar_modshaders.h), as the shader loads
 static void ApplyModShaderOverrides(tShader* shader, const char* name, tEntityStore* store)
 {
@@ -368,6 +390,7 @@ tEntity* tShaderLoader::LoadObject(tChunkFile* f, tEntityStore* store)
     shader->SetName(name);
 #ifdef RAD_LINUX
     pglSetMaterialName(shader->GetShader(), name, f->GetFullFilename());    // for user material shaders (pddi/gl/glcustom.cpp)
+    ApplyModOverrideTexture(shader, store);
     ApplyModShaderOverrides(shader, name, store);
 #endif
     return shader;
