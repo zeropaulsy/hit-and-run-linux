@@ -90,7 +90,7 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "NoMissionStartCameras", "NoNeitherRoadArrowProcessing",
                                         "NoInactiveDynamicObjectCollisions", "ReplayableBonusMissions",
                                         "BugFixes", "CustomCollectorCardSupport", "CustomDutchAngleNPCCameraTilt",
-                                        "CustomHeadlights" };
+                                        "CustomHeadlights", "CustomMissionSkipFailCounts" };
 
 void Init( void );
 

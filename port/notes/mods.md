@@ -151,6 +151,8 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   Checked in gdb forcing pedPCT (L1: off vanilla, 45 deg with the mod).
 - CustomHeadlights (`GeometryVehicle` init, after the game's per-level scales): key = `GetCurrentLevelIndex`
   (0-6, bonus tracks B01-B07 = 8-14); [CustomTaillights] or the docs' [CustomTailights]. Checked: L1 lit.
+- CustomMissionSkipFailCounts (`CGuiScreenMissionOver::InitIntro`, attempts = `QueryNumberOfAttempts`): L7 M5-M7
+  only by FailCountL7MX (else never). Checked by calling InitIntro from gdb in L1 M2 (FailCountL1=0: Skip on).
 - BugFixes (`shar_ModBugFix(section, key, default)`: BugFixes.ini, else the launcher's defaults: on, off for its
   -testing ones and RoadArrowPath...): Physics baby van = clone copies `mTimeComputeInertiaMatrix`
   (articulatedphysicsobject.cpp; else the port's 0); NoAirVentAudio = `EventLocator::OnTrigger` drops BOUNCEPAD

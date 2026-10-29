@@ -35,6 +35,9 @@
 #include <Text.h>
 
 #include <stdlib.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //===========================================================================
 // Global Data, Local Data, Local Classes
@@ -288,6 +291,35 @@ void CGuiScreenMissionOver::InitIntro()
         //
         isSkipAllowed = false;
     }
+
+#ifdef RAD_LINUX
+    // Linux port: mods' CustomMissionSkipFailCounts: FailCountLXMX, else (not L7 M5-M7) FailCountLX, else FailCount;
+    // -1: never
+    if( shar_ModHackRequired( "CustomMissionSkipFailCounts" ) )
+    {
+        const char* file = "CustomMissionSkipFailCounts.ini";
+        int level = static_cast< int >( currentMission.mLevel ) + 1;
+        int mission = static_cast< int >( currentMission.mMissionNumber ) + 1;
+        char key[ 32 ];
+        sprintf( key, "FailCountL%dM%d", level, mission );
+        int failCount = shar_ModConfigInt( file, "Miscellaneous", key, -2 );
+        if( failCount == -2 )
+        {
+            if( currentMission.mLevel == RenderEnums::L7 && mission >= 5 )
+            {
+                failCount = -1;
+            }
+            else
+            {
+                sprintf( key, "FailCountL%d", level );
+                failCount = shar_ModConfigInt( file, "Miscellaneous", key,
+                                               shar_ModConfigInt( file, "Miscellaneous", "FailCount",
+                                                                  NUM_ATTEMPTS_REQUIRED_FOR_SKIPPING ) );
+            }
+        }
+        isSkipAllowed = failCount >= 0 && numAttemps >= failCount;
+    }
+#endif
 
 #ifdef RAD_E3
     // no skipping mission allowed on E3 build

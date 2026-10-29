@@ -32,7 +32,7 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
 - [ ] **HoverCarRefraction**: a mod (not a hack) the Futurama demo lists as required
 - [ ] The Mod Launcher's other mod-requirable hacks (docs' All Hacks page, 1.27), none of the test mods uses:
   - [ ] configured:
-    CustomMissionSkipFailCounts, CustomRewardQuestSupport, CustomVideoResolutionSupport, DrunkCamera,
+    CustomRewardQuestSupport, CustomVideoResolutionSupport, DrunkCamera,
     IncreasedRewardLimits, PerLevelCoinCount, RefractionShaderSupport, WalkerCameraDataSupport
   - [ ] FLACSupport, VideoTextureSupport; HackSupport (the launcher's own plumbing: check what mods rely on)
 
