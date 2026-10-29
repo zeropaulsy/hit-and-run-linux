@@ -87,7 +87,7 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "UnlockAllOutfits", "UnlockBonusGame",
                                         "NoBonusGame",
                                         "SkippableFMVs",  // no-op: see port/notes/mods.md
-                                        "NoMissionStartCameras" };
+                                        "NoMissionStartCameras", "NoNeitherRoadArrowProcessing" };
 
 void Init( void );
 

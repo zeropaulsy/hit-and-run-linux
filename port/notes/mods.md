@@ -131,7 +131,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   SkippableFMVs: accepted, no effect: the port never defines FINAL, so `FMVPlayer::Play` never disables skipping
   (retail's unskippable intro / unseen mission movies only exist in FINAL builds). NoMissionStartCameras: the
   scripts' SetAnimatedCameraName / SetAnimCamMulticontName / SetMissionStart* and SetInitialWalk do nothing
-  (mod objectives' cameras still play); checked on L1 M1's start.
+  (mod objectives' cameras still play); checked on L1 M1's start. NoNeitherRoadArrowProcessing:
+  `MissionObjective::UpdateLightPath` returns for NEITHER arrow stages, as `LightPath` already did (no crash case
+  known to test).
 - Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.

@@ -50,6 +50,9 @@
 #include <render/animentitydsgmanager/animentitydsgmanager.h>
 #include <interiors/interiormanager.h>
 #include <mission/charactersheet/charactersheetmanager.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //******************************************************************************
 //
@@ -801,6 +804,14 @@ void MissionObjective::LightPathWrongWay( SwapArray<RoadManager::PathElement>& o
 //////////////////////////////////////////////////////////////////////////
 void MissionObjective::UpdateLightPath( PathStruct& orPathStruct)
 {
+#ifdef RAD_LINUX
+    // Linux port: mods' NoNeitherRoadArrowProcessing hack: a "neither" stage never lit a path (LightPath)
+    static const bool s_noNeitherArrows = shar_ModHackRequired( "NoNeitherRoadArrowProcessing" ) != 0;
+    if( s_noNeitherArrows && ( DirectionalArrowEnum::NEITHER & mArrowType ) )
+    {
+        return;
+    }
+#endif
     SwapArray<RoadManager::PathElement>& orPathRoute = orPathStruct.mPathRoute;
     if(!GetCharacterSheetManager()->QueryNavSystemSetting())
     {
