@@ -162,8 +162,8 @@ misbehaves, report the mod's name and version along with `run/logs/last-session.
 
 | Platform | Status |
 |---|---|
-| Linux x86-64 (default) | **Main missions fully playtested** All story missions completed with no crashes. Street races in progress (L1 -> L4 tested so far) |
-| Linux x86 (32-bit, legacy) | **Playable.** Tested through Level 7 |
+| Linux x86-64 (default) | **Main and side missions fully playtested.** All story missions, bonus missions and street races completed. Collector cards and cosmetics in progress. |
+| Linux x86 (32-bit, legacy) | **Playable.** Tested through Level 1 - 7 |
 | Windows x64 | Planned |
 | macOS (Apple silicon / Intel) | Planned |
 | Android / handhelds | Possible later: the renderer and input layers already allow it |

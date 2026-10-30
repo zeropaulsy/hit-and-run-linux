@@ -5,6 +5,13 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 
 ## Done
 
+### Verification (playing the game)
+- [x] **Full playthrough** of all seven levels: missions, bonus missions and cutscenes
+- [x] **Street races, wager races and time trials** in every level
+
+### Platforms
+- [x] **64-bit build** boots and plays: movies, front end, Levels 1/7, races, interiors, driving, sound; AddressSanitizer clean
+
 ### Build and platform
 - [x] **Build system**: CMake + Ninja project generated from the original Visual Studio projects
   (`port/gen_cmake.py`), 32-bit (`-m32`), release and debug (original `RAD_DEBUG`) configurations

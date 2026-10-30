@@ -6,9 +6,7 @@ What is left for the port. Completed items move to [`DONE.md`](DONE.md). User-fa
 ## To do
 
 ### Verification (playing the game)
-- [ ] **Full playthrough** of all seven levels: missions and cutscenes (in progress: Levels 1-6 done, smooth; on Level 7)
 - [ ] **Bonus game** (Itchy & Scratchy racing) with 2-4 pads
-- [ ] **Street races, wager races and time trials** in every level
 - [ ] **French, German and Spanish**
 
 ### Memory checking
@@ -65,7 +63,6 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
   only checked that a mod raising them all loads and quits cleanly
 
 ### Platforms
-- [x] **64-bit build** boots and plays: movies, front end, Levels 1/7, races, interiors, driving, sound; AddressSanitizer clean
 - [ ] **64-bit verification**: long play sessions. Done: the bonus game (ASan clean, quits in its menu/load/race), mods under
   ASan, memcheck tooling (Level 1 clean), packaged bundle (`port/package.sh`)
 - [ ] **Windows x64**
