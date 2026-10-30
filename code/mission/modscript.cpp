@@ -91,6 +91,8 @@ ModStage::ModStage() :
     savedSlamForce( 0.0f )
 {
     collectibleSound[ 0 ] = '\0';
+    characterModel[ 0 ] = '\0';
+    characterAnimSet[ 0 ] = '\0';
     dynaLoad[ 0 ] = '\0';
     dynaLoadInterior[ 0 ] = '\0';
     checkpointDynaLoad[ 0 ] = '\0';
@@ -125,6 +127,11 @@ bool s_Retry = false;       // the mission being set up is a retry (checkpoints 
 bool s_Loading = false;     // a retry's script is running (IfCurrentCheckpoint)
 const char* s_CollectibleSound = NULL;  // the current stage's SetCollectibleSoundEffect (its ModStage's string)
 bool s_UseCameraPosition = false;       // a camera objective with SetObjUseCameraPosition is running
+// SetStageCharacterModel: the player's own model while a stage's is on (put back when a stage without one starts,
+// or the mission ends: not between two stages that both set it, which would reload it)
+bool s_ModelSwapped = false;
+char s_SavedModel[ 64 ];
+char s_SavedAnimSet[ 64 ];
 
 bool Log()
 {
@@ -364,6 +371,65 @@ void ApplyVehicleSettings( MissionStage* stage )
         }
         if( Log() ) fprintf( stderr, "mods: stage vehicle setting %d = %d on %s\n", s.kind, s.value, v->GetName() );
     }
+}
+
+Character* PlayerCharacter()
+{
+    Avatar* avatar = GetAvatarManager()->GetAvatarForPlayer( 0 );
+    return avatar != NULL ? avatar->GetCharacter() : NULL;
+}
+
+void SwapPlayerModel( Character* c, const char* model, const char* animSet )
+{
+    const char* currentModel = GetCharacterManager()->GetModelName( c );
+    const char* currentAnim = GetCharacterManager()->GetAnimName( c );
+    if( currentModel != NULL && currentAnim != NULL && strcasecmp( currentModel, model ) == 0 &&
+        strcasecmp( currentAnim, animSet ) == 0 )
+    {
+        return;
+    }
+    if( Log() ) fprintf( stderr, "mods: player model %s (%s)\n", model, animSet );
+    GetCharacterManager()->SwapData( c, model, animSet );
+}
+
+void RestorePlayerModel()
+{
+    if( !s_ModelSwapped )
+    {
+        return;
+    }
+    s_ModelSwapped = false;
+    // not while leaving the level or the game (the next level loads the skin anyway)
+    ContextEnum context = GetGameFlow()->GetCurrentContext();
+    ContextEnum next = GetGameFlow()->GetNextContext();
+    Character* c = PlayerCharacter();
+    if( c != NULL && ( context == CONTEXT_GAMEPLAY || context == CONTEXT_PAUSE ) &&
+        ( next == CONTEXT_GAMEPLAY || next == CONTEXT_PAUSE ) )
+    {
+        SwapPlayerModel( c, s_SavedModel, s_SavedAnimSet );
+    }
+}
+
+void ApplyPlayerModel( ModStage* mod )
+{
+    if( mod == NULL || mod->characterModel[ 0 ] == '\0' )
+    {
+        RestorePlayerModel();
+        return;
+    }
+    Character* c = PlayerCharacter();
+    if( c == NULL || GetCharacterManager()->GetModelName( c ) == NULL || GetCharacterManager()->GetAnimName( c ) == NULL )
+    {
+        return;
+    }
+    if( !s_ModelSwapped )
+    {
+        s_ModelSwapped = true;
+        Copy( s_SavedModel, sizeof( s_SavedModel ), GetCharacterManager()->GetModelName( c ) );
+        Copy( s_SavedAnimSet, sizeof( s_SavedAnimSet ), GetCharacterManager()->GetAnimName( c ) );
+    }
+    // the animation set defaults to the player's own (as the launcher since 1.19)
+    SwapPlayerModel( c, mod->characterModel, mod->characterAnimSet[ 0 ] != '\0' ? mod->characterAnimSet : s_SavedAnimSet );
 }
 
 void ApplyPassengers( MissionStage* stage )
@@ -658,6 +724,13 @@ public:
     {
         ModStage* s = Stage( argv[ 0 ] );
         if( s != NULL ) s->allowCancel = ParseBool( argv[ 1 ] ) ? 1 : 0;
+    }
+    static void SetStageCharacterModel( int argc, char** argv )
+    {
+        ModStage* s = Stage( argv[ 0 ] );
+        if( s == NULL ) return;
+        Copy( s->characterModel, sizeof( s->characterModel ), argv[ 1 ] );
+        Copy( s->characterAnimSet, sizeof( s->characterAnimSet ), argc > 2 ? argv[ 2 ] : "" );
     }
     static void SetStageAirGravity( int argc, char** argv )
     {
@@ -1042,6 +1115,7 @@ public:
     static void StageStart( MissionStage* stage )
     {
         ModStage* mod = stage->GetModStage();
+        ApplyPlayerModel( mod );
         if( mod == NULL )
         {
             return;
@@ -1261,7 +1335,7 @@ public:
             { "RemoveStageVehicleCharacter", RemoveStageVehicleCharacter, 2, 2 },
             { "SetNoHitAndRunMusicForStage", Unsupported, 0, 0 },
             { "SetCollectibleSoundEffect", SetCollectibleSoundEffect, 1, 1 },
-            { "SetStageCharacterModel", Unsupported, 1, 2 },
+            { "SetStageCharacterModel", SetStageCharacterModel, 1, 2 },
             { "SetStageAirGravity", SetStageAirGravity, 1, 1 },
             { "SetStageKickForce", SetStageKickForce, 1, 1 },
             { "SetStageSlamForce", SetStageSlamForce, 1, 1 },
@@ -1405,6 +1479,12 @@ void ModScript::RemoveVehicleCharacters()
     RestoreVehicles();
     s_CollectibleSound = NULL;      // (the mission's stages hold the string)
     s_UseCameraPosition = false;
+}
+
+void ModScript::OnMissionFinalize()
+{
+    RemoveVehicleCharacters();
+    RestorePlayerModel();       // (not on a Reset: the first stage sets it again)
 }
 
 const char* ModScript::CollectibleSound()

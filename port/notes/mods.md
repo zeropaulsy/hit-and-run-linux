@@ -94,6 +94,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   driver; leaves the scene with the car), never cleared (as documented). SetStageVehicleReset: at script time on the
   stage's car (`Vehicle::mModReset`, so ActivateVehicle's later AI obeys it): VehicleAI's stuck-reverse ResetOnSpot
   and WaypointAI's flipped/destroyed reset. Checked: log only (L1 M1 skinn_v), not destroyed/stuck in play.
+  SetStageCharacterModel: `CharacterManager::SwapData` on the player at stage start (anim set default = the player's
+  own, as 1.19); the own model comes back when a stage without one starts or in `ModScript::OnMissionFinalize` (not
+  on Mission::Reset: stage 1 sets it again; not while leaving gameplay). Checked: L1 M1 h_fat on, off at stage 2.
 - CustomStatsTotals (`charactersheet/modstatstotals.cpp`): totals for scrapbook, pause progress, mission select,
   `QueryPercent*`; defaults reproduce original (100.3% on a complete save).
 - CustomAudioSupport (`shar_modaudio.cpp`; `musicplayer.cpp` startingAmbience/startingExteriorAmbience/

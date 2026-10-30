@@ -60,6 +60,9 @@ struct ModStage
     char dynaLoad[ 512 ];
     char dynaLoadInterior[ 32 ];
     bool dynaLoadDump;
+    // SetStageCharacterModel: the player's model and animation set for the stage ("" = unchanged / the player's)
+    char characterModel[ 32 ];
+    char characterAnimSet[ 32 ];
     // SetStageAirGravity / KickForce / SlamForce (CharacterTune), restored after the stage
     bool airGravitySet, kickForceSet, slamForceSet;
     float airGravity, kickForce, slamForce;
@@ -106,8 +109,10 @@ namespace ModScript
     void OnMissionInitialize( Mission* mission );
     // Mission::InitDynaLoad (selecting or restarting it, not a sunday drive's mission following it): its traffic group
     void OnMissionReset( Mission* mission );
-    // Mission::Finalize / Reset: passengers leave, cars get back the settings the stages changed
+    // Mission::Reset: passengers leave, cars get back the settings the stages changed
     void RemoveVehicleCharacters();
+    // Mission::Finalize: that, and the player's model back (SetStageCharacterModel)
+    void OnMissionFinalize();
 
     // SetCollectibleSoundEffect: the sound for collecting a delivery/dump/race item, "" for none, NULL for the game's
     const char* CollectibleSound();

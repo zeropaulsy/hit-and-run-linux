@@ -449,7 +449,7 @@ void Mission::Finalize()
 {
     SetToStage( -1 );
 #ifdef RAD_LINUX
-    ModScript::RemoveVehicleCharacters();   // Linux port: mods' passengers leave with the mission
+    ModScript::OnMissionFinalize();     // Linux port: mods' passengers leave with the mission
 #endif
 
     //chuck adding draw synch I hope to fix the level 5 m1 crash when user aborts missions.
