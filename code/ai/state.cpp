@@ -349,6 +349,14 @@ void InCar::Update( float timeins )
 {
     Vehicle* pVehicle = mpCharacter->GetTargetVehicle( );
 
+#ifdef RAD_LINUX
+    // Linux port: a mod's SetStageVehicleNoDestroyedJumpOut: the driver goes down with the car
+    if( pVehicle != NULL && pVehicle->mVehicleDestroyed && pVehicle->mModNoDestroyedJumpOut &&
+        pVehicle->GetDriver() == mpCharacter )
+    {
+        return;
+    }
+#endif
     if((!pVehicle) ||
        ((pVehicle->mVehicleDestroyed) && 
        (GetGameFlow()->GetCurrentContext() != CONTEXT_DEMO) &&

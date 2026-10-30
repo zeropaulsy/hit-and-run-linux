@@ -179,6 +179,10 @@ UFOBehaviour::SuckIntoUFO( const rmt::Vector& actorPosition, DynaPhysDSG* pDSG, 
             {
                 abductable = vehicle->mModCar->abductable == 1; // CustomCarSupport Abductable
             }
+            if( vehicle->mModAbductable >= 0 )
+            {
+                abductable = vehicle->mModAbductable == 1;      // a mod's SetStageVehicleAbductable
+            }
 #endif
             if ( abductable && vehicle->IsVehicleDestroyed() == false )
             {

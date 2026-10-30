@@ -2670,6 +2670,13 @@ void VehicleAI::CheckState( float timeins )
                                 }
                             }
                         }
+#ifdef RAD_LINUX
+                        // Linux port: a mod's SetStageVehicleReset
+                        if( GetVehicle()->mModReset >= 0 )
+                        {
+                            needsReset = GetVehicle()->mModReset != 0;
+                        }
+#endif
                         if( needsReset )
                         {
                             GetVehicle()->ResetOnSpot( false );

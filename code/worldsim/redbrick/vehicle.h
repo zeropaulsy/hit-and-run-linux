@@ -151,6 +151,11 @@ public:
     // Linux port: Mod Launcher CustomCarSupport settings for this car (port/compat/shar_modcars.h); NULL = none
     const struct SharModCar* mModCar;
     bool mModHusk;  // made by the husk pool as a mod's Husk= car
+    // AdditionalScriptFunctionality: SetStageVehicleAbductable (-1 = the car's own), SetStageVehicleReset (whether
+    // its AI resets it onto the road when stuck or flipped; -1 = the AI type's rule), SetStageVehicleNoDestroyedJumpOut
+    int mModAbductable;
+    int mModReset;
+    bool mModNoDestroyedJumpOut;
     unsigned int GetModRefCount() const { return m_refCount; }  // the traffic manager frees only cars nobody else holds
 #endif
     // a husk: huskA (the only one the game had), or a mod's (CustomCarSupport Husk=/IsHusk=)

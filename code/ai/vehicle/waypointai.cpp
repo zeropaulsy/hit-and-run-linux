@@ -656,6 +656,12 @@ void WaypointAI::DoCatchUp( float timeins )
 void WaypointAI::UpdateNeedsResetOnSpot( float timeins )
 {
     Vehicle* v = GetVehicle();
+#ifdef RAD_LINUX
+    if( v != NULL && v->mModReset == 0 )
+    {
+        return;     // a mod's SetStageVehicleReset( car, 0 ): left flipped over
+    }
+#endif
     if( v != NULL )
     {
         rmt::Vector up;

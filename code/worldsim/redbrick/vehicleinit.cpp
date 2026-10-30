@@ -101,6 +101,9 @@ Vehicle::Vehicle() :
 #ifdef RAD_LINUX
     mModCar( NULL ),
     mModHusk( false ),
+    mModAbductable( -1 ),
+    mModReset( -1 ),
+    mModNoDestroyedJumpOut( false ),
     mNumFakeWheelDrivers( 0 ),
 #endif
     mTerrainType( TT_Road),

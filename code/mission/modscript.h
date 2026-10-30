@@ -27,9 +27,19 @@ struct ModStageVehicleCharacter
     bool remove;                // RemoveStageVehicleCharacter
 };
 
+// SetStageVehicleAbductable, ResetStageVehicleAbductable, SetStageVehicleAllowSeatSlide,
+// SetStageVehicleNoDestroyedJumpOut: applied on reaching the stage
+struct ModStageVehicleSetting
+{
+    enum Kind { ABDUCTABLE, RESET_ABDUCTABLE, SEAT_SLIDE, NO_DESTROYED_JUMP_OUT };
+    char car[ 32 ];             // "current": the player's car when the stage starts
+    Kind kind;
+    bool value;
+};
+
 struct ModStage
 {
-    enum { MAX_TRIGGERS = 8, MAX_VEHICLE_CHARACTERS = 8 };
+    enum { MAX_TRIGGERS = 8, MAX_VEHICLE_CHARACTERS = 8, MAX_VEHICLE_SETTINGS = 8 };
 
     ModStage();
 
@@ -58,6 +68,8 @@ struct ModStage
     char triggers[ MAX_TRIGGERS ][ 32 ];
     int numVehicleCharacters;
     ModStageVehicleCharacter vehicleCharacters[ MAX_VEHICLE_CHARACTERS ];
+    int numVehicleSettings;
+    ModStageVehicleSetting vehicleSettings[ MAX_VEHICLE_SETTINGS ];
 
     // CHECKPOINT_HERE and what resuming from it uses (unset values: those of the checkpoint before)
     bool checkpoint;
@@ -94,7 +106,7 @@ namespace ModScript
     void OnMissionInitialize( Mission* mission );
     // Mission::InitDynaLoad (selecting or restarting it, not a sunday drive's mission following it): its traffic group
     void OnMissionReset( Mission* mission );
-    // Mission::Finalize / Reset: passengers leave
+    // Mission::Finalize / Reset: passengers leave, cars get back the settings the stages changed
     void RemoveVehicleCharacters();
 
     // SetCollectibleSoundEffect: the sound for collecting a delivery/dump/race item, "" for none, NULL for the game's

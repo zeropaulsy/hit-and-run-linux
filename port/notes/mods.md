@@ -87,6 +87,13 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   (debug teleport's way). Interior name -> locator name. Stage 1's Reset runs twice at mission start: loads twice.
   AddParkedCar -> `ParkedCarManager::AddCarType` (array 5 -> `MAX_MOD_CARS` 16, extra ignored with a message); the
   mod loads the car's p3d itself. Zones take the first free type, so later types park only once enough zones load.
+  Stage vehicle settings at stage start (`ApplyVehicleSettings`): Abductable -> `Vehicle::mModAbductable` (ufobehaviour,
+  after CustomCarSupport's), AllowSeatSlide -> `mAllowSlide`; both kept until the mission ends (`RestoreVehicles`,
+  the car AddRef'd meanwhile; "for a stage" in the docs, but their example re-enables it itself). Reset "current" =
+  the car a Set "current" changed. NoDestroyedJumpOut -> `mModNoDestroyedJumpOut` (`InCar::Update` keeps the
+  driver; leaves the scene with the car), never cleared (as documented). SetStageVehicleReset: at script time on the
+  stage's car (`Vehicle::mModReset`, so ActivateVehicle's later AI obeys it): VehicleAI's stuck-reverse ResetOnSpot
+  and WaypointAI's flipped/destroyed reset. Checked: log only (L1 M1 skinn_v), not destroyed/stuck in play.
 - CustomStatsTotals (`charactersheet/modstatstotals.cpp`): totals for scrapbook, pause progress, mission select,
   `QueryPercent*`; defaults reproduce original (100.3% on a complete save).
 - CustomAudioSupport (`shar_modaudio.cpp`; `musicplayer.cpp` startingAmbience/startingExteriorAmbience/

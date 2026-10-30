@@ -76,6 +76,7 @@ ModStage::ModStage() :
     slamForce( 0.0f ),
     numTriggers( 0 ),
     numVehicleCharacters( 0 ),
+    numVehicleSettings( 0 ),
     checkpoint( false ),
     checkpointPedGroup( -1 ),
     checkpointTrafficGroup( -1 ),
@@ -271,6 +272,97 @@ void RemovePassenger( const ModStageVehicleCharacter& remove )
             s_Passengers[ i ] = s_Passengers[ --s_NumPassengers ];
             return;
         }
+    }
+}
+
+// cars whose settings the stages changed, held until the mission ends and gets them back
+struct ChangedVehicle
+{
+    Vehicle* vehicle;
+    bool current;           // named "current" (ResetStageVehicleAbductable( "current" ) finds it)
+    int abductable;         // as before
+    bool allowSlide;
+};
+
+const int MAX_CHANGED_VEHICLES = 16;
+ChangedVehicle s_Changed[ MAX_CHANGED_VEHICLES ];
+int s_NumChanged = 0;
+
+ChangedVehicle* TrackVehicle( Vehicle* v, bool current )
+{
+    for( int i = 0; i < s_NumChanged; i++ )
+    {
+        if( s_Changed[ i ].vehicle == v )
+        {
+            s_Changed[ i ].current = s_Changed[ i ].current || current;
+            return &s_Changed[ i ];
+        }
+    }
+    if( s_NumChanged >= MAX_CHANGED_VEHICLES )
+    {
+        return NULL;
+    }
+    ChangedVehicle& c = s_Changed[ s_NumChanged++ ];
+    c.vehicle = v;
+    c.current = current;
+    c.abductable = v->mModAbductable;
+    c.allowSlide = v->mAllowSlide;
+    v->AddRef();
+    return &c;
+}
+
+void RestoreVehicles()
+{
+    for( int i = 0; i < s_NumChanged; i++ )
+    {
+        s_Changed[ i ].vehicle->mModAbductable = s_Changed[ i ].abductable;
+        s_Changed[ i ].vehicle->mAllowSlide = s_Changed[ i ].allowSlide;
+        s_Changed[ i ].vehicle->Release();
+    }
+    s_NumChanged = 0;
+}
+
+void ApplyVehicleSettings( MissionStage* stage )
+{
+    ModStage* mod = stage->GetModStage();
+    for( int i = 0; mod != NULL && i < mod->numVehicleSettings; i++ )
+    {
+        const ModStageVehicleSetting& s = mod->vehicleSettings[ i ];
+        bool current = strcasecmp( s.car, "current" ) == 0;
+        Vehicle* v = NULL;
+        if( s.kind == ModStageVehicleSetting::RESET_ABDUCTABLE && current )
+        {
+            // the car "current" was when it was set
+            for( int j = s_NumChanged - 1; j >= 0 && v == NULL; j-- )
+            {
+                if( s_Changed[ j ].current ) v = s_Changed[ j ].vehicle;
+            }
+        }
+        else
+        {
+            v = current ? GetGameplayManager()->GetCurrentVehicle() : FindVehicle( s.car );
+        }
+        if( v == NULL )
+        {
+            if( Log() ) fprintf( stderr, "mods: stage vehicle setting: no car %s\n", s.car );
+            continue;
+        }
+        switch( s.kind )
+        {
+        case ModStageVehicleSetting::ABDUCTABLE:
+            if( TrackVehicle( v, current ) != NULL ) v->mModAbductable = s.value ? 1 : 0;
+            break;
+        case ModStageVehicleSetting::RESET_ABDUCTABLE:
+            v->mModAbductable = -1;
+            break;
+        case ModStageVehicleSetting::SEAT_SLIDE:
+            if( TrackVehicle( v, current ) != NULL ) v->mAllowSlide = s.value;
+            break;
+        case ModStageVehicleSetting::NO_DESTROYED_JUMP_OUT:
+            v->mModNoDestroyedJumpOut = true;   // as documented: for as long as the car exists
+            break;
+        }
+        if( Log() ) fprintf( stderr, "mods: stage vehicle setting %d = %d on %s\n", s.kind, s.value, v->GetName() );
     }
 }
 
@@ -656,6 +748,61 @@ public:
         v.remove = remove;
     }
     static void AddStageVehicleCharacter( int argc, char** argv ) { StageVehicleCharacter( argc, argv, false ); }
+    static void StageVehicleSetting( const char* command, const char* car, ModStageVehicleSetting::Kind kind, bool value )
+    {
+        ModStage* s = Stage( command );
+        if( s == NULL || s->numVehicleSettings >= ModStage::MAX_VEHICLE_SETTINGS )
+        {
+            return;
+        }
+        ModStageVehicleSetting& v = s->vehicleSettings[ s->numVehicleSettings++ ];
+        Copy( v.car, sizeof( v.car ), car );
+        v.kind = kind;
+        v.value = value;
+    }
+    static void SetStageVehicleAbductable( int argc, char** argv )
+    {
+        StageVehicleSetting( argv[ 0 ], argv[ 1 ], ModStageVehicleSetting::ABDUCTABLE, ParseBool( argv[ 2 ] ) );
+    }
+    static void ResetStageVehicleAbductable( int argc, char** argv )
+    {
+        StageVehicleSetting( argv[ 0 ], argv[ 1 ], ModStageVehicleSetting::RESET_ABDUCTABLE, false );
+    }
+    static void SetStageVehicleAllowSeatSlide( int argc, char** argv )
+    {
+        StageVehicleSetting( argv[ 0 ], argv[ 1 ], ModStageVehicleSetting::SEAT_SLIDE, ParseBool( argv[ 2 ] ) );
+    }
+    static void SetStageVehicleNoDestroyedJumpOut( int argc, char** argv )
+    {
+        StageVehicleSetting( argv[ 0 ], argv[ 1 ], ModStageVehicleSetting::NO_DESTROYED_JUMP_OUT, true );
+    }
+    // a stage vehicle (made when the script adds it): this stage's, else an earlier one's; kept by the car, so it
+    // holds for whichever AI drives it (ActivateVehicle adds one later)
+    static void SetStageVehicleReset( int argc, char** argv )
+    {
+        Mission* mission = Loader()->mpMission;
+        MissionStage* current = Loader()->mpStage;
+        if( mission == NULL || current == NULL )
+        {
+            fprintf( stderr, "mods: %s outside a stage, ignored\n", argv[ 0 ] );
+            return;
+        }
+        for( int i = -1; i < mission->GetNumStages(); i++ )
+        {
+            MissionStage* stage = i < 0 ? current : mission->GetStage( i );
+            for( int j = 0; stage != NULL && j < stage->GetNumVehicles(); j++ )
+            {
+                Vehicle* v = stage->GetVehicle( j );
+                if( v != NULL && strcasecmp( v->GetName(), argv[ 1 ] ) == 0 )
+                {
+                    v->mModReset = ParseBool( argv[ 2 ] ) ? 1 : 0;
+                    if( Log() ) fprintf( stderr, "mods: %s resets onto the road: %d\n", v->GetName(), v->mModReset );
+                    return;
+                }
+            }
+        }
+        fprintf( stderr, "mods: %s: no stage vehicle %s, ignored\n", argv[ 0 ], argv[ 1 ] );
+    }
     static void RemoveStageVehicleCharacter( int argc, char** argv ) { StageVehicleCharacter( argc, argv, true ); }
 
     // Checkpoints
@@ -946,6 +1093,7 @@ public:
             if( loc != NULL ) loc->SetFlag( Locator::ACTIVE, false );
         }
         ApplyPassengers( stage );
+        ApplyVehicleSettings( stage );
         if( first && mod->dynaLoad[ 0 ] != '\0' ) StageDynaLoad( mod );
         if( Log() )
         {
@@ -1121,15 +1269,15 @@ public:
             { "SetStageTrafficGroup", SetStageTrafficGroup, 1, 1 },
             { "AddStageDynaLoadData", AddStageDynaLoadData, 1, 2 },
             { "SetStageDynaLoadData", SetStageDynaLoadData, 1, 2 },
-            { "ResetStageVehicleAbductable", Unsupported, 1, 1 },
-            { "SetStageVehicleAbductable", Unsupported, 2, 2 },
-            { "SetStageVehicleAllowSeatSlide", Unsupported, 2, 2 },
+            { "ResetStageVehicleAbductable", ResetStageVehicleAbductable, 1, 1 },
+            { "SetStageVehicleAbductable", SetStageVehicleAbductable, 2, 2 },
+            { "SetStageVehicleAllowSeatSlide", SetStageVehicleAllowSeatSlide, 2, 2 },
             { "SetStageVehicleCharacterAnimation", Unsupported, 3, 4 },
             { "SetStageVehicleCharacterJumpOut", Unsupported, 2, 3 },
             { "SetStageVehicleCharacterScale", Unsupported, 3, 3 },
             { "SetStageVehicleCharacterVisible", Unsupported, 2, 2 },
-            { "SetStageVehicleNoDestroyedJumpOut", Unsupported, 1, 1 },
-            { "SetStageVehicleReset", Unsupported, 2, 2 },
+            { "SetStageVehicleNoDestroyedJumpOut", SetStageVehicleNoDestroyedJumpOut, 1, 1 },
+            { "SetStageVehicleReset", SetStageVehicleReset, 2, 2 },
             // Checkpoints
             { "CHECKPOINT_HERE", CHECKPOINT_HERE, 0, 0 },
             { "SetCheckpointDynaLoadData", SetCheckpointDynaLoadData, 1, 2 },
@@ -1254,6 +1402,7 @@ void ModScript::RemoveVehicleCharacters()
         Unseat( s_Passengers[ i ] );
     }
     s_NumPassengers = 0;
+    RestoreVehicles();
     s_CollectibleSound = NULL;      // (the mission's stages hold the string)
     s_UseCameraPosition = false;
 }
