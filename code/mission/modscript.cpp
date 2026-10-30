@@ -75,6 +75,7 @@ ModStage::ModStage() :
     airGravity( 0.0f ),
     kickForce( 0.0f ),
     slamForce( 0.0f ),
+    cheats( 0 ),
     numTriggers( 0 ),
     numVehicleCharacters( 0 ),
     numVehicleSettings( 0 ),
@@ -1469,7 +1470,8 @@ public:
         }
         return false;
     }
-    static bool CheatEnabled( const char* name )
+    // eCheatID by the docs' name, -1 for none
+    static int CheatId( const char* name )
     {
         static const struct { const char* name; eCheatID id; } CHEATS[] =
         {
@@ -1487,10 +1489,25 @@ public:
         {
             if( strcasecmp( name, CHEATS[ i ].name ) == 0 )
             {
-                return GetCheatInputSystem()->IsCheatEnabled( CHEATS[ i ].id );
+                return CHEATS[ i ].id;
             }
         }
-        return false;
+        return -1;
+    }
+    static bool CheatEnabled( const char* name )
+    {
+        int id = CheatId( name );
+        return id >= 0 && GetCheatInputSystem()->IsCheatEnabled( static_cast< eCheatID >( id ) );
+    }
+    static void SetStageEnabledCheats( int argc, char** argv )
+    {
+        ModStage* s = Stage( argv[ 0 ] );
+        for( int i = 1; s != NULL && i < argc; i++ )
+        {
+            int id = CheatId( argv[ i ] );
+            if( id >= 0 ) s->cheats |= 1u << id;
+            else fprintf( stderr, "mods: %s: unknown cheat %s, ignored\n", argv[ 0 ], argv[ i ] );
+        }
     }
     static bool IfAllCheatsEnabled( int argc, char** argv )
     {
@@ -1538,6 +1555,8 @@ public:
     {
         ModStage* mod = stage->GetModStage();
         ApplyPlayerModel( mod );
+        GetCheatInputSystem()->SetModStageCheats( mod != NULL ? mod->cheats : 0 );
+        if( mod != NULL && mod->cheats != 0 && Log() ) fprintf( stderr, "mods: stage cheats 0x%x on\n", mod->cheats );
         if( mod == NULL )
         {
             return;
@@ -1621,6 +1640,7 @@ public:
         {
             return;
         }
+        if( mod->cheats != 0 ) GetCheatInputSystem()->SetModStageCheats( 0 );
         if( mod->saved )
         {
             HitnRunManager* hnr = GetHitnRunManager();
@@ -1761,7 +1781,7 @@ public:
             { "SetStageAirGravity", SetStageAirGravity, 1, 1 },
             { "SetStageKickForce", SetStageKickForce, 1, 1 },
             { "SetStageSlamForce", SetStageSlamForce, 1, 1 },
-            { "SetStageEnabledCheats", Unsupported, 1, 15 },
+            { "SetStageEnabledCheats", SetStageEnabledCheats, 1, 15 },
             { "SetStageTrafficGroup", SetStageTrafficGroup, 1, 1 },
             { "AddStageDynaLoadData", AddStageDynaLoadData, 1, 2 },
             { "SetStageDynaLoadData", SetStageDynaLoadData, 1, 2 },
@@ -1926,6 +1946,7 @@ void ModScript::RemoveVehicleCharacters()
     RestoreVehicles();
     s_CollectibleSound = NULL;      // (the mission's stages hold the string)
     s_UseCameraPosition = false;
+    GetCheatInputSystem()->SetModStageCheats( 0 );
 }
 
 void ModScript::OnMissionFinalize()

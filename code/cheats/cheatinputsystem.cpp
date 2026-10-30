@@ -39,6 +39,9 @@ CheatInputSystem* CheatInputSystem::spInstance = NULL;
 //===========================================================================
 
 CHEATBITMASK CheatInputSystem::s_cheatsEnabled = 0;
+#ifdef RAD_LINUX
+CHEATBITMASK CheatInputSystem::s_modStageCheats = 0;
+#endif
 
 //===========================================================================
 // Public Member Functions
@@ -350,6 +353,10 @@ CheatInputSystem::IsCheatEnabled( eCheatID cheatID ) const
     if( ( cheatID == CHEAT_ID_UNLOCK_MISSIONS && s_unlockMissions ) ||
         ( cheatID == CHEAT_ID_UNLOCK_VEHICLES && s_unlockVehicles ) ||
         ( cheatID == CHEAT_ID_UNLOCK_SKINS && s_unlockOutfits ) )
+    {
+        return true;
+    }
+    if( s_modStageCheats & (1 << cheatID) )
     {
         return true;
     }

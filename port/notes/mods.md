@@ -118,6 +118,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   SetStageCharacterModel: `CharacterManager::SwapData` on the player at stage start (anim set default = the player's
   own, as 1.19); the own model comes back when a stage without one starts or in `ModScript::OnMissionFinalize` (not
   on Mission::Reset: stage 1 sets it again; not while leaving gameplay). Checked: L1 M1 h_fat on, off at stage 2.
+  SetStageEnabledCheats: `ModStage::cheats` -> `CheatInputSystem::SetModStageCheats` (ORed in `IsCheatEnabled`, the
+  player's own untouched) at stage start, off at Finalize / mission reset. x5StageTime also counts in that stage's
+  SetStageTime/AddStageTime when it comes before them (times are scaled as the script runs). Checked: L1 M1 10 s -> 50.
 - CustomStatsTotals (`charactersheet/modstatstotals.cpp`): totals for scrapbook, pause progress, mission select,
   `QueryPercent*`; defaults reproduce original (100.3% on a complete save).
 - CustomAudioSupport (`shar_modaudio.cpp`; `musicplayer.cpp` startingAmbience/startingExteriorAmbience/

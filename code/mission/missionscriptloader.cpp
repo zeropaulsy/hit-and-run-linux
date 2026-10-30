@@ -3885,6 +3885,11 @@ void MissionScriptLoader::SetStageTime( int argc, char** argv )
 {
     rTuneAssertMsg( spInstance->mpStage != NULL, "No stage active\n" );
     int factor = GetCheatInputSystem()->IsCheatEnabled(CHEAT_ID_EXTRA_TIME) ? 5 : 1;
+#ifdef RAD_LINUX
+    // SetStageEnabledCheats( "x5StageTime" ) (mods), if it comes first in the stage
+    ModStage* mod = spInstance->mpStage->GetModStage();
+    if( mod != NULL && ( mod->cheats & ( 1u << CHEAT_ID_EXTRA_TIME ) ) ) factor = 5;
+#endif
     spInstance->mpStage->SetStageTime( MissionStage::STAGETIME_SET, atoi( argv[ 1 ] ) * factor);
 }
 
@@ -3902,6 +3907,11 @@ void MissionScriptLoader::AddStageTime( int argc, char** argv )
 {
     rTuneAssertMsg( spInstance->mpStage != NULL, "No stage active\n" );
     int factor = GetCheatInputSystem()->IsCheatEnabled(CHEAT_ID_EXTRA_TIME) ? 5 : 1;
+#ifdef RAD_LINUX
+    // SetStageEnabledCheats( "x5StageTime" ) (mods), if it comes first in the stage
+    ModStage* mod = spInstance->mpStage->GetModStage();
+    if( mod != NULL && ( mod->cheats & ( 1u << CHEAT_ID_EXTRA_TIME ) ) ) factor = 5;
+#endif
     spInstance->mpStage->SetStageTime( MissionStage::STAGETIME_ADD, atoi( argv[ 1 ] ) * factor);
 }
 

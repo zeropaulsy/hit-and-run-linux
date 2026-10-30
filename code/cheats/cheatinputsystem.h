@@ -62,6 +62,11 @@ public:
 
     void SetCheatEnabled( eCheatID cheatID, bool enable );
     bool IsCheatEnabled( eCheatID cheatID ) const;
+#ifdef RAD_LINUX
+    // Linux port: SetStageEnabledCheats (mods' AdditionalScriptFunctionality): on while a stage runs, beside the
+    // player's own
+    void SetModStageCheats( CHEATBITMASK cheats ) { s_modStageCheats = cheats; }
+#endif
 
     void ReceiveInputs( eCheatInput* cheatInputs,
                         int numInputs = NUM_CHEAT_SEQUENCE_INPUTS );
@@ -92,6 +97,9 @@ private:
     unsigned int m_activatedBitMask;
 
     static CHEATBITMASK s_cheatsEnabled;
+#ifdef RAD_LINUX
+    static CHEATBITMASK s_modStageCheats;
+#endif
     CheatsDB* m_cheatsDB;
 
     CheatInputHandler* m_cheatInputHandler;

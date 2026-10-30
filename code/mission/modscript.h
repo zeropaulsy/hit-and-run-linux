@@ -80,6 +80,7 @@ struct ModStage
     // SetStageAirGravity / KickForce / SlamForce (CharacterTune), restored after the stage
     bool airGravitySet, kickForceSet, slamForceSet;
     float airGravity, kickForce, slamForce;
+    unsigned int cheats;        // SetStageEnabledCheats: bits by eCheatID, on during the stage
 
     int numTriggers;            // DisableTrigger
     char triggers[ MAX_TRIGGERS ][ 32 ];
