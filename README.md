@@ -96,7 +96,7 @@ generated file.
 | `SHAR_ASSERT_ABORT=1` | Make failed asserts abort instead of logging |
 | `SHAR_LOAD_BUDGET_MS=n` | Time per frame given to the background loader |
 | `SHAR_CRASH_HANDLER=0` | Don't install the crash-report signal handler |
-| `SHAR_MSAA=n` | Anti-aliasing samples, overriding `simpsons.ini` (0 = off) |
+| `SHAR_MSAA=n` | Anti-aliasing samples, overriding `simpsons.ini` and Options > Graphics (0 = off) |
 | `SHAR_ALPHA_TO_COVERAGE=0` | Hard edges on cut-out textures even with anti-aliasing |
 | `SHAR_MIPMAPS=0`, `SHAR_ANISOTROPY=n` | Texture filtering, overriding `simpsons.ini` |
 | `SHAR_SHADERS=dir`, `SHAR_POST=0` | Shaders folder (default `shaders/`); post-processing off |

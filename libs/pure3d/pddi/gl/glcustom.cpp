@@ -286,11 +286,23 @@ unsigned pglCustomGeneration()
 
 bool g_pglUserShaders = true;
 
-void pglToggleUserShaders()
+void pglSetUserShaders(bool on)
 {
-    g_pglUserShaders = !g_pglUserShaders;
+    if(on == g_pglUserShaders)
+        return;
+    g_pglUserShaders = on;
     s_generation++;         // materials look their shaders up again (none while off)
     fprintf(stderr, "PDDI: your shaders %s (M toggles)\n", g_pglUserShaders ? "on" : "off");
+}
+
+bool pglGetUserShaders()
+{
+    return g_pglUserShaders;
+}
+
+void pglToggleUserShaders()
+{
+    pglSetUserShaders(!g_pglUserShaders);
 }
 
 int pglCustomShadersFor(const char* type, const char* material, const char* file, int* slots)

@@ -17,6 +17,10 @@
 //===========================================================================
 #include <presentation/gui/frontend/guiscreendisplay.h>
 #include <presentation/gui/guimenu.h>
+#ifdef RAD_LINUX
+#include <presentation/gui/frontend/guiscreengraphics.h>
+#include <presentation/gui/guimanager.h>
+#endif
 
 #include <data/config/gameconfigmanager.h>
 #include <main/win32platform.h>
@@ -302,6 +306,16 @@ void CGuiScreenDisplay::InitIntro()
     GuiMenuItem* menuItem = m_pMenu->GetMenuItem( MENU_ITEM_GAMMA );
     rAssert( menuItem );
     menuItem->m_slider.SetValue( ( GetRenderFlow()->GetGamma() - 0.5f ) / 2.0f );
+
+#ifdef RAD_LINUX
+    // the Graphics screen shares this page: put this screen's rows back, and the selected row's value arrows
+    CGuiScreenGraphics* graphics = static_cast< CGuiScreenGraphics* >( m_guiManager->FindWindowByID( GUI_SCREEN_ID_GRAPHICS ) );
+    if( graphics != NULL )
+    {
+        graphics->ShowPage( false );
+    }
+    m_pMenu->Reset( m_pMenu->GetSelection() );
+#endif
 }
 
 

@@ -180,6 +180,22 @@ public:
     void SetBorderless( bool borderless ) { mBorderless = borderless; }
     bool IsBorderless() const { return mBorderless; }
     static void GetResolutionSize( Resolution res, int& x, int& y ) { TranslateResolution( res, x, y ); }
+
+    // Graphics settings (CGuiScreenGraphics; simpsons.ini antialiasing=, shaders=, renderer=). Anti-aliasing and
+    // the user's shaders (shaders/) change at once; the renderer is read at start-up.
+    enum Renderer
+    {
+        RENDERER_OPENGL,
+        RENDERER_VULKAN,        // not implemented yet: OpenGL is used
+
+        NUM_RENDERERS
+    };
+    void SetAntialiasing( int samples );
+    int GetAntialiasing() const { return mAntialiasing; }
+    void SetUserShaders( bool on );
+    bool GetUserShaders() const;
+    void SetRenderer( Renderer renderer ) { mRenderer = renderer; }
+    Renderer GetRenderer() const { return mRenderer; }
 private:
 #endif
 
@@ -208,6 +224,7 @@ private:
     int mAntialiasing;      // MSAA samples (simpsons.ini antialiasing=, 0 = off)
     bool mMipmaps;          // texture filtering (simpsons.ini mipmaps=yes/no, anisotropy=)
     int mAnisotropy;
+    Renderer mRenderer;     // simpsons.ini renderer=opengl/vulkan
 #endif
     int mScreenWidth;
     int mScreenHeight;

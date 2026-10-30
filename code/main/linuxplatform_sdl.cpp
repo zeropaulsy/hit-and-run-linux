@@ -398,6 +398,29 @@ bool Win32Platform::PumpEvents()
         c = strchr( c, ',' );
         if( c ) c++;
     }
+    // debug: SHAR_MOUSE_SCRIPT="x,y@ms,..." moves the mouse cursor (window pixels) at those times (menus select the item
+    // under the cursor, so scripted keyboard navigation moves it out of the way first)
+    static const char* s_mouseScript = getenv( "SHAR_MOUSE_SCRIPT" );
+    static unsigned int s_mouseDone = 0;
+    unsigned int mouseIndex = 0;
+    for( const char* c = s_mouseScript; c && *c; mouseIndex++ )
+    {
+        int x = 0, y = 0;
+        unsigned int at = 0;
+        if( sscanf( c, "%d,%d@%u", &x, &y, &at ) == 3 && mouseIndex == s_mouseDone && SDL_GetTicks() >= at )
+        {
+            SDL_Event motion;
+            memset( &motion, 0, sizeof( motion ) );
+            motion.type = SDL_MOUSEMOTION;
+            motion.motion.x = x;
+            motion.motion.y = y;
+            SDL_PushEvent( &motion );
+            s_mouseDone++;
+        }
+        c = strchr( c, '@' );
+        c = c ? strchr( c, ',' ) : NULL;
+        if( c ) c++;
+    }
     // debug: SHAR_QUIT_AT=ms closes the window at that time (tests shutting down from any context; Ctrl+C is the same)
     static const char* s_quitAt = getenv( "SHAR_QUIT_AT" );
     static bool s_quitPushed = false;

@@ -38,7 +38,7 @@ SHAR_RUN=<scratch run dir> port/memcheck.sh 330 skipfe
 Game options: `skipfe [lN mM]`, `race1-4`, `demo lN`, `incar`, `tpN`, `skipsunday`, `nofail`, `autopass[N]`, `coins`,
 `bonus`, `l0`. Env: `SHAR_SHOT_EVERY`, `SHAR_QUIT_AT`, `SHAR_KEY_SCRIPT="dik@start-end,..."` (E=18, Enter=28,
 1000+n mouse), `SHAR_KEYPRESS_SCRIPT`, `SHAR_RESIZE_SCRIPT`, `SHAR_MINIMIZE_SCRIPT`, `SHAR_TP_POS`,
-`SHAR_TP_INTERIOR_POS`, `SHAR_MAX_FRAME_MS`, `SHAR_ASSERT_ABORT=1`, `SHAR_FILL_ALLOC`/`SHAR_FILL_PDDI`, `SHAR_FPS_CAP`,
+`SHAR_TP_INTERIOR_POS`, `SHAR_MOUSE_SCRIPT="x,y@ms,..."`, `SHAR_MAX_FRAME_MS`, `SHAR_ASSERT_ABORT=1`, `SHAR_FILL_ALLOC`/`SHAR_FILL_PDDI`, `SHAR_FPS_CAP`,
 `SHAR_VSYNC=0`, `SHAR_MSAA`, `SHAR_X11=1`, `SHAR_NO_AUDIO=1`, `SHAR_GL_DEBUG/STATS=1`,
 `SHAR_{FRAME,INPUT,SOUND,DIALOG,RSD,REVERB,RUMBLE,MOD,TRAFFIC,MATERIAL}_LOG=1`. Details: testing.md.
 Mesa GL errors: `__GLX_VENDOR_LIBRARY_NAME=mesa LIBGL_ALWAYS_SOFTWARE=1 MESA_DEBUG=1`. No speakers:

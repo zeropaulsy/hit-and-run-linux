@@ -16,6 +16,9 @@
 // Includes
 //===========================================================================
 #include <presentation/gui/ingame/guiscreenpauseoptions.h>
+#ifdef RAD_LINUX
+#include <presentation/gui/frontend/guiscreengraphics.h>
+#endif
 #include <presentation/gui/guimenu.h>
 
 #include <cheats/cheatinputsystem.h>
@@ -36,6 +39,9 @@ enum ePauseMenuItem
 #ifdef RAD_WIN32
     MENU_ITEM_DISPLAY,
 #endif
+#ifdef RAD_LINUX
+    MENU_ITEM_GRAPHICS,
+#endif
     MENU_ITEM_CONTROLLER,
     MENU_ITEM_SOUND,
     MENU_ITEM_SETTINGS,
@@ -49,6 +55,9 @@ static const char* PAUSE_MENU_ITEMS[] =
 {
 #ifdef RAD_WIN32
     "Display",
+#endif
+#ifdef RAD_LINUX
+    "Graphics",     // added by AddGraphicsMenuItem
 #endif
     "Controller",
     "Sound",
@@ -98,6 +107,10 @@ MEMTRACK_PUSH_GROUP( "CGUIScreenPauseOptions" );
     //
     Scrooby::Group* menu = pPage->GetGroup( "Menu" );
     rAssert( menu != NULL );
+#ifdef RAD_LINUX
+    static const char* BELOW_GRAPHICS[] = { "Controller", "Sound", "Settings" };
+    AddGraphicsMenuItem( menu, "Display", BELOW_GRAPHICS, 3 );
+#endif
     char itemName[ 32 ];
     for( int i = 0; i < NUM_PAUSE_MENU_ITEMS; i++ )
     {
@@ -214,6 +227,12 @@ void CGuiScreenPauseOptions::HandleMessage
                 else if( param1 == MENU_ITEM_DISPLAY )
                 {
                     m_pParent->HandleMessage( GUI_MSG_GOTO_SCREEN, GUI_SCREEN_ID_DISPLAY );
+                }
+#endif
+#ifdef RAD_LINUX
+                else if( param1 == MENU_ITEM_GRAPHICS )
+                {
+                    m_pParent->HandleMessage( GUI_MSG_GOTO_SCREEN, GUI_SCREEN_ID_GRAPHICS );
                 }
 #endif
                 else

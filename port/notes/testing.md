@@ -23,6 +23,9 @@
 - `bonus`: from main menu (~65 s after boot) Left x2, Enter, Enter x3. `l0`: original shortcut into bonus menus.
 - `SHAR_QUIT_AT=ms` logs "Window closed (context N)" (contextenum.h: 1 bootup, 2 FE, 8 loading, 9 gameplay, 10 pause).
 - Verify runs with screenshots (`SHAR_SHOT_EVERY`): logs show little; runs have silently tested nothing (empty ground).
+- Menus: the item under the cursor wins over keys, so `SHAR_MOUSE_SCRIPT="5,5@8000"` first. Boot movies make menu
+  timing vary: scratch run dir without the `movies` link -> main menu at ~12 s (Right x3 + Enter = Options; Options
+  remembers its last item, so Up x6 to reach Display). Pause menu with `skipfe`: Esc at ~30 s, Down x4 = Options.
 
 ## Memcheck (`port/memcheck.sh`)
 - Valgrind fetched/set up on first use (unstripped i386 ld.so built), `--soname-synonyms=somalloc=nouserintercepts`,

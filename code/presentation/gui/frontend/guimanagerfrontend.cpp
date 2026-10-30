@@ -49,6 +49,9 @@
 #include <presentation/gui/frontend/guiscreenviewmovies.h>
 #include <presentation/gui/frontend/guiscreenplaymovie.h>
 #include <presentation/gui/frontend/guiscreendisplay.h>
+#ifdef RAD_LINUX
+#include <presentation/gui/frontend/guiscreengraphics.h>
+#endif
 
 #include <presentation/presentation.h>
 #include <presentation/fmvplayer/fmvplayer.h>
@@ -334,6 +337,12 @@ MEMTRACK_PUSH_GROUP( "CGUIManagerFrontEnd" );
     pScroobyScreen = m_pScroobyProject->GetScreen( "Display" );
     if( pScroobyScreen != NULL )
     {
+#ifdef RAD_LINUX
+        // Linux port: Graphics, on the Display page (first: it copies the rows' texts before the Display menu
+        // highlights one)
+        pScreen = new CGuiScreenGraphics( pScroobyScreen, this, false );
+        this->AddWindow( CGuiWindow::GUI_SCREEN_ID_GRAPHICS, pScreen );
+#endif
         pScreen = new CGuiScreenDisplay( pScroobyScreen, this );
         this->AddWindow( CGuiWindow::GUI_SCREEN_ID_DISPLAY, pScreen );
     }

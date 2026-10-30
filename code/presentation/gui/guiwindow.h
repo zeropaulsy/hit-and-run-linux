@@ -83,6 +83,9 @@ class CGuiWindow : public CGuiEntity
 #ifdef RAD_WIN32
             GUI_SCREEN_ID_DISPLAY,
 #endif
+#ifdef RAD_LINUX
+            GUI_SCREEN_ID_GRAPHICS,     // Linux port: anti-aliasing, shaders, renderer (CGuiScreenGraphics)
+#endif
             GUI_SCREEN_ID_PLAY_MOVIE,
             GUI_SCREEN_ID_PLAY_MOVIE_DEMO,
             GUI_SCREEN_ID_PLAY_MOVIE_INTRO,

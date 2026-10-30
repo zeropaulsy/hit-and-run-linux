@@ -39,6 +39,15 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
 - Alpha-to-coverage for alpha-tested non-blended (GREATER/GEQUAL) while multisampled (`SetMultisampled`), alpha ramped
   over ~1 px via fwidth. `SHAR_ALPHA_TO_COVERAGE=0` off.
 
+## Options > Graphics (`CGuiScreenGraphics`, front end + pause)
+- Anti-aliasing Off/2/4/8, Shaders (`pglSetUserShaders`, ini `shaders=`), Renderer (ini `renderer=opengl|vulkan`;
+  stored only, Vulkan logs a fallback). Apply at once; config saved on leaving.
+- No page of its own: reuses the Display page, `Scrooby::Text::Clone` (Linux port) copies rows' label/value texts,
+  originals hidden; arrows shared (transform saved around AddMenuItem, which scales them). Built before
+  CGuiScreenDisplay (clones copy colour: must be unhighlighted); Display's InitIntro calls `ShowPage(false)`.
+- Options "Graphics" row: `AddGraphicsMenuItem` clones "Display", moves rows with SetPosition (CGuiMenu resets item
+  transforms every frame, so Translate is lost).
+
 ## User shaders (format: shaders/README.md). M toggles all (`pglToggleUserShaders`; generation bump)
 - Post (`glpost.cpp`, `shaders/post.ini`): [scene] passes in `RenderManager` before the GUI layer (only if a lower
   layer drew and no FMV), [final] in `SwapBuffers` before gamma. Ping-pong FBOs; depth copied only if a pass uses

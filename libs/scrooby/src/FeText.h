@@ -85,6 +85,7 @@ class FeText
         tFont* GetTextStyle() const;
 
         virtual void AddHardCodedString( const char* string );
+        virtual Scrooby::Text* Clone( const char* name, const char* string );
         void AddTextBibleString( unsigned int textBibleResourceID, const char* stringID );
         void AddTextBibleString( const char* textBibleName, const char* stringID );
 

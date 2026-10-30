@@ -34,6 +34,9 @@
 #include <presentation/gui/ingame/guiscreenpauseoptions.h>
 #ifdef RAD_WIN32
 #include <presentation/gui/ingame/guiscreenpausedisplay.h>
+#ifdef RAD_LINUX
+#include <presentation/gui/frontend/guiscreengraphics.h>
+#endif
 #endif
 #include <presentation/gui/ingame/guiscreenpausecontroller.h>
 #include <presentation/gui/ingame/guiscreenpausesound.h>
@@ -383,6 +386,12 @@ MEMTRACK_PUSH_GROUP( "CGUIManagerInGame" );
     pScroobyScreen = m_pScroobyProject->GetScreen( "PauseDisplay" );
     if( pScroobyScreen != NULL )
     {
+#ifdef RAD_LINUX
+        // Linux port: Graphics, on the Display page (first: it copies the rows' texts before the Display menu
+        // highlights one)
+        pScreen = new CGuiScreenGraphics( pScroobyScreen, this, true );
+        this->AddWindow( CGuiWindow::GUI_SCREEN_ID_GRAPHICS, pScreen );
+#endif
         pScreen = new CGuiScreenPauseDisplay( pScroobyScreen, this );
         this->AddWindow( CGuiWindow::GUI_SCREEN_ID_DISPLAY, pScreen );
     }

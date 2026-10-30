@@ -20,6 +20,8 @@
 #ifdef RAD_LINUX
 void pglSetAntialiasing( int samples );     // pddi/gl/display_linux/gldisplay.cpp: MSAA
 void pglSetTextureFiltering( int mipmaps, int anisotropy );     // and texture filtering
+void pglSetUserShaders( bool on );          // pddi/gl/glcustom.cpp: the user's shaders (shaders/)
+bool pglGetUserShaders();
 #endif
 // Pure 3D
 #include <p3d/anim/compositedrawable.hpp>
@@ -1036,7 +1038,11 @@ const char* Win32Platform::GetConfigName() const
 
 int Win32Platform::GetNumProperties() const
 {
+#ifdef RAD_LINUX
+    return 9;
+#else
     return 4;
+#endif
 }
 
 //=============================================================================
@@ -1193,12 +1199,31 @@ void Win32Platform::LoadConfig( ConfigString& config )
         {
             mAnisotropy = atoi( value );
         }
+        else if( _stricmp( property, "shaders" ) == 0 )
+        {
+            // Linux port: the user's post-processing and material shaders (shaders/; the M key toggles them)
+            pglSetUserShaders( _stricmp( value, "no" ) != 0 && strcmp( value, "0" ) != 0 );
+        }
+        else if( _stricmp( property, "renderer" ) == 0 )
+        {
+            // Linux port: opengl or vulkan (reserved: OpenGL is the only renderer so far)
+            mRenderer = _stricmp( value, "vulkan" ) == 0 ? RENDERER_VULKAN : RENDERER_OPENGL;
+        }
 #endif
     }
 
 #ifdef RAD_LINUX
     pglSetAntialiasing( mAntialiasing );
     pglSetTextureFiltering( mMipmaps ? 1 : 0, mAnisotropy );
+    if( mRenderer == RENDERER_VULKAN )
+    {
+        static bool s_told = false;
+        if( !s_told )
+        {
+            fprintf( stderr, "renderer=vulkan: the Vulkan renderer is not implemented yet, using OpenGL\n" );
+            s_told = true;
+        }
+    }
 #endif
 
     // apply the new settings.
@@ -1307,8 +1332,35 @@ void Win32Platform::SaveConfig( ConfigString& config )
     char anisotropy[ 20 ];
     sprintf( anisotropy, "%d", mAnisotropy );
     config.WriteProperty( "anisotropy", anisotropy );
+    config.WriteProperty( "shaders", pglGetUserShaders() ? "yes" : "no" );
+    config.WriteProperty( "renderer", mRenderer == RENDERER_VULKAN ? "vulkan" : "opengl" );
 #endif
 }
+
+#ifdef RAD_LINUX
+//=============================================================================
+// Win32Platform::SetAntialiasing, SetUserShaders, GetUserShaders
+//=============================================================================
+// Description: Graphics settings, applied at once (SaveConfig writes them).
+//
+//=============================================================================
+
+void Win32Platform::SetAntialiasing( int samples )
+{
+    mAntialiasing = samples;
+    pglSetAntialiasing( mAntialiasing );
+}
+
+void Win32Platform::SetUserShaders( bool on )
+{
+    pglSetUserShaders( on );
+}
+
+bool Win32Platform::GetUserShaders() const
+{
+    return pglGetUserShaders();
+}
+#endif
 
 
 //******************************************************************************
@@ -1340,6 +1392,7 @@ Win32Platform::Win32Platform( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPST
     mAntialiasing = 4;      // 4x MSAA unless simpsons.ini says otherwise
     mMipmaps = true;        // mipmapped textures with 16x anisotropic filtering, likewise
     mAnisotropy = 16;
+    mRenderer = RENDERER_OPENGL;
 #endif
 
 #ifdef RAD_LINUX
