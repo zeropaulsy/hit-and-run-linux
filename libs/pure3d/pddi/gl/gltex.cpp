@@ -283,7 +283,15 @@ bool pglTexture::Create(int x, int y, int bpp, int alphaDepth, int nMip, pddiTex
     log2X = fastlog2(xSize);
     log2Y = fastlog2(ySize);
 
+#ifdef RAD_LINUX
+    // Linux port: GL 3.3 takes any size. Art keeps the D3D8 pddi's power-of-two rule; dynamic textures (mods' video
+    // textures: retail movies are 640x480) may be any size.
+    bool anySize = usageHint == PDDI_USAGE_DYNAMIC && ty != PDDI_TEXTYPE_DXT1 && ty != PDDI_TEXTYPE_DXT2 &&
+                   ty != PDDI_TEXTYPE_DXT3 && ty != PDDI_TEXTYPE_DXT4 && ty != PDDI_TEXTYPE_DXT5;
+    if(((log2X == -1) || (log2Y == -1)) && !anySize)
+#else
     if((log2X == -1) || (log2Y == -1))
+#endif
     {
 #ifdef RAD_LINUX
         fprintf(stderr, "pglTexture: rejected %dx%d texture (not a power of two)\n", xSize, ySize);
@@ -482,8 +490,15 @@ pddiLockInfo* pglTexture::Lock(int mipMap, pddiRect* rect)
     }
 #endif
 
+#ifdef RAD_LINUX
+    lock.width = xSize >> mipMap;       // any size (dynamic textures); the same for powers of two
+    lock.height = ySize >> mipMap;
+    if(lock.width < 1) lock.width = 1;
+    if(lock.height < 1) lock.height = 1;
+#else
     lock.width = 1 << (log2X-mipMap);
     lock.height = 1 << (log2Y-mipMap);
+#endif
     lock.pitch = -lock.width * 4;
     lock.bits = bits[mipMap] + (lock.width * (lock.height-1) * 4);
 

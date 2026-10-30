@@ -23,8 +23,8 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
 - VideoTextureSupport (`radmovie/src/linux/binkvideotexture.cpp`): shader texture names starting with / (file's TEX
   param or OverrideShaderParameters, `SetModVideoTexture` in p3d `shader.cpp`) open a Bink via `shar_ModVfsResolve`
   (`BinkOpen` with `BINKLINUXNOAUDIO`), looped; advanced before `BeginFrame` in RenderManager; freed when only the
-  tTexture holds the pddi texture (`pddiObject::GetRefCount`). Power-of-two only (retail movies are 640x480: test
-  by cropping the copy to 512x256). Failed paths logged once.
+  tTexture holds the pddi texture (`pddiObject::GetRefCount`). Any size (`PDDI_USAGE_DYNAMIC`, gltex.cpp). Failed
+  paths logged once. Checked: retail fmv2.rmv (640x480) on every shader (`<Shader>` with no Name).
 - HackSupport: HackSupport.ini [Miscellaneous] OverrideTexture (`ApplyModOverrideTexture`, p3d `shader.cpp`: base
   texture of every shader loaded after the texture is; a / path is a video). With any mod loaded, a car's follow
   camera data loaded again replaces the first copy (`cameradataloader.cpp`, `shar_ModsLoaded`). The rest is Windows

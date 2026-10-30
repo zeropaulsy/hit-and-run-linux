@@ -29,6 +29,8 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
 - Mipmaps: glGenerateMipmap for uncompressed; trilinear + anisotropy (`pglTexture::SetSampling`; ini `mipmaps=`,
   `anisotropy=`; runtime-changeable). Alpha-tested non-blended: alpha +25% per mip level (uMipAlpha) against thinning.
 - GL_OUT_OF_MEMORY upload: reported once, retried.
+- Power-of-two sizes only (D3D8 rule, `PDDI_TEX_NOT_POW_2`), except uncompressed `PDDI_USAGE_DYNAMIC` textures
+  (mods' video textures): Lock() sizes from xSize/ySize.
 
 ## MSAA
 - Offscreen MS FBO (RGBA8 + D24S8) bound in `BeginFrame` (`BeginFrameTarget`), blitted in `ResolveFrame` at the scene

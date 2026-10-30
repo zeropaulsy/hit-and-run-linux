@@ -1,7 +1,7 @@
 //=============================================================================
 // Linux port: the Mod Launcher's VideoTextureSupport. A shader texture named by a path in the mods' virtual
 // file system ("/GameData/movies/x.bik", shader.cpp) plays that Bink file, looped and silent, into a texture
-// of its size (a power of two, like any texture). One texture per path, shared by every shader naming it;
+// of its size (any size: a dynamic texture, gltex.cpp). One texture per path, shared by every shader naming it;
 // RenderManager advances them once a frame and drops those no shader holds any more.
 //=============================================================================
 
@@ -96,7 +96,7 @@ bool radMovieSetVideoTexture( pddiShader* shader, unsigned param, const char* pa
         {
             texture = new tTexture( );
             texture->AddRef( );
-            if ( !texture->Create( bink->Width, bink->Height, 32, 8, 0, PDDI_TEXTYPE_RGB ) )
+            if ( !texture->Create( bink->Width, bink->Height, 32, 8, 0, PDDI_TEXTYPE_RGB, PDDI_USAGE_DYNAMIC ) )
             {
                 texture->Release( );
                 texture = NULL;
@@ -106,7 +106,7 @@ bool radMovieSetVideoTexture( pddiShader* shader, unsigned param, const char* pa
         {
             fprintf( stderr, "mods: video texture %s: %s\n", path,
                      s_NumVideos == MAX_VIDEO_TEXTURES ? "too many" :
-                     bink == NULL ? BinkGetError( ) : "not a power of two in size" );
+                     bink == NULL ? BinkGetError( ) : "no texture of its size" );
             if ( bink != NULL )
             {
                 BinkClose( bink );

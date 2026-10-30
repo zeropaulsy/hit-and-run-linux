@@ -125,7 +125,7 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 - [x] RefractionShaderSupport: the PS2 refract shader in the GL pddi
 - [x] WalkerCameraDataSupport: walker camera data chunks from level files
 - [x] FLACSupport: x.flac serves x.rsd, like OggVorbisSupport
-- [x] VideoTextureSupport: Bink videos (virtual paths) as looping shader textures
+- [x] VideoTextureSupport: Bink videos (virtual paths) as looping shader textures, any size (retail 640x480 movies)
 - [x] HackSupport: OverrideTexture; car camera data reloaded with the car (mods loaded)
 - [x] CustomRewardQuestSupport: every binding kept, the 11 new quest types, unlock messages, booth/shop texts, saved
   progress in the sidecar
