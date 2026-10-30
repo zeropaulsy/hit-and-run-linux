@@ -67,8 +67,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
 - CustomCarSupport (`shar_modcars.cpp`; `Vehicle::mModCar` from `AssignEnumBasedOnName`; unknown cars have
   `mVehicleID` INVALID 96): Index (`GetID`, follow-cam chunk), NoHusk, NoSkidMarks/NoFrontSkidMarks, ShadowVisible,
   Abductable, Recolourable, Invincible, NoBumperCam, RearWheelSparks, PreviewScale, steering/skid multipliers,
-  [FakeWheel] (`FakeWheelJointDriver`), IsHusk/Husk= (`Vehicle::IsHuskModel()`, `HuskPool`). Unplayed: custom husk,
-  PreviewScale, IsHusk.
+  [FakeWheel] (`FakeWheelJointDriver`; CopySkidMarks: `SkidMarkGenerator` slots 4+, under the joint's rest x/z at the
+  copied wheel's ground height, once a frame; NoFrontSkidMarks leaves them), IsHusk/Husk= (`Vehicle::IsHuskModel()`,
+  `HuskPool`). Unplayed: custom husk, PreviewScale, IsHusk. CopySkidMarks checked: famil_v + TrunkTrans, rear wheels.
 - AdditionalScriptFunctionality (`code/mission/modscript.cpp`, `objectives/modobjectives.cpp`,
   `conditions/modconditions.cpp`; LINUX_EXTRA): all commands registered (console table 512) and implemented.
   Objectives run as type "dummy": `ModCounter` (coins, wrench, wasps, destroycars, event, hitandrun*, peds, jump,

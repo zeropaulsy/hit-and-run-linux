@@ -28,7 +28,7 @@ typedef struct SharModFakeWheel
     char joint[ 32 ];           /* the joint driven */
     int copyRotation;           /* bit i: wheel i's spin is added */
     int copySuspension;         /* bit i: wheel i's suspension travel (the highest of them is used) */
-    int copySkidMarks;          /* bit i (not drawn yet: the skid mark generator has four wheels) */
+    int copySkidMarks;          /* bit i: wheel i's skid marks, drawn under the fake wheel too */
     float steeringMultiplier;   /* of the car's steering angle, default 0 */
     float skidMarkWidthMultiplier;
 } SharModFakeWheel;

@@ -50,6 +50,7 @@
 #ifdef RAD_LINUX
 #include <shar_modcars.h>
 #include <shar_mods.h>
+#include <worldsim/redbrick/suspensionjointdriver.h>
 void pglRecaptureScreen();      // pddi/gl/glpipeline.hpp: HoverCarRefraction's per car screen capture
 #endif
 
@@ -1148,12 +1149,14 @@ void GeometryVehicle::SetSkidValues(int wheel, float intensity, rmt::Vector& gro
     // if this got called, intensity is > 0.0
 
 #ifdef RAD_LINUX
-    // CustomCarSupport NoSkidMarks / NoFrontSkidMarks (wheels 2 and 3 are the front ones)
+    // CustomCarSupport NoSkidMarks / NoFrontSkidMarks (wheels 2 and 3 are the front ones); fake wheels still copy a
+    // front wheel's skids
     const SharModCar* modCar = mVehicleOwner->mModCar;
-    if( modCar != NULL && ( modCar->noSkidMarks == 1 || ( modCar->noFrontSkidMarks == 1 && wheel >= 2 ) ) )
+    if( modCar != NULL && modCar->noSkidMarks == 1 )
     {
         return;
     }
+    bool ownSkid = modCar == NULL || modCar->noFrontSkidMarks != 1 || wheel < 2;
 #endif
     if(mSkidMarkGenerator)// && mDrawSkids)  // test here though this should only be getting called for vehicles that have it... ie. VT_USER
     {
@@ -1195,8 +1198,30 @@ void GeometryVehicle::SetSkidValues(int wheel, float intensity, rmt::Vector& gro
         // Michael - would this blow up if I passed in 0,0,0 ?
         sd.velocityDirection = velocityDir;
 
+#ifdef RAD_LINUX
+        if( ownSkid )
+#endif
 		mSkidMarkGenerator->GenerateSkid(wheel, sd);
 
+#ifdef RAD_LINUX
+        // CustomCarSupport [FakeWheel] CopySkidMarks: the fake wheel skids under its joint, at this wheel's ground
+        // height, once a frame however many wheels it copies
+        for( int f = 0; f < mVehicleOwner->mNumFakeWheelDrivers; f++ )
+        {
+            const FakeWheelJointDriver* fake = mVehicleOwner->mFakeWheelDrivers[ f ];
+            int slot = SkidMarkGenerator::MAX_NUM_WHEELS + f;
+            if( !( fake->GetConfig()->copySkidMarks & ( 1 << wheel ) ) || mSkidMarkGenerator->IsExtendedThisFrame( slot ) )
+            {
+                continue;
+            }
+            rmt::Vector fakeOffset = fake->GetRestPoint();
+            fakeOffset.y = offset.y;
+            mSkidMarkGenerator->SetWheelOffset( slot, fakeOffset );
+            float width = mVehicleOwner->mWheels[wheel]->mRadius * 0.8f * fake->GetConfig()->skidMarkWidthMultiplier;
+            mSkidMarkGenerator->SetWheelDimensions( slot, width, 0.0f );
+            mSkidMarkGenerator->GenerateSkid( slot, sd );
+        }
+#endif
     }
 
 }

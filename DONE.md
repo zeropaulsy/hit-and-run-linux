@@ -98,7 +98,7 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 - [x] 3DPhoneBoothPreviewSupport (all settings)
 - [x] AdditionalScriptFunctionality: every command, objective and condition (SetCollectibleSoundEffect, passenger
   bobbing/animation and SetStageVehicleReset not checked in play)
-- [x] CustomCarSupport: every setting ([FakeWheel] CopySkidMarks read, not drawn)
+- [x] CustomCarSupport: every setting
 - [x] CustomAudioSupport: every setting (mission/level ambience, interior music, BirdSound, MusicSamplingRate,
   ForcedMusicRMSLevel)
 - [x] CustomStatsTotals: every setting (scrapbook, level progress, mission select, completion percentages)

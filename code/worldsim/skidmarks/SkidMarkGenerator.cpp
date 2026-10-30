@@ -45,7 +45,7 @@ SkidMarkGenerator::SkidMarkGenerator()
 
 SkidMarkGenerator::~SkidMarkGenerator()
 {
-    for(int i = 0; i < 4; i++)
+    for(int i = 0; i < MAX_SKIDS; i++)
     {
         if(m_CurrentSkidData[i].currentSkid)
         {
@@ -167,7 +167,7 @@ void SkidMarkGenerator::GenerateSkid( int wheel, const SkidMarkGenerator::SkidDa
     float dampenedIntensity = skidData.intensity * SKID_INTENSITY_DAMPENING;
 
 
-    rAssert( wheel >=0 && wheel < 4 );
+    rAssert( wheel >=0 && wheel < MAX_SKIDS );
     TireGeneratorData& generatorData = m_CurrentSkidData[ wheel ];    
     // Is the tire currently skidding?
     // if so, continue it
@@ -249,7 +249,7 @@ void SkidMarkGenerator::GenerateSkid( int wheel, const SkidMarkGenerator::SkidDa
 void
 SkidMarkGenerator::Update(  )
 {
-    for ( int i = 0 ; i < 4 ; i++ )
+    for ( int i = 0 ; i < MAX_SKIDS ; i++ )
     {
         if ( m_CurrentSkidData[i].skidExtendedThisFrame == false)
         {
