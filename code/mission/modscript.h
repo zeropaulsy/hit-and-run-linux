@@ -46,6 +46,9 @@ struct ModStage
     bool collectibleSoundSet;   // SetCollectibleSoundEffect
     char collectibleSound[ 48 ];    // "" = none
     int trafficGroup;           // SetStageTrafficGroup; -1 = unchanged (kept after the stage)
+    // SetStageAirGravity / KickForce / SlamForce (CharacterTune), restored after the stage
+    bool airGravitySet, kickForceSet, slamForceSet;
+    float airGravity, kickForce, slamForce;
 
     int numTriggers;            // DisableTrigger
     char triggers[ MAX_TRIGGERS ][ 32 ];
@@ -65,6 +68,7 @@ struct ModStage
     bool saved;
     float savedDecay, savedDecayHitAndRun, savedDecayInterior;
     int savedFine, savedNumChaseCars;
+    float savedAirGravity, savedKickForce, savedSlamForce;
     bool triggerWasActive[ MAX_TRIGGERS ];
 };
 

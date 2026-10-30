@@ -64,6 +64,12 @@ ModStage::ModStage() :
     allowCancel( -1 ),
     collectibleSoundSet( false ),
     trafficGroup( -1 ),
+    airGravitySet( false ),
+    kickForceSet( false ),
+    slamForceSet( false ),
+    airGravity( 0.0f ),
+    kickForce( 0.0f ),
+    slamForce( 0.0f ),
     numTriggers( 0 ),
     numVehicleCharacters( 0 ),
     checkpoint( false ),
@@ -74,7 +80,10 @@ ModStage::ModStage() :
     savedDecayHitAndRun( 0.0f ),
     savedDecayInterior( 0.0f ),
     savedFine( 0 ),
-    savedNumChaseCars( 0 )
+    savedNumChaseCars( 0 ),
+    savedAirGravity( 0.0f ),
+    savedKickForce( 0.0f ),
+    savedSlamForce( 0.0f )
 {
     collectibleSound[ 0 ] = '\0';
     checkpointDynaLoad[ 0 ] = '\0';
@@ -552,6 +561,26 @@ public:
         ModStage* s = Stage( argv[ 0 ] );
         if( s != NULL ) s->allowCancel = ParseBool( argv[ 1 ] ) ? 1 : 0;
     }
+    static void SetStageAirGravity( int argc, char** argv )
+    {
+        ModStage* s = Stage( argv[ 0 ] );
+        float gravity = static_cast< float >( atof( argv[ 1 ] ) );
+        if( s != NULL && gravity < 0.0f )    // the docs: 0 and up are ignored (they break the game)
+        {
+            s->airGravitySet = true;
+            s->airGravity = gravity;
+        }
+    }
+    static void SetStageKickForce( int argc, char** argv )
+    {
+        ModStage* s = Stage( argv[ 0 ] );
+        if( s != NULL ) { s->kickForceSet = true; s->kickForce = static_cast< float >( atof( argv[ 1 ] ) ); }
+    }
+    static void SetStageSlamForce( int argc, char** argv )
+    {
+        ModStage* s = Stage( argv[ 0 ] );
+        if( s != NULL ) { s->slamForceSet = true; s->slamForce = static_cast< float >( atof( argv[ 1 ] ) ); }
+    }
     static void SetStageTrafficGroup( int argc, char** argv )
     {
         ModStage* s = Stage( argv[ 0 ] );
@@ -841,6 +870,9 @@ public:
             mod->savedDecayInterior = hnr->GetDecayRateInside();
             mod->savedFine = hnr->GetBustedCoins();
             mod->savedNumChaseCars = hnr->GetNumChaseCars();
+            mod->savedAirGravity = CharacterTune::sfAirGravity;
+            mod->savedKickForce = CharacterTune::sfKickingForce;
+            mod->savedSlamForce = CharacterTune::sfSlamForce;
         }
         if( mod->resetHitAndRun )
         {
@@ -858,6 +890,9 @@ public:
         if( mod->pedGroup >= 0 ) PedestrianManager::GetInstance()->SwitchModelGroup( mod->pedGroup );
         if( mod->trafficGroup >= 0 ) TrafficManager::GetInstance()->SetModTrafficGroup( mod->trafficGroup );
         if( mod->allowCancel >= 0 ) stage->SetMissionAbortEnabled( mod->allowCancel != 0 );
+        if( mod->airGravitySet ) CharacterTune::sfAirGravity = mod->airGravity;
+        if( mod->kickForceSet ) CharacterTune::sfKickingForce = mod->kickForce;
+        if( mod->slamForceSet ) CharacterTune::sfSlamForce = mod->slamForce;
         if( mod->collectibleSoundSet ) s_CollectibleSound = mod->collectibleSound;
         if( mod->musicEvent != 0 )
         {
@@ -909,6 +944,9 @@ public:
             hnr->SetDecayRateInside( mod->savedDecayInterior );
             hnr->SetBustedCoins( mod->savedFine );
             hnr->SetNumChaseCars( mod->savedNumChaseCars );
+            CharacterTune::sfAirGravity = mod->savedAirGravity;
+            CharacterTune::sfKickingForce = mod->savedKickForce;
+            CharacterTune::sfSlamForce = mod->savedSlamForce;
             mod->saved = false;
         }
         if( s_CollectibleSound == mod->collectibleSound )
@@ -1035,9 +1073,9 @@ public:
             { "SetNoHitAndRunMusicForStage", Unsupported, 0, 0 },
             { "SetCollectibleSoundEffect", SetCollectibleSoundEffect, 1, 1 },
             { "SetStageCharacterModel", Unsupported, 1, 2 },
-            { "SetStageAirGravity", Unsupported, 1, 1 },
-            { "SetStageKickForce", Unsupported, 1, 1 },
-            { "SetStageSlamForce", Unsupported, 1, 1 },
+            { "SetStageAirGravity", SetStageAirGravity, 1, 1 },
+            { "SetStageKickForce", SetStageKickForce, 1, 1 },
+            { "SetStageSlamForce", SetStageSlamForce, 1, 1 },
             { "SetStageEnabledCheats", Unsupported, 1, 15 },
             { "SetStageTrafficGroup", SetStageTrafficGroup, 1, 1 },
             { "AddStageDynaLoadData", Unsupported, 1, 2 },
