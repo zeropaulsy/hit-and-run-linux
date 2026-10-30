@@ -50,6 +50,9 @@
 #include <cheats/cheatinputsystem.h>
 #include <events/eventmanager.h>
 #include <camera/supercammanager.h>
+#include <presentation/gui/ingame/guimanageringame.h>
+#include <presentation/gui/ingame/guiscreenhud.h>
+#include <presentation/gui/utility/hudmap.h>
 #include <shar_mods.h>
 
 ModStage::ModStage() :
@@ -1047,6 +1050,37 @@ public:
         Mission* m = ScriptedMission( argv[ 0 ] );
         if( m != NULL ) m->mModPedsEnabled = ParseBool( argv[ 1 ] ) ? 1 : 0;
     }
+    static void SetHUDMapDrawable( int argc, char** argv )
+    {
+        Mission* m = ScriptedMission( argv[ 0 ] );
+        if( m != NULL ) Copy( m->mModHudMap, sizeof( m->mModHudMap ), argv[ 1 ] );
+    }
+    // SetHUDMapDrawable once a stage starts with the HUD up; not undone (as documented)
+    static void ApplyHudMap()
+    {
+        Mission* mission = GetGameplayManager()->GetCurrentMission();
+        CGuiScreenHud* hud = GetCurrentHud();
+        if( mission == NULL || !mission->mModHudMapPending || hud == NULL )
+        {
+            return;
+        }
+        mission->mModHudMapPending = false;
+        bool sectionOnly = p3d::inventory->GetCurrentSectionOnly();
+        p3d::inventory->SetCurrentSectionOnly( false );
+        tDrawable* drawable = p3d::find< tDrawable >( mission->mModHudMap );
+        p3d::inventory->SetCurrentSectionOnly( sectionOnly );
+        if( drawable == NULL )
+        {
+            fprintf( stderr, "mods: SetHUDMapDrawable: no drawable %s\n", mission->mModHudMap );
+            return;
+        }
+        for( int i = 0; i < GetGameplayManager()->GetNumPlayers(); i++ )
+        {
+            CHudMap* map = hud->GetHudMap( i );
+            if( map != NULL ) map->ModSetMapDrawable( drawable );
+        }
+        if( Log() ) fprintf( stderr, "mods: HUD map %s\n", mission->mModHudMap );
+    }
     static void UseTrafficGroup( int argc, char** argv )
     {
         Mission* m = ScriptedMission( argv[ 0 ] );
@@ -1562,6 +1596,7 @@ public:
     {
         ModStage* mod = stage->GetModStage();
         ApplyPlayerModel( mod );
+        ApplyHudMap();
         GetCheatInputSystem()->SetModStageCheats( mod != NULL ? mod->cheats : 0 );
         s_NoHitAndRunMusic = mod != NULL && mod->noHitAndRunMusic;
         if( mod != NULL && mod->cheats != 0 && Log() ) fprintf( stderr, "mods: stage cheats 0x%x on\n", mod->cheats );
@@ -1681,6 +1716,7 @@ public:
         bool retry = s_Retry;
         s_Retry = false;
         s_Loading = false;
+        mission->mModHudMapPending = mission->mModHudMap[ 0 ] != '\0';
         mission->mModRestartTrafficGroup = -1;
         if( !retry )
         {
@@ -1816,7 +1852,7 @@ public:
             { "SetCarChangeHitAndRunChange", SetCarChangeHitAndRunChange, 1, 1 },
             { "UseTrafficGroup", UseTrafficGroup, 1, 1 },
             { "AddParkedCar", AddParkedCar, 1, 1 },
-            { "SetHUDMapDrawable", Unsupported, 1, 1 },
+            { "SetHUDMapDrawable", SetHUDMapDrawable, 1, 1 },
             { "SetParkedCarsEnabled", SetParkedCarsEnabled, 1, 1 },
             { "SetPedsEnabled", SetPedsEnabled, 1, 1 },
             // CON commands

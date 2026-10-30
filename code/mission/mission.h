@@ -305,6 +305,9 @@ private:
     int mModRestartTrafficGroup;
     // Add/SetStageDynaLoadData: the zone load sent last (kept until the next, like mDynaloadLoc)
     ZoneEventLocator* mModStageDynaLoad;
+    // SetHUDMapDrawable: put on the HUD map once the mission starts ("" = unset); pending until a stage starts with a HUD
+    char mModHudMap[ 64 ];
+    bool mModHudMapPending;
     void ModStreetRacePropLoad();
 #endif
 };

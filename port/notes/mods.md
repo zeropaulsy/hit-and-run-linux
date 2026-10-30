@@ -124,6 +124,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   SetNoHitAndRunMusicForStage: `ModScript::NoHitAndRunMusic()` while the stage runs; `MusicPlayer::HandleEvent` skips a
   Hit & Run start then, and that Hit & Run's caught/evaded (whatever stage it ends in). Checked: meter forced to 100
   in gdb, L1 M1: MEVENT 32 without, none with.
+  SetHUDMapDrawable -> `Mission::mModHudMap`, pending from `Mission::Initialize` (SD -> main too, retries) until a stage
+  starts with a HUD (`ApplyHudMap`, `CHudMap::ModSetMapDrawable`, any inventory section); never undone (documented).
+  Checked: L1 M1 with l2hudmap.p3d loaded in m1l: L2 map shown.
 - CustomStatsTotals (`charactersheet/modstatstotals.cpp`): totals for scrapbook, pause progress, mission select,
   `QueryPercent*`; defaults reproduce original (100.3% on a complete save).
 - CustomAudioSupport (`shar_modaudio.cpp`; `musicplayer.cpp` startingAmbience/startingExteriorAmbience/

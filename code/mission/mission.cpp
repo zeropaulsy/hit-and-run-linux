@@ -173,9 +173,13 @@ Mission::Mission() :
     , mModTrafficGroup( -1 )
     , mModRestartTrafficGroup( -1 )
     , mModStageDynaLoad( NULL )
+    , mModHudMapPending( false )
 #endif
 {
     strcpy( mcName, "" );
+#ifdef RAD_LINUX
+    mModHudMap[ 0 ] = '\0';
+#endif
     mbCarryOverOutOfCarCondition = false;
 
     unsigned int i;
