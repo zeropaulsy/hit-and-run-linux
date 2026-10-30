@@ -77,6 +77,14 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   `event` numbers are retail's (+1 from 177; `ModTranslateEvent`). Stage settings `MissionStage::GetModStage()`
   applied end of `Reset`, restored in Finalize. Checkpoints `Mission::mModCheckpoint` (`ModScript::OnRetry`;
   `Mission::Initialize` moves reset stage/locators/dynaload/peds). Passengers `Character::SetModSeat`.
+  SetStageVehicleCharacter* -> `Character::ModSeatSettings` (kept per passenger; a seated one sits down again):
+  animation in `InCarAction::IWannaRock` (missing from the set: in_car_idle), bobbing (default on; off once Animation
+  is called) = `InCar::BobModPassenger` (the car's vertical accel, BounceCharacters' constants) + the passenger sway;
+  scale/visible in `InCar::Enter`. `InCarAction::DoSimulation` faced every in-car character PI: mod seats keep their
+  rotation. Destroyed car: no JumpOut = stays in InCar and leaves with the car; JumpOut = the game's panic GetOut,
+  facing the given degrees (seat-rotation convention) or PI/2 when the seat is on the driver's side (x sign), else
+  -PI/2; then kept (`jumped`) until removed or the mission ends. Checked: L1 m1sd famil_v (scale 2, rotation 0,
+  visible; car destroyed in gdb with SyncVisualDamage(0): Lisa jumps, Bart goes). Bobbing/animation not looked at.
   Traffic groups -> `TrafficManager::SetModTrafficGroup`: SetStageTrafficGroup at stage start (kept after);
   UseTrafficGroup / a retry's SetCheckpointTrafficGroup in `Mission::InitDynaLoad` (restart/select, not SD -> main).
   SetHitAndRunDecayInterior corrected only when hack required.

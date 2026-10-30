@@ -498,6 +498,17 @@ void InCarAction::IWannaRock(bool whattaYouWannaDoWithYourLife)
     {
         anim = choreo::find<choreo::Animation>( pPuppet->GetBank(), mIsDriver ? "in_car_idle_driver" : "in_car_idle" );
     }
+#ifdef RAD_LINUX
+    // Linux port: a mod's passenger's animation (SetStageVehicleCharacterAnimation; one the set lacks: the idle)
+    if( mpCharacter->HasModSeat() && mpCharacter->GetModSeatSettings().animation != 0 )
+    {
+        choreo::Animation* modAnim = choreo::find<choreo::Animation>( pPuppet->GetBank(), mpCharacter->GetModSeatSettings().animation );
+        if( modAnim != 0 )
+        {
+            anim = modAnim;
+        }
+    }
+#endif
 
     if (anim == 0)
     {
@@ -541,8 +552,15 @@ Return:         void
 */
 void InCarAction::DoSimulation( float timeins)
 {
+#ifdef RAD_LINUX
+    // Linux port: a mod's passenger faces its seat's way
+    float facing = mpCharacter->HasModSeat() ? mpCharacter->GetModSeatFacing() : rmt::PI;
+    mpCharacter->SetDesiredDir( facing );
+    mpCharacter->SetFacingDir( facing );
+#else
     mpCharacter->SetDesiredDir( rmt::PI );
     mpCharacter->SetFacingDir( rmt::PI );
+#endif
     mpCharacter->SetDesiredSpeed( 0.0f );
     mpCharacter->SetSpeed( 0.0f );
 }

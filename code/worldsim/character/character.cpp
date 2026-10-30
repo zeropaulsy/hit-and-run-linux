@@ -388,6 +388,7 @@ mIsMarge(false),
 mHasModSeat(false),
 mModSeatPosition(0.0f, 0.0f, 0.0f),
 mModSeatFacing(0.0f),
+mModSeatLastVelocityY(0.0f),
 #endif
 mManaged(false)
 {

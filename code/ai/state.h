@@ -25,6 +25,7 @@
 //========================================
 class Character;
 class InCarAction;
+class Vehicle;
 
 namespace CharacterAi
 {
@@ -119,6 +120,9 @@ protected:
 	virtual void Update( float timeins );
 
 private:
+#ifdef RAD_LINUX
+    void BobModPassenger( Vehicle* pVehicle, float timeins );
+#endif
     InCarAction* m_InCarAction;
 
     enum GetOutState 

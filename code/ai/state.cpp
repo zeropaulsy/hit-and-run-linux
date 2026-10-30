@@ -264,6 +264,24 @@ void InCar::Enter( void )
 
     mpCharacter->SetInCar( true );
 
+#ifdef RAD_LINUX
+    // Linux port: a mod's passenger can be visible in a car that hides its characters, and have its own scale
+    if( mpCharacter->HasModSeat() )
+    {
+        const Character::ModSeatSettings& mod = mpCharacter->GetModSeatSettings();
+        mpCharacter->ModSeatLastVelocityY() = mpCharacter->GetTargetVehicle()->mVelocityCM.y;
+        if( !mpCharacter->GetTargetVehicle()->mVisibleCharacters && !mod.visible )
+        {
+            mpCharacter->RemoveFromWorldScene();
+        }
+        else
+        {
+            mpCharacter->SetScale( mod.scale > 0.0f ? mod.scale : mpCharacter->GetTargetVehicle()->mCharacterScale );
+        }
+        mpCharacter->RemoveFromPhysics();
+        return;
+    }
+#endif
     if(!mpCharacter->GetTargetVehicle()->mVisibleCharacters)
     {
         mpCharacter->RemoveFromWorldScene();
@@ -345,6 +363,36 @@ void InCar::SequenceAction( void )
     }
 }
 
+#ifdef RAD_LINUX
+// Linux port: a mod's passenger bounces with the car's vertical acceleration, as Vehicle::BounceCharacters moves
+// the player and the driver in the player's car
+void InCar::BobModPassenger( Vehicle* pVehicle, float timeins )
+{
+    if( timeins <= 0.0f )
+    {
+        return;
+    }
+    float velocityY = pVehicle->mVelocityCM.y;
+    float accel = ( velocityY - mpCharacter->ModSeatLastVelocityY() ) / timeins;
+    mpCharacter->ModSeatLastVelocityY() = velocityY;
+
+    float rest = mpCharacter->GetModSeatPosition().y;
+    rmt::Vector position = mpCharacter->GetPuppet()->GetPosition();
+    float maxChange = pVehicle->mMaxBounceDisplacementPerSecond * timeins;
+    if( rmt::Fabs( accel ) > pVehicle->mBounceAccelThreshold )
+    {
+        position.y += rmt::Clamp( accel * -0.003f, -maxChange, maxChange );
+    }
+    else
+    {
+        float back = rest - position.y;     // half speed back to rest
+        position.y += rmt::Clamp( back, -0.5f * maxChange, 0.5f * maxChange );
+    }
+    position.y = rmt::Clamp( position.y, rest - pVehicle->mBounceLimit, rest + pVehicle->mBounceLimit );
+    mpCharacter->GetPuppet()->SetPosition( position );
+}
+#endif
+
 void InCar::Update( float timeins )
 {
     Vehicle* pVehicle = mpCharacter->GetTargetVehicle( );
@@ -355,6 +403,18 @@ void InCar::Update( float timeins )
         pVehicle->GetDriver() == mpCharacter )
     {
         return;
+    }
+    if( pVehicle != NULL && mpCharacter->HasModSeat() )
+    {
+        // a mod's passenger: jumps out of a destroyed car only when told to (else it goes with the car)
+        if( pVehicle->mVehicleDestroyed && !mpCharacter->GetModSeatSettings().jumpOut )
+        {
+            return;
+        }
+        if( !pVehicle->mVehicleDestroyed && mpCharacter->GetModSeatSettings().bobbing )
+        {
+            BobModPassenger( pVehicle, timeins );
+        }
     }
 #endif
     if((!pVehicle) ||
@@ -537,7 +597,12 @@ void InCar::Update( float timeins )
             }
             else // passenger
             {
+#ifdef RAD_LINUX
+                bool sway = !mpCharacter->HasModSeat() || mpCharacter->GetModSeatSettings().bobbing;
+                if(sway && (rmt::Abs(steer) > 0.5) && (speed > 50.0f))
+#else
                 if((rmt::Abs(steer) > 0.5) && (speed > 50.0f)) 
+#endif
                 {
                     action = new SteerAction(mpCharacter, (steer < 0) ? "sway_right" : "sway_left", 20.0f);
                 }
@@ -1594,8 +1659,19 @@ void GetOut::DoGetOut( void )
             GetCharacterManager()->SetGarbage(mpCharacter, true);
         }
 
-        mpCharacter->SetFacingDir( mIsDriver ? (rmt::PI / 2) : -(rmt::PI / 2));
-        mpCharacter->SetDesiredDir( mIsDriver ? (rmt::PI / 2) : -(rmt::PI / 2));
+        float facing = mIsDriver ? (rmt::PI / 2) : -(rmt::PI / 2);
+#ifdef RAD_LINUX
+        if( mpCharacter->HasModSeat() && mpCharacter->GetTargetVehicle() != NULL )
+        {
+            // a mod's passenger: the direction it was given, else out of the side of the car its seat is on (the
+            // driver's side jumps PI/2)
+            const Character::ModSeatSettings& mod = mpCharacter->GetModSeatSettings();
+            bool driverSide = mpCharacter->GetModSeatPosition().x * mpCharacter->GetTargetVehicle()->GetDriverLocation().x > 0.0f;
+            facing = mod.jumpDirectionSet ? mod.jumpDirection : ( driverSide ? (rmt::PI / 2) : -(rmt::PI / 2) );
+        }
+#endif
+        mpCharacter->SetFacingDir( facing );
+        mpCharacter->SetDesiredDir( facing );
 
         pSeq->BeginSequence();
         pSeq->AddAction( new DelayAction(0.5f));

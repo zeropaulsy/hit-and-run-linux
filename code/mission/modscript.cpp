@@ -77,6 +77,7 @@ ModStage::ModStage() :
     numTriggers( 0 ),
     numVehicleCharacters( 0 ),
     numVehicleSettings( 0 ),
+    numPassengerSettings( 0 ),
     checkpoint( false ),
     checkpointPedGroup( -1 ),
     checkpointTrafficGroup( -1 ),
@@ -117,7 +118,9 @@ struct VehicleCharacter
     char joint[ 16 ];
     float rotation;
     Vehicle* vehicle;       // the car once found
-    Character* npc;         // while seated (the car is in the world)
+    Character* npc;         // while seated (the car is in the world), or after jumping out
+    Character::ModSeatSettings settings;
+    bool jumped;            // jumped out of the destroyed car: stays until removed or the mission ends
 };
 
 const int MAX_PASSENGERS = 8;
@@ -199,6 +202,24 @@ void UpdatePassenger( int index )
         p.vehicle = FindVehicle( p.car );
     }
     bool inWorld = p.vehicle != NULL && GetVehicleCentral()->GetVehicleId( p.vehicle, false ) >= 0;
+    if( p.jumped )
+    {
+        return;
+    }
+    if( p.npc != NULL && p.vehicle != NULL && p.vehicle->IsVehicleDestroyed() &&
+        p.npc->GetStateManager()->GetState() != CharacterAi::INCAR )
+    {
+        p.jumped = true;
+        if( Log() )
+        {
+            rmt::Vector at, car;
+            p.npc->GetPosition( at );
+            p.vehicle->GetPosition( &car );
+            fprintf( stderr, "mods: passenger %s jumped out of %s: %.1f m from it\n", p.character, p.vehicle->GetName(),
+                     ( at - car ).Magnitude() );
+        }
+        return;
+    }
     if( !inWorld )
     {
         Unseat( p );
@@ -227,6 +248,7 @@ void UpdatePassenger( int index )
     c->AddRef();
     static_cast< NPCController* >( c->GetController() )->TransitToState( NPCController::NONE );
     c->SetModSeat( pose->GetJoint( joint )->objectMatrix.Row( 3 ), p.rotation * rmt::PI / 180.0f );
+    c->SetModSeatSettings( p.settings );
     c->SetTargetVehicle( p.vehicle );
     c->AddToWorldScene();
     c->GetStateManager()->SetState< CharacterAi::InCar >();
@@ -251,6 +273,7 @@ void AddPassenger( const ModStageVehicleCharacter& add )
     }
     VehicleCharacter& p = s_Passengers[ s_NumPassengers++ ];
     memset( &p, 0, sizeof( p ) );
+    p.settings = Character::ModSeatSettings();
     Copy( p.character, sizeof( p.character ), add.character );
     Copy( p.joint, sizeof( p.joint ), add.joint );
     p.rotation = add.rotation;
@@ -266,18 +289,72 @@ void AddPassenger( const ModStageVehicleCharacter& add )
 }
 
 // "current" means the car the player had when the passenger was added, so match on the character for it
-void RemovePassenger( const ModStageVehicleCharacter& remove )
+int FindPassenger( const char* car, const char* character )
 {
-    bool current = strcasecmp( remove.car, "current" ) == 0;
+    bool current = strcasecmp( car, "current" ) == 0;
     for( int i = 0; i < s_NumPassengers; i++ )
     {
         VehicleCharacter& p = s_Passengers[ i ];
-        if( strcasecmp( p.character, remove.character ) == 0 &&
-            ( current ? p.car[ 0 ] == '\0' : strcasecmp( p.car, remove.car ) == 0 ) )
+        if( strcasecmp( p.character, character ) == 0 && ( current ? p.car[ 0 ] == '\0' : strcasecmp( p.car, car ) == 0 ) )
         {
-            Unseat( p );
-            s_Passengers[ i ] = s_Passengers[ --s_NumPassengers ];
-            return;
+            return i;
+        }
+    }
+    return -1;
+}
+
+void RemovePassenger( const ModStageVehicleCharacter& remove )
+{
+    int i = FindPassenger( remove.car, remove.character );
+    if( i >= 0 )
+    {
+        Unseat( s_Passengers[ i ] );
+        s_Passengers[ i ] = s_Passengers[ --s_NumPassengers ];
+    }
+}
+
+// SetStageVehicleCharacter*: a seated passenger sits down again with the new settings
+void ApplyPassengerSettings( MissionStage* stage )
+{
+    ModStage* mod = stage->GetModStage();
+    bool changed[ MAX_PASSENGERS ] = { false };
+    for( int i = 0; mod != NULL && i < mod->numPassengerSettings; i++ )
+    {
+        const ModStagePassengerSetting& s = mod->passengerSettings[ i ];
+        int index = FindPassenger( s.car, s.character );
+        if( index < 0 )
+        {
+            if( Log() ) fprintf( stderr, "mods: passenger setting: no passenger %s in %s\n", s.character, s.car );
+            continue;
+        }
+        VehicleCharacter& p = s_Passengers[ index ];
+        Character::ModSeatSettings& settings = p.settings;
+        switch( s.kind )
+        {
+        case ModStagePassengerSetting::ANIMATION:
+            settings.animation = tEntity::MakeUID( s.animation );
+            settings.bobbing = s.bobbing;
+            break;
+        case ModStagePassengerSetting::JUMP_OUT:
+            settings.jumpOut = true;
+            settings.jumpDirectionSet = s.valueSet;
+            settings.jumpDirection = s.value * rmt::PI / 180.0f;
+            break;
+        case ModStagePassengerSetting::SCALE:
+            settings.scale = s.value;
+            break;
+        case ModStagePassengerSetting::VISIBLE:
+            settings.visible = true;
+            break;
+        }
+        changed[ index ] = true;
+    }
+    for( int i = 0; i < s_NumPassengers; i++ )
+    {
+        if( changed[ i ] && s_Passengers[ i ].npc != NULL && !s_Passengers[ i ].jumped )
+        {
+            Unseat( s_Passengers[ i ] );
+            UpdatePassenger( i );
         }
     }
 }
@@ -446,6 +523,7 @@ void ApplyPassengers( MissionStage* stage )
             AddPassenger( mod->vehicleCharacters[ i ] );
         }
     }
+    ApplyPassengerSettings( stage );
 }
 
 }
@@ -821,6 +899,43 @@ public:
         v.remove = remove;
     }
     static void AddStageVehicleCharacter( int argc, char** argv ) { StageVehicleCharacter( argc, argv, false ); }
+    static ModStagePassengerSetting* PassengerSetting( char** argv, ModStagePassengerSetting::Kind kind )
+    {
+        ModStage* s = Stage( argv[ 0 ] );
+        if( s == NULL || s->numPassengerSettings >= ModStage::MAX_PASSENGER_SETTINGS )
+        {
+            return NULL;
+        }
+        ModStagePassengerSetting& p = s->passengerSettings[ s->numPassengerSettings++ ];
+        memset( &p, 0, sizeof( p ) );
+        Copy( p.car, sizeof( p.car ), argv[ 1 ] );
+        Copy( p.character, sizeof( p.character ), argv[ 2 ] );
+        p.kind = kind;
+        return &p;
+    }
+    static void SetStageVehicleCharacterAnimation( int argc, char** argv )
+    {
+        ModStagePassengerSetting* p = PassengerSetting( argv, ModStagePassengerSetting::ANIMATION );
+        if( p == NULL ) return;
+        Copy( p->animation, sizeof( p->animation ), argv[ 3 ] );
+        p->bobbing = argc > 4 && ParseBool( argv[ 4 ] );    // off once this is called (the docs)
+    }
+    static void SetStageVehicleCharacterJumpOut( int argc, char** argv )
+    {
+        ModStagePassengerSetting* p = PassengerSetting( argv, ModStagePassengerSetting::JUMP_OUT );
+        if( p == NULL ) return;
+        p->valueSet = argc > 3;
+        p->value = argc > 3 ? static_cast< float >( atof( argv[ 3 ] ) ) : 0.0f;
+    }
+    static void SetStageVehicleCharacterScale( int argc, char** argv )
+    {
+        ModStagePassengerSetting* p = PassengerSetting( argv, ModStagePassengerSetting::SCALE );
+        if( p != NULL ) p->value = static_cast< float >( atof( argv[ 3 ] ) );
+    }
+    static void SetStageVehicleCharacterVisible( int argc, char** argv )
+    {
+        PassengerSetting( argv, ModStagePassengerSetting::VISIBLE );
+    }
     static void StageVehicleSetting( const char* command, const char* car, ModStageVehicleSetting::Kind kind, bool value )
     {
         ModStage* s = Stage( command );
@@ -1346,10 +1461,10 @@ public:
             { "ResetStageVehicleAbductable", ResetStageVehicleAbductable, 1, 1 },
             { "SetStageVehicleAbductable", SetStageVehicleAbductable, 2, 2 },
             { "SetStageVehicleAllowSeatSlide", SetStageVehicleAllowSeatSlide, 2, 2 },
-            { "SetStageVehicleCharacterAnimation", Unsupported, 3, 4 },
-            { "SetStageVehicleCharacterJumpOut", Unsupported, 2, 3 },
-            { "SetStageVehicleCharacterScale", Unsupported, 3, 3 },
-            { "SetStageVehicleCharacterVisible", Unsupported, 2, 2 },
+            { "SetStageVehicleCharacterAnimation", SetStageVehicleCharacterAnimation, 3, 4 },
+            { "SetStageVehicleCharacterJumpOut", SetStageVehicleCharacterJumpOut, 2, 3 },
+            { "SetStageVehicleCharacterScale", SetStageVehicleCharacterScale, 3, 3 },
+            { "SetStageVehicleCharacterVisible", SetStageVehicleCharacterVisible, 2, 2 },
             { "SetStageVehicleNoDestroyedJumpOut", SetStageVehicleNoDestroyedJumpOut, 1, 1 },
             { "SetStageVehicleReset", SetStageVehicleReset, 2, 2 },
             // Checkpoints

@@ -27,6 +27,19 @@ struct ModStageVehicleCharacter
     bool remove;                // RemoveStageVehicleCharacter
 };
 
+// SetStageVehicleCharacterAnimation/JumpOut/Scale/Visible: for a passenger added with AddStageVehicleCharacter
+struct ModStagePassengerSetting
+{
+    enum Kind { ANIMATION, JUMP_OUT, SCALE, VISIBLE };
+    char car[ 32 ];             // as the passenger was added ("current" too)
+    char character[ 32 ];
+    Kind kind;
+    char animation[ 32 ];
+    bool bobbing;
+    bool valueSet;              // JUMP_OUT: a direction given
+    float value;                // the scale, or the direction (degrees)
+};
+
 // SetStageVehicleAbductable, ResetStageVehicleAbductable, SetStageVehicleAllowSeatSlide,
 // SetStageVehicleNoDestroyedJumpOut: applied on reaching the stage
 struct ModStageVehicleSetting
@@ -39,7 +52,7 @@ struct ModStageVehicleSetting
 
 struct ModStage
 {
-    enum { MAX_TRIGGERS = 8, MAX_VEHICLE_CHARACTERS = 8, MAX_VEHICLE_SETTINGS = 8 };
+    enum { MAX_TRIGGERS = 8, MAX_VEHICLE_CHARACTERS = 8, MAX_VEHICLE_SETTINGS = 8, MAX_PASSENGER_SETTINGS = 16 };
 
     ModStage();
 
@@ -73,6 +86,8 @@ struct ModStage
     ModStageVehicleCharacter vehicleCharacters[ MAX_VEHICLE_CHARACTERS ];
     int numVehicleSettings;
     ModStageVehicleSetting vehicleSettings[ MAX_VEHICLE_SETTINGS ];
+    int numPassengerSettings;
+    ModStagePassengerSetting passengerSettings[ MAX_PASSENGER_SETTINGS ];
 
     // CHECKPOINT_HERE and what resuming from it uses (unset values: those of the checkpoint before)
     bool checkpoint;
