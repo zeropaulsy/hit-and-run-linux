@@ -80,6 +80,8 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   Traffic groups -> `TrafficManager::SetModTrafficGroup`: SetStageTrafficGroup at stage start (kept after);
   UseTrafficGroup / a retry's SetCheckpointTrafficGroup in `Mission::InitDynaLoad` (restart/select, not SD -> main).
   SetHitAndRunDecayInterior corrected only when hack required.
+  AddParkedCar -> `ParkedCarManager::AddCarType` (array 5 -> `MAX_MOD_CARS` 16, extra ignored with a message); the
+  mod loads the car's p3d itself. Zones take the first free type, so later types park only once enough zones load.
 - CustomStatsTotals (`charactersheet/modstatstotals.cpp`): totals for scrapbook, pause progress, mission select,
   `QueryPercent*`; defaults reproduce original (100.3% on a complete save).
 - CustomAudioSupport (`shar_modaudio.cpp`; `musicplayer.cpp` startingAmbience/startingExteriorAmbience/

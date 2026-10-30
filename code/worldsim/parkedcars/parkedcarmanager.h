@@ -41,6 +41,7 @@ public:
     enum 
     { 
         MAX_DIFFERENT_CARS = 5,
+        MAX_MOD_CARS = 16, // Linux port: allocated, for mods' AddParkedCar
         MAX_CAR_NAME_LEN = 32,
         MAX_LOCATORS_PER_ZONE = 50,
         MAX_ZONES = 3,

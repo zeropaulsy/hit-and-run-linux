@@ -42,7 +42,6 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
   - [ ] stage vehicle settings, SetStageCharacterModel
   - [ ] forces and gravity
   - [ ] stage dyna load data
-  - [ ] AddParkedCar
   - [ ] CON commands (SetConditionalParameter, SetWheelieOffsetX)
 - [ ] **CustomLimits [Sound]** PlayingClipPlayerLimit / PlayingStreamPlayerLimit: the docs' defaults (25, 8) match
   nothing in this source (64 clip, 9 stream players); needs the retail behaviour. Values up to 64/9 fit already

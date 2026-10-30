@@ -39,6 +39,8 @@
 #include <worldsim/character/charactercontroller.h>
 #include <worldsim/ped/pedestrianmanager.h>
 #include <worldsim/traffic/trafficmanager.h>
+#include <worldsim/parkedcars/parkedcarmanager.h>
+#include <gameflow/gameflow.h>
 #include <ai/state.h>
 #include <ai/statemanager.h>
 #include <cheats/cheatinputsystem.h>
@@ -585,6 +587,15 @@ public:
         Mission* m = ScriptedMission( argv[ 0 ] );
         if( m != NULL ) m->mModParkedCarsEnabled = ParseBool( argv[ 1 ] ) ? 1 : 0;
     }
+    // a parked car type without a traffic group entry, as AddTrafficModel adds one
+    static void AddParkedCar( int argc, char** argv )
+    {
+        ContextEnum context = GetGameFlow()->GetCurrentContext();
+        if( context == CONTEXT_GAMEPLAY || context == CONTEXT_LOADING_GAMEPLAY )
+        {
+            GetPCM().AddCarType( argv[ 1 ] );
+        }
+    }
     static void StageVehicleCharacter( int argc, char** argv, bool remove )
     {
         ModStage* s = Stage( argv[ 0 ] );
@@ -1052,7 +1063,7 @@ public:
             { "SetHitAndRunFine", SetHitAndRunFine, 1, 1 },
             { "SetCarChangeHitAndRunChange", SetCarChangeHitAndRunChange, 1, 1 },
             { "UseTrafficGroup", UseTrafficGroup, 1, 1 },
-            { "AddParkedCar", Unsupported, 1, 1 },
+            { "AddParkedCar", AddParkedCar, 1, 1 },
             { "SetHUDMapDrawable", Unsupported, 1, 1 },
             { "SetParkedCarsEnabled", SetParkedCarsEnabled, 1, 1 },
             { "SetPedsEnabled", SetPedsEnabled, 1, 1 },
