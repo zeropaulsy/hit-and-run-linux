@@ -94,7 +94,7 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "CustomVideoResolutionSupport", "DrunkCamera", "IncreasedRewardLimits",
                                         "PerLevelCoinCount", "RefractionShaderSupport",
                                         "WalkerCameraDataSupport", "FLACSupport", "VideoTextureSupport", "HackSupport",
-                                        "CustomRewardQuestSupport" };
+                                        "CustomRewardQuestSupport", "HoverCarRefraction" };
 
 void Init( void );
 
@@ -594,8 +594,36 @@ void OnMeta( const char* section, const char* key, const char* value, void* user
     }
     else if ( strcasecmp( key, "RequiredMod" ) == 0 )
     {
+        if ( strcasecmp( value, "HoverCarRefraction" ) == 0 )
+        {
+            // the hack's name as a mod (mods made when it was a separate one, e.g. the Futurama demo)
+            Append( s_RequiredHacks, sizeof( s_RequiredHacks ), value );
+            return;
+        }
         Append( meta->requiredMods, sizeof( meta->requiredMods ), value );
     }
+}
+
+// ModSettings.ini sections named after a setting hack (the Mod Launcher's Settings page): Enabled=1 turns it on
+// without a mod requiring it; its other keys are settings for shar_ModHackSetting, kept as "Hack.Key=value" lines
+char s_HackSettings[ 1024 ];
+
+void OnHackSettings( const char* section, const char* key, const char* value, void* user )
+{
+    if ( key == NULL || strcasecmp( section, "HoverCarRefraction" ) != 0 )
+    {
+        return;
+    }
+    if ( strcasecmp( key, "Enabled" ) == 0 )
+    {
+        if ( atoi( value ) != 0 )
+        {
+            Append( s_RequiredHacks, sizeof( s_RequiredHacks ), section );
+        }
+        return;
+    }
+    size_t len = strlen( s_HackSettings );
+    snprintf( s_HackSettings + len, sizeof( s_HackSettings ) - len, "%s.%s=%s\n", section, key, value );
 }
 
 void OnLimit( const char* section, const char* key, const char* value, void* )
@@ -905,6 +933,12 @@ void Init( void )
     }
     const char* log = getenv( "SHAR_MOD_LOG" );
     s_Log = log != NULL && log[ 0 ] != '\0' && log[ 0 ] != '0';
+    char* userSettings = ReadWholeFile( "ModSettings.ini", NULL );
+    if ( userSettings != NULL )
+    {
+        ParseIni( userSettings, OnHackSettings, NULL );
+        free( userSettings );
+    }
     const char* env = getenv( "SHAR_MODS" );
     if ( env == NULL || env[ 0 ] == '\0' )
     {
@@ -1969,6 +2003,21 @@ extern "C" const char* shar_ModConfigFolderLanguage( const char* folder )
         free( names[ i ] );
     }
     return s_FolderMod != NULL ? s_FolderMod->language : NULL;
+}
+
+int shar_ModHackSetting( const char* hack, const char* key, int defaultValue )
+{
+    pthread_once( &s_Once, Init );
+    char prefix[ 128 ];
+    int n = snprintf( prefix, sizeof( prefix ), "%s.%s=", hack, key );
+    for ( const char* line = s_HackSettings; *line != '\0'; line = strchr( line, '\n' ) + 1 )
+    {
+        if ( strncasecmp( line, prefix, n ) == 0 )
+        {
+            return atoi( line + n );
+        }
+    }
+    return defaultValue;
 }
 
 int shar_ModHackRequired( const char* hack )

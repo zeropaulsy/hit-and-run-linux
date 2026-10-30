@@ -231,6 +231,7 @@ static const char* s_fragmentPrelude =
     "uniform sampler2D uScreen;\n"
     "uniform vec4 uRefractColour;\n"
     "uniform float uRefractIndex;\n"
+    "uniform float uRefractBlend;\n"
     "uniform vec2 uResolution;\n"
     "#endif\n"
     "#if CUSTOM\n"
@@ -283,12 +284,6 @@ static const char* s_fragmentPrelude =
     "// the material as the game draws it, before fog\n"
     "vec4 StandardColour()\n"
     "{\n"
-    "#if REFRACTION\n"
-    "    // the PS2's: the screen behind, its position moved by the normal (screen y down there), opaque\n"
-    "    vec2 offset = vec2(vNormal.x, -vNormal.y) * uRefractIndex * (uResolution.y / 448.0);\n"
-    "    vec2 uv = clamp((gl_FragCoord.xy + offset) / uResolution, vec2(0.0), vec2(1.0));\n"
-    "    return vec4(texture(uScreen, uv).rgb * uRefractColour.rgb, 1.0);\n"
-    "#else\n"
     "    vec4 c = vColour;\n"
     "    if(uTextured)\n"
     "        c *= SampleBase();\n"
@@ -299,8 +294,14 @@ static const char* s_fragmentPrelude =
     "    c = min(c + e, 1.0);\n"
     "#endif\n"
     "    c.rgb = min(c.rgb + vSpecular, 1.0);\n"
-    "    return c;\n"
+    "#if REFRACTION\n"
+    "    // the screen behind, its position moved by the normal (screen y down on the PS2 and Xbox), times the\n"
+    "    // refraction colour, over the material by uRefractBlend (1 on the PS2; the Xbox's crossfade), opaque\n"
+    "    vec2 offset = vec2(vNormal.x, -vNormal.y) * uRefractIndex * (uResolution.y / 448.0);\n"
+    "    vec2 uv = clamp((gl_FragCoord.xy + offset) / uResolution, vec2(0.0), vec2(1.0));\n"
+    "    c = vec4(mix(c.rgb, texture(uScreen, uv).rgb * uRefractColour.rgb, uRefractBlend), 1.0);\n"
     "#endif\n"
+    "    return c;\n"
     "}\n"
     "#if CUSTOM\n"
     "// the base texture (white without one)\n"
@@ -398,7 +399,7 @@ static const char* s_uniformNames[] =
     "uGlobalAmbient", "uLightCount", "uLightPosition", "uLightColour", "uLightAtten", "uLightRange",
     "uTextured", "uTexture", "uFog", "uFogColour", "uFogEnd", "uFogScale", "uAlphaCompare", "uAlphaRef",
     "uReflectionTextured", "uReflection", "uEnvBlend", "uAlphaToCoverage", "uTime", "uResolution", "uMipAlpha",
-    "uScreen", "uRefractColour", "uRefractIndex",
+    "uScreen", "uRefractColour", "uRefractIndex", "uRefractBlend",
 };
 
 static void Identity(float* m)
@@ -757,17 +758,26 @@ void pglPipeline::UploadUniforms(Program& p)
         {
             glUniform4fv(u[U_REFRACTCOLOUR], 1, material.refractColour);
             glUniform1f(u[U_REFRACTINDEX], material.refractIndex);
+            glUniform1f(u[U_REFRACTBLEND], material.refractBlend);
         }
         p.uploaded[GROUP_MATERIAL] = version[GROUP_MATERIAL];
     }
 }
 
+static bool s_recaptureScreen = false;     // pglRecaptureScreen
+
+void pglRecaptureScreen()
+{
+    s_recaptureScreen = true;
+}
+
 void pglPipeline::CaptureScreen()
 {
     int width = (int)frameWidth, height = (int)frameHeight;
-    if(screenFrame != frameCount || screenTexture == 0)
+    if(screenFrame != frameCount || screenTexture == 0 || s_recaptureScreen)
     {
         screenFrame = frameCount;
+        s_recaptureScreen = false;
         glActiveTexture(GL_TEXTURE2);
         if(screenTexture == 0)
         {

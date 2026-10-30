@@ -50,6 +50,7 @@
 #ifdef RAD_LINUX
 #include <shar_modcars.h>
 #include <shar_mods.h>
+void pglRecaptureScreen();      // pddi/gl/glpipeline.hpp: HoverCarRefraction's per car screen capture
 #endif
 
 //#define SHADOW_EDITTING
@@ -883,38 +884,62 @@ BEGIN_PROFILE("GeometryVehicle::Display Render")
         float refraction = percentOfTopSpeed;
         refraction = rmt::Clamp( refraction, 0.0f, 1.0f );
 
-        int emissiveAlpha = (int)( 255.0f * (1.0f - refraction) );
-
-        tShaderIntBroadcast blendMode( PDDI_SP_BLENDMODE, PDDI_BLEND_ALPHA );
-        tShaderIntBroadcast emissive( PDDI_SP_EMISSIVEALPHA, emissiveAlpha );
-        int count = mCompositeDrawable->GetNumDrawableElement ();
-        for (int j = 0; j < count; j++)
+#ifdef RAD_LINUX
+        // HoverCarRefraction (Linux port, as the Mod Launcher's hack): the Xbox's refraction (Update's #ifndef
+        // RAD_WIN32 part, here per car as the shaders are shared) instead of the PC's fade; the GL pddi draws the
+        // simple materials given these as the Xbox's refract shader (pglMat::SetDevPass)
+        if( shar_ModHackRequired( "HoverCarRefraction" ) )
         {
-            tCompositeDrawable::DrawableElement* pElement = mCompositeDrawable->GetDrawableElement( j );
-            tDrawable* pDrawable = pElement->GetDrawable();
-            pDrawable->ProcessShaders( blendMode );
-            pDrawable->ProcessShaders( emissive );
-        }
-
-        // so since we just made EVERY SHADER alpha blend, we need to take
-        // care of the BBQGs (that need to be additive blended)
-        if( mFrinkArc )
-        {
-            tColour arcColour;
-            for( int j=0; j< NUM_FRINKARC_BBQS; j++ )
+            if( shar_ModHackSetting( "HoverCarRefraction", "PerCarScreenCapture", 1 ) )
             {
-                tBillboardQuad* bbq = mFrinkArc->GetQuad(j);
-                rAssert( bbq );
-
-                arcColour.Set( 
-                    rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Red()*(1.0f - refraction)), 0, 255 ),
-                    rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Green()*(1.0f - refraction)), 0, 255 ),
-                    rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Blue()*(1.0f - refraction)), 0, 255 ),
-                    rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Alpha()*(1.0f - refraction)), 0, 255 )
-                );
-                bbq->SetColour( arcColour );
+                pglRecaptureScreen();
             }
-            mFrinkArc->GetShader()->SetInt( PDDI_SP_BLENDMODE, PDDI_BLEND_ADD );
+            for( int j = 0; j < MAX_REFRACTION_SHADERS; ++j )
+            {
+                if( mRefractionShader[ j ] != NULL )
+                {
+                    // the windshield (first) never goes below half
+                    mRefractionShader[ j ]->SetFloat( PDDI_SP_REFRACTBLEND, j == 0 ? 0.5f + 0.5f * refraction : refraction );
+                    mRefractionShader[ j ]->SetFloat( PDDI_SP_REFRACTINDEX, refractiveIndex );
+                }
+            }
+        }
+        else
+#endif
+        {
+            int emissiveAlpha = (int)( 255.0f * (1.0f - refraction) );
+
+            tShaderIntBroadcast blendMode( PDDI_SP_BLENDMODE, PDDI_BLEND_ALPHA );
+            tShaderIntBroadcast emissive( PDDI_SP_EMISSIVEALPHA, emissiveAlpha );
+            int count = mCompositeDrawable->GetNumDrawableElement ();
+            for (int j = 0; j < count; j++)
+            {
+                tCompositeDrawable::DrawableElement* pElement = mCompositeDrawable->GetDrawableElement( j );
+                tDrawable* pDrawable = pElement->GetDrawable();
+                pDrawable->ProcessShaders( blendMode );
+                pDrawable->ProcessShaders( emissive );
+            }
+
+            // so since we just made EVERY SHADER alpha blend, we need to take
+            // care of the BBQGs (that need to be additive blended)
+            if( mFrinkArc )
+            {
+                tColour arcColour;
+                for( int j=0; j< NUM_FRINKARC_BBQS; j++ )
+                {
+                    tBillboardQuad* bbq = mFrinkArc->GetQuad(j);
+                    rAssert( bbq );
+
+                    arcColour.Set( 
+                        rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Red()*(1.0f - refraction)), 0, 255 ),
+                        rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Green()*(1.0f - refraction)), 0, 255 ),
+                        rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Blue()*(1.0f - refraction)), 0, 255 ),
+                        rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Alpha()*(1.0f - refraction)), 0, 255 )
+                    );
+                    bbq->SetColour( arcColour );
+                }
+                mFrinkArc->GetShader()->SetInt( PDDI_SP_BLENDMODE, PDDI_BLEND_ADD );
+            }
         }
     }
 #endif

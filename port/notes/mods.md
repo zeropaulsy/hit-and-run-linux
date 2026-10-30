@@ -180,6 +180,14 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   `pglRefractionMat` (REFC colour, REFI index, REFB kept unused) + `PGL_PROGRAM_REFRACTION`: screen copy
   (`pglPipeline::CaptureScreen`, blit of the bound draw FBO, first refract draw per frame, unit 2) sampled at
   gl_FragCoord + (n.x, -n.y) * REFI * height/448, opaque, as ps2RefractionShader. Tested by mapping spheremap to it.
+- HoverCarRefraction: on with RequiredHack=, RequiredMod=HoverCarRefraction (Futurama demo: it was a mod once), or
+  ModSettings.ini [HoverCarRefraction] Enabled=1 (`shar_ModHackSetting`, also PerCarScreenCapture, default 1).
+  `GeometryVehicle::Display` (frink_v) skips the PC's alpha fade and sets REFRACTBLEND (speed fraction; windshield
+  special_m 0.5 + 0.5x) / REFRACTINDEX on the 12 `mRefractionShader` materials (simple on PC), per car as they are
+  shared; per-car capture calls `pglRecaptureScreen`. `pglMat` with blend >= 0 draws `PGL_PROGRAM_REFRACTION` as the
+  Xbox d3dRefractVertexShader: lit textured colour mixed with the screen copy by blend, index in 480-line pixels,
+  opaque. Deviation: eye-space normal offset (Xbox used world-space). Test: L1's car swapped to frink_v in
+  level01/level(i).mfk; at speed the body goes glassy, drivers stay solid.
 - WalkerCameraDataSupport: 0x3000101 chunks were loaded (win32platform.cpp handler) into the current inventory
   section: level.mfk loads before `SuperCamCentral::Init` adds CameraInventorySection; `CameraDataLoader::Load` adds
   it first. `WalkerCam::SetTarget` then takes min/max magnitude, start magnitude, elevation, target offset (it set
@@ -215,7 +223,6 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   to the 4:3 page), FixLateFocusFreeze and FixTimeSkip (Win32 focus / modal drag loop), FixZoneLoadOnExitCrash (quit
   sweeps incl. mid-load clean); FixMainMenuCheatCodeEnterCrash not reproduced (every cheat enabled at the main menu
   in gdb: no crash).
-- Not done: HoverCarRefraction (a mod).
 - Material shaders: every mod's `Shaders/materials.ini` (`shar_ModConfigFolderNth`), after the user's, in load
   order; a mod's files are named `<InternalName>:<file>` so same-named files in two mods stay apart.
 

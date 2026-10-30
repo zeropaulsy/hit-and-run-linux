@@ -137,6 +137,9 @@ port/play.sh --data "/path/to/simpsons" --mod ~/mods/SomeMod.lmlm --mod ~/mods/A
 - Mods load only for that run. Start without `--mod` to play the unmodded game.
 - A mod's settings take the defaults from its `Meta.ini`. To change them, create `run/ModSettings.ini` with a
   `[ModInternalName]` section and `SettingName=value` lines.
+- Hover Car Refraction (the Xbox's see-through look for Professor Frink's hover car as it speeds up) is on when a mod
+  needs it. To turn it on for the normal game too, add `[HoverCarRefraction]` with `Enabled=1` to
+  `run/ModSettings.ini`. `PerCarScreenCapture=0` there captures the screen once per frame, not once per hover car.
 - Total-conversion mods (`Main=1` in `Meta.ini`) keep their own saves in `run/ModSaves/<ModInternalName>/`, apart
   from the normal game's.
 - At startup the log (`run/logs/last-session.log`) lists each mod loaded and any launcher hacks it needs that aren't
@@ -149,7 +152,7 @@ traffic, per-road traffic behaviour, shader parameter overrides and video textur
 
 Not done yet: part of AdditionalScriptFunctionality (passenger animation, stage vehicle settings,
 SetStageCharacterModel, forces and gravity, AddParkedCar, CON commands), the [Sound] limits, skid marks on fake
-wheels, material shaders from more than one mod, and the Hover Car Refraction mod. Many hacks have only been tried
+wheels and material shaders from more than one mod. Many hacks have only been tried
 with small test mods, not in full playthroughs.
 
 Tested so far: the Futurama demo (level 1), Fully Connected Map (level 1) and SHAR Remastered (boots). If a mod

@@ -15,7 +15,8 @@
  * CustomMissionSkipFailCounts (guiscreenmissionover.cpp), CustomVideoResolutionSupport (binkrenderstrategy.cpp);
  * DrunkCamera (supercam.cpp), IncreasedRewardLimits (rewardsmanager.cpp, guiscreenrewards.cpp,
  * charactersheetmanager.cpp), PerLevelCoinCount (charactersheetmanager.cpp),
- * RefractionShaderSupport (pddi/gl gldev.cpp, glmat.cpp), WalkerCameraDataSupport (cameradataloader.cpp,
+ * RefractionShaderSupport (pddi/gl gldev.cpp, glmat.cpp), HoverCarRefraction (geometryvehicle.cpp, pddi/gl
+ * glmat.cpp; also RequiredMod=HoverCarRefraction), WalkerCameraDataSupport (cameradataloader.cpp,
  * walkercam.cpp), VideoTextureSupport (radmovie binkvideotexture.cpp), HackSupport (OverrideTexture: p3d shader.cpp;
  * car camera data reloads: cameradataloader.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
  * NoHitAndRunMusic, NoBustedHitAndRunMeterReset, NoFastCarReset, NoAutomaticSavedGameLoad,
@@ -118,6 +119,10 @@ const char* shar_ModConfigFolderLanguage(const char* folder);
 /* Whether a loaded mod's Meta.ini has RequiredHack=hack (case-insensitive): for behaviour the Mod Launcher enables
  * only for mods that ask for it. */
 int shar_ModHackRequired(const char* hack);
+
+/* A setting hack's setting (the Mod Launcher's Settings page): ModSettings.ini [hack] key=n in the game dir, else
+ * defaultValue. [hack] Enabled=1 there turns the hack on without a mod requiring it (HoverCarRefraction). */
+int shar_ModHackSetting(const char* hack, const char* key, int defaultValue);
 
 /* One of the BugFixes hack's fixes (port/notes/mods.md): 0 unless a mod requires BugFixes, else its BugFixes.ini
  * [section] key, defaultValue when missing (the Mod Launcher's settings default: 1, 0 for its -testing ones). */

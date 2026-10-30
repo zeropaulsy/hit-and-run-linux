@@ -87,6 +87,11 @@ public:
     void SetAlphaCompare(int compare);
     void SetAlphaRef(float ref);
 
+    // Linux port: HoverCarRefraction (geometryvehicle.cpp) sets these on the hover car's simple materials, as on the
+    // Xbox's refract ones: a blend >= 0 draws them refracting (the Xbox's d3dRefractVertexShader)
+    void SetHoverRefractionIndex(float index);
+    void SetHoverRefractionBlend(float blend);
+
     int  CountDevPasses(void);
     virtual void SetDevPass(unsigned);
 
@@ -111,6 +116,8 @@ protected:
     int customPasses;
     unsigned customGeneration;
     pglTextureEnv texEnv[pglMaxPasses];
+    float hoverRefractIndex;
+    float hoverRefractBlend;    // < 0: not refracting
 };
 
 // "environment", "spheremap" (d3dReflShader): the base texture plus a reflection map looked up with the camera-space

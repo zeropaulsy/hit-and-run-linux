@@ -28,8 +28,7 @@ Every mission of every level is done (see DONE.md). Left:
 Order of attack: the character/animation hacks (what the larger total conversions use); the small cosmetic hacks are quick wins
 in between. Hacks a mod requires but the port lacks are listed at startup (`mods:   not supported yet, ignored: ...`).
 
-#### Hacks not implemented (all required by the Futurama demo)
-- [ ] **HoverCarRefraction**: a mod (not a hack) the Futurama demo lists as required
+#### Hacks not play-tested
 - [ ] CustomRewardQuestSupport, not play-tested: hitandrun / evaded / busted, doorbell, mission, wager, cards /
   streetrace by number, the phone booth's CompleteQuest text (needs a mod's ingame.p3d)
 

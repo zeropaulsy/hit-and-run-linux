@@ -64,8 +64,9 @@ enum pglProgramType
 {
     PGL_PROGRAM_SIMPLE,         // "simple": diffuse * texture
     PGL_PROGRAM_REFLECTION,     // "environment", "spheremap": diffuse * texture + envBlend * reflection map
-    PGL_PROGRAM_REFRACTION,     // "refract" (the PS2 pddi's; mods' RefractionShaderSupport): the frame drawn so far,
-                                // looked up offset by the normal, times the refraction colour
+    PGL_PROGRAM_REFRACTION,     // "refract" (the PS2 pddi's; mods' RefractionShaderSupport), HoverCarRefraction's
+                                // materials (pglMat): the frame drawn so far, looked up offset by the normal, times
+                                // the refraction colour, over the material by refractBlend
     PGL_PROGRAM_COUNT
 };
 
@@ -91,6 +92,7 @@ public:
         float envBlend[4];          // reflection map multiplier
         float refractColour[4];     // refraction: multiplier of the screen behind
         float refractIndex;         // refraction: offset by the eye-space normal, in pixels of a 448 line screen
+        float refractBlend;         // refraction: 1 the screen behind only, 0 the material only
     };
 
     pglPipeline();
@@ -146,7 +148,7 @@ public:
     void SetTextureFiltering(bool mipmaps, float anisotropy);
 
     // refraction: copies the frame drawn so far, on the frame's first call (later refracting draws see the same copy,
-    // as on the PS2), and binds the copy to texture unit 2
+    // as on the PS2) or the first after pglRecaptureScreen, and binds the copy to texture unit 2
     void CaptureScreen();
 
     // after GL calls outside the pipeline that change the program or vertex array object (the gamma pass)
@@ -172,7 +174,7 @@ private:
         U_GLOBALAMBIENT, U_LIGHTCOUNT, U_LIGHTPOSITION, U_LIGHTCOLOUR, U_LIGHTATTEN, U_LIGHTRANGE,
         U_TEXTURED, U_TEXTURE, U_FOG, U_FOGCOLOUR, U_FOGEND, U_FOGSCALE, U_ALPHACOMPARE, U_ALPHAREF,
         U_REFLECTIONTEXTURED, U_REFLECTION, U_ENVBLEND, U_ALPHATOCOVERAGE, U_TIME, U_RESOLUTION, U_MIPALPHA,
-        U_SCREEN, U_REFRACTCOLOUR, U_REFRACTINDEX,
+        U_SCREEN, U_REFRACTCOLOUR, U_REFRACTINDEX, U_REFRACTBLEND,
         U_COUNT
     };
 
@@ -239,5 +241,8 @@ private:
 void pglDeleteTexture(GLuint texture);
 void pglDeleteBuffer(GLuint buffer);
 void pglFlushPendingDeletes();      // render thread
+
+// the next refracting draw copies the frame again (HoverCarRefraction's per car screen capture, geometryvehicle.cpp)
+void pglRecaptureScreen();
 
 #endif
