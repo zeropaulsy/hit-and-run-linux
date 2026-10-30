@@ -46,6 +46,7 @@
 #include <gameflow/gameflow.h>
 #include <ai/state.h>
 #include <ai/statemanager.h>
+#include <constants/maxplayers.h>
 #include <cheats/cheatinputsystem.h>
 #include <events/eventmanager.h>
 #include <camera/supercammanager.h>
@@ -182,15 +183,101 @@ Vehicle* FindVehicle( const char* name )
     return v != NULL ? v : GetVehicleCentral()->GetVehicleByName( name );
 }
 
+void RemoveNpc( Character*& npc )
+{
+    if( npc != NULL )
+    {
+        GetCharacterManager()->RemoveCharacter( npc );
+        npc->Release();
+        npc = NULL;
+    }
+}
+
 void Unseat( VehicleCharacter& p )
 {
-    if( p.npc != NULL )
+    if( p.npc != NULL && Log() ) fprintf( stderr, "mods: passenger %s leaves %s\n", p.character, p.vehicle != NULL ? p.vehicle->GetName() : "?" );
+    RemoveNpc( p.npc );
+}
+
+// whether a seated passenger has left its destroyed car (SetStageVehicleCharacterJumpOut / SetVehicleCharacterJumpOut)
+bool JumpedOut( Character* npc, Vehicle* v, const char* character )
+{
+    if( npc == NULL || !v->IsVehicleDestroyed() || npc->GetStateManager()->GetState() == CharacterAi::INCAR )
     {
-        if( Log() ) fprintf( stderr, "mods: passenger %s leaves %s\n", p.character, p.vehicle != NULL ? p.vehicle->GetName() : "?" );
-        GetCharacterManager()->RemoveCharacter( p.npc );
-        p.npc->Release();
-        p.npc = NULL;
+        return false;
     }
+    if( Log() )
+    {
+        rmt::Vector at, car;
+        npc->GetPosition( at );
+        v->GetPosition( &car );
+        fprintf( stderr, "mods: passenger %s jumped out of %s: %.1f m from it\n", character, v->GetName(), ( at - car ).Magnitude() );
+    }
+    return true;
+}
+
+// a passenger that jumped out stays, but not tied to a car leaving the world (the end of its get-out uses the car:
+// before that it goes too)
+void DetachJumped( Character*& npc, Vehicle* v )
+{
+    if( npc != NULL && npc->GetTargetVehicle() == v )
+    {
+        if( npc->GetStateManager()->GetState() == CharacterAi::LOCO )
+        {
+            npc->SetTargetVehicle( NULL );
+        }
+        else
+        {
+            RemoveNpc( npc );
+        }
+    }
+}
+
+// a free character slot beyond the reserve (CharacterManager::AddCharacter writes past its array when full)
+bool CharacterSlotFree( int reserve )
+{
+    int free = 0;
+    for( int i = MAX_PLAYERS; i < CharacterManager::GetMaxCharacters(); i++ )
+    {
+        if( GetCharacterManager()->GetCharacter( i ) == NULL )
+        {
+            free++;
+        }
+    }
+    return free > reserve;
+}
+
+// Seats a character on a joint of a car in the world; NULL when there is no slot or no such joint (*noJoint)
+Character* Seat( Vehicle* v, const char* name, const char* character, const char* jointName, float rotation,
+                 const ModSeatSettings& settings, int reserve, bool* noJoint )
+{
+    *noJoint = false;
+    tPose* pose = v->mGeometryVehicle != NULL ? v->mGeometryVehicle->GetP3DPose() : NULL;
+    int joint = pose != NULL ? pose->FindJointIndex( jointName ) : -1;
+    if( joint < 0 )
+    {
+        if( Log() ) fprintf( stderr, "mods: passenger %s: %s has no joint %s\n", character, v->GetName(), jointName );
+        *noJoint = true;
+        return NULL;
+    }
+    if( !CharacterSlotFree( reserve ) )
+    {
+        return NULL;
+    }
+    Character* c = GetCharacterManager()->AddCharacter( CharacterManager::NPC, name, character, "npd", "" );
+    if( c == NULL )
+    {
+        return NULL;
+    }
+    c->AddRef();
+    static_cast< NPCController* >( c->GetController() )->TransitToState( NPCController::NONE );
+    c->SetModSeat( pose->GetJoint( joint )->objectMatrix.Row( 3 ), rotation * rmt::PI / 180.0f );
+    c->SetModSeatSettings( settings );
+    c->SetTargetVehicle( v );
+    c->AddToWorldScene();
+    c->GetStateManager()->SetState< CharacterAi::InCar >();
+    if( Log() ) fprintf( stderr, "mods: passenger %s seated in %s at %s\n", character, v->GetName(), jointName );
+    return c;
 }
 
 // Seats a passenger whose car is in the world (and takes them out when it leaves)
@@ -201,26 +288,16 @@ void UpdatePassenger( int index )
     {
         p.vehicle = FindVehicle( p.car );
     }
-    bool inWorld = p.vehicle != NULL && GetVehicleCentral()->GetVehicleId( p.vehicle, false ) >= 0;
-    if( p.jumped )
+    if( p.jumped || p.vehicle == NULL )
     {
         return;
     }
-    if( p.npc != NULL && p.vehicle != NULL && p.vehicle->IsVehicleDestroyed() &&
-        p.npc->GetStateManager()->GetState() != CharacterAi::INCAR )
+    if( JumpedOut( p.npc, p.vehicle, p.character ) )
     {
         p.jumped = true;
-        if( Log() )
-        {
-            rmt::Vector at, car;
-            p.npc->GetPosition( at );
-            p.vehicle->GetPosition( &car );
-            fprintf( stderr, "mods: passenger %s jumped out of %s: %.1f m from it\n", p.character, p.vehicle->GetName(),
-                     ( at - car ).Magnitude() );
-        }
         return;
     }
-    if( !inWorld )
+    if( GetVehicleCentral()->GetVehicleId( p.vehicle, false ) < 0 )
     {
         Unseat( p );
         return;
@@ -229,31 +306,128 @@ void UpdatePassenger( int index )
     {
         return;
     }
-    tPose* pose = p.vehicle->mGeometryVehicle != NULL ? p.vehicle->mGeometryVehicle->GetP3DPose() : NULL;
-    int joint = pose != NULL ? pose->FindJointIndex( p.joint ) : -1;
-    if( joint < 0 )
-    {
-        if( Log() ) fprintf( stderr, "mods: passenger %s: %s has no joint %s\n", p.character, p.vehicle->GetName(), p.joint );
-        p.vehicle = NULL;   // as the Mod Launcher: no such joint, no passenger
-        p.car[ 0 ] = '\0';
-        return;
-    }
     char name[ 16 ];
     snprintf( name, sizeof( name ), "vc%d_%s", index, p.character );
-    Character* c = GetCharacterManager()->AddCharacter( CharacterManager::NPC, name, p.character, "npd", "" );
-    if( c == NULL )
+    bool noJoint;
+    p.npc = Seat( p.vehicle, name, p.character, p.joint, p.rotation, p.settings, 0, &noJoint );
+    if( noJoint )
     {
-        return;
+        p.vehicle = NULL;   // as the Mod Launcher: no such joint, no passenger
+        p.car[ 0 ] = '\0';
     }
-    c->AddRef();
-    static_cast< NPCController* >( c->GetController() )->TransitToState( NPCController::NONE );
-    c->SetModSeat( pose->GetJoint( joint )->objectMatrix.Row( 3 ), p.rotation * rmt::PI / 180.0f );
-    c->SetModSeatSettings( p.settings );
-    c->SetTargetVehicle( p.vehicle );
-    c->AddToWorldScene();
-    c->GetStateManager()->SetState< CharacterAi::InCar >();
-    p.npc = c;
-    if( Log() ) fprintf( stderr, "mods: passenger %s seated in %s at %s\n", p.character, p.vehicle->GetName(), p.joint );
+}
+
+// CON AddVehicleCharacter passengers seated in the cars in the world
+struct ConPassenger
+{
+    Vehicle* vehicle;
+    int index;              // in its mModCharacters
+    Character* npc;         // NULL: no such joint (not tried again while the car stays)
+    bool jumped;
+    char character[ 32 ];   // (for the log)
+};
+
+const int MAX_CON_PASSENGERS = 32;
+const int CON_PASSENGER_RESERVE = 8;    // character slots left for the game's own (pedestrians, mission NPCs)
+ConPassenger s_ConPassengers[ MAX_CON_PASSENGERS ];
+int s_NumConPassengers = 0;
+
+bool Suppressed( const ModVehicleCharacter& c )
+{
+    if( c.neverSuppressed )
+    {
+        return false;
+    }
+    VehicleCentral* vc = GetVehicleCentral();
+    bool suppressed = vc->IsDriverSuppressed( c.character );
+    for( int i = 0; !suppressed && i < c.numSuppressors; i++ )
+    {
+        suppressed = vc->IsDriverSuppressed( c.suppressors[ i ] );
+    }
+    return suppressed;
+}
+
+void DropConPassenger( int i )
+{
+    ConPassenger& e = s_ConPassengers[ i ];
+    if( e.npc != NULL && Log() ) fprintf( stderr, "mods: CON passenger %s leaves\n", e.character );
+    RemoveNpc( e.npc );
+    s_ConPassengers[ i ] = s_ConPassengers[ --s_NumConPassengers ];
+}
+
+void UpdateConPassengers()
+{
+    VehicleCentral* vc = GetVehicleCentral();
+    rmt::Vector player;
+    Character* pc = GetCharacterManager()->GetCharacter( 0 );
+    if( pc != NULL ) pc->GetPosition( player );
+    for( int i = s_NumConPassengers - 1; i >= 0; i-- )
+    {
+        ConPassenger& e = s_ConPassengers[ i ];
+        Vehicle* v = e.vehicle;
+        if( e.jumped )
+        {
+            DetachJumped( e.npc, v );
+            rmt::Vector at;
+            if( e.npc != NULL ) e.npc->GetPosition( at );
+            if( e.npc == NULL || ( pc != NULL && ( at - player ).MagnitudeSqr() > 150.0f * 150.0f ) )
+            {
+                DropConPassenger( i );      // out of sight: gone
+            }
+            continue;
+        }
+        if( vc->GetVehicleId( v, false ) < 0 || e.index >= v->mNumModCharacters || Suppressed( v->mModCharacters[ e.index ] ) )
+        {
+            DropConPassenger( i );
+            continue;
+        }
+        if( JumpedOut( e.npc, v, v->mModCharacters[ e.index ].character ) )
+        {
+            e.jumped = true;
+        }
+    }
+    for( int i = 0; i < VehicleCentral::GetMaxActiveVehicles(); i++ )
+    {
+        Vehicle* v = vc->GetVehicle( i );
+        if( v == NULL || v->mNumModCharacters == 0 || v->IsVehicleDestroyed() || vc->IsUnderConstruction( v ) )
+        {
+            continue;
+        }
+        for( int k = 0; k < v->mNumModCharacters; k++ )
+        {
+            bool seated = false;
+            for( int j = 0; j < s_NumConPassengers && !seated; j++ )
+            {
+                seated = s_ConPassengers[ j ].vehicle == v && s_ConPassengers[ j ].index == k && !s_ConPassengers[ j ].jumped;
+            }
+            const ModVehicleCharacter& c = v->mModCharacters[ k ];
+            if( seated || Suppressed( c ) || s_NumConPassengers >= MAX_CON_PASSENGERS )
+            {
+                continue;
+            }
+            char name[ 16 ];
+            snprintf( name, sizeof( name ), "cc%d_%s", s_NumConPassengers, c.character );
+            bool noJoint;
+            Character* npc = Seat( v, name, c.character, c.joint, c.rotation, c.settings, CON_PASSENGER_RESERVE, &noJoint );
+            if( npc != NULL || noJoint )
+            {
+                ConPassenger& e = s_ConPassengers[ s_NumConPassengers++ ];
+                e.vehicle = v;
+                e.index = k;
+                e.npc = npc;
+                e.jumped = false;
+                Copy( e.character, sizeof( e.character ), c.character );
+            }
+        }
+    }
+}
+
+void RemoveConPassengers()
+{
+    while( s_NumConPassengers > 0 )
+    {
+        DropConPassenger( s_NumConPassengers - 1 );
+    }
 }
 
 void AddPassenger( const ModStageVehicleCharacter& add )
@@ -936,6 +1110,87 @@ public:
     {
         PassengerSetting( argv, ModStagePassengerSetting::VISIBLE );
     }
+    // CON commands: on the car whose CON file is running
+    static Vehicle* ConVehicle( const char* command )
+    {
+        Vehicle* v = GetVehicleCentral()->GetCurrentVehicleUnderConstruction();
+        if( v == NULL ) fprintf( stderr, "mods: %s outside a car's CON file, ignored\n", command );
+        return v;
+    }
+    static ModVehicleCharacter* ConCharacter( const char* command, const char* character )
+    {
+        Vehicle* v = ConVehicle( command );
+        for( int i = 0; v != NULL && i < v->mNumModCharacters; i++ )
+        {
+            if( strcasecmp( v->mModCharacters[ i ].character, character ) == 0 ) return &v->mModCharacters[ i ];
+        }
+        if( v != NULL ) fprintf( stderr, "mods: %s: %s has no character %s (AddVehicleCharacter), ignored\n", command, v->GetName(), character );
+        return NULL;
+    }
+    static void AddVehicleCharacter( int argc, char** argv )
+    {
+        Vehicle* v = ConVehicle( argv[ 0 ] );
+        if( v == NULL ) return;
+        ModVehicleCharacter* c = NULL;
+        for( int i = 0; i < v->mNumModCharacters && c == NULL; i++ )
+        {
+            if( strcasecmp( v->mModCharacters[ i ].character, argv[ 1 ] ) == 0 ) c = &v->mModCharacters[ i ];   // CON run again
+        }
+        if( c == NULL )
+        {
+            if( v->mNumModCharacters >= Vehicle::MAX_MOD_CHARACTERS )
+            {
+                fprintf( stderr, "mods: %s: %s has %d characters already, ignored\n", argv[ 0 ], v->GetName(), v->mNumModCharacters );
+                return;
+            }
+            c = &v->mModCharacters[ v->mNumModCharacters++ ];
+            c->settings = ModSeatSettings();
+            c->neverSuppressed = false;
+            c->numSuppressors = 0;
+        }
+        Copy( c->character, sizeof( c->character ), argv[ 1 ] );
+        Copy( c->joint, sizeof( c->joint ), argc > 2 ? argv[ 2 ] : "pl" );
+        c->rotation = argc > 3 ? static_cast< float >( atof( argv[ 3 ] ) ) : 180.0f;
+    }
+    static void AddVehicleCharacterSuppressionCharacter( int argc, char** argv )
+    {
+        ModVehicleCharacter* c = ConCharacter( argv[ 0 ], argv[ 1 ] );
+        if( c == NULL ) return;
+        if( strcasecmp( argv[ 2 ], "none" ) == 0 )
+        {
+            c->neverSuppressed = true;
+        }
+        else if( c->numSuppressors < ModVehicleCharacter::MAX_SUPPRESSORS )
+        {
+            Copy( c->suppressors[ c->numSuppressors++ ], sizeof( c->suppressors[ 0 ] ), argv[ 2 ] );
+        }
+    }
+    static void SetVehicleCharacterAnimation( int argc, char** argv )
+    {
+        ModVehicleCharacter* c = ConCharacter( argv[ 0 ], argv[ 1 ] );
+        if( c == NULL ) return;
+        c->settings.animation = tEntity::MakeUID( argv[ 2 ] );
+        c->settings.bobbing = argc > 3 && ParseBool( argv[ 3 ] );   // off once this is called (the docs)
+    }
+    static void SetVehicleCharacterJumpOut( int argc, char** argv )
+    {
+        ModVehicleCharacter* c = ConCharacter( argv[ 0 ], argv[ 1 ] );
+        if( c == NULL ) return;
+        c->settings.jumpOut = true;
+        c->settings.jumpDirectionSet = argc > 2;
+        c->settings.jumpDirection = argc > 2 ? static_cast< float >( atof( argv[ 2 ] ) ) * rmt::PI / 180.0f : 0.0f;
+    }
+    static void SetVehicleCharacterScale( int argc, char** argv )
+    {
+        ModVehicleCharacter* c = ConCharacter( argv[ 0 ], argv[ 1 ] );
+        if( c != NULL ) c->settings.scale = argc > 2 ? static_cast< float >( atof( argv[ 2 ] ) ) : 0.0f;
+    }
+    static void SetVehicleCharacterVisible( int argc, char** argv )
+    {
+        ModVehicleCharacter* c = ConCharacter( argv[ 0 ], argv[ 1 ] );
+        if( c != NULL ) c->settings.visible = true;
+    }
+
     static void StageVehicleSetting( const char* command, const char* car, ModStageVehicleSetting::Kind kind, bool value )
     {
         ModStage* s = Stage( command );
@@ -1486,12 +1741,12 @@ public:
             // CON commands
             { "SetConditionalParameter", Unsupported, 3, 5 },
             { "SetWheelieOffsetX", Unsupported, 1, 1 },
-            { "AddVehicleCharacter", Unsupported, 1, 3 },
-            { "AddVehicleCharacterSuppressionCharacter", Unsupported, 2, 2 },
-            { "SetVehicleCharacterAnimation", Unsupported, 2, 3 },
-            { "SetVehicleCharacterJumpOut", Unsupported, 1, 2 },
-            { "SetVehicleCharacterScale", Unsupported, 2, 2 },
-            { "SetVehicleCharacterVisible", Unsupported, 1, 1 },
+            { "AddVehicleCharacter", AddVehicleCharacter, 1, 3 },
+            { "AddVehicleCharacterSuppressionCharacter", AddVehicleCharacterSuppressionCharacter, 2, 2 },
+            { "SetVehicleCharacterAnimation", SetVehicleCharacterAnimation, 2, 3 },
+            { "SetVehicleCharacterJumpOut", SetVehicleCharacterJumpOut, 1, 2 },
+            { "SetVehicleCharacterScale", SetVehicleCharacterScale, 1, 2 },
+            { "SetVehicleCharacterVisible", SetVehicleCharacterVisible, 1, 1 },
         };
         struct Conditional { const char* name; Console::CONSOLE_BOOL_FUNCTION fn; int minArgs, maxArgs; };
         static const Conditional CONDITIONALS[] =
@@ -1566,6 +1821,30 @@ void ModScript::Update( unsigned int elapsedTime )
     {
         UpdatePassenger( i );
     }
+    UpdateConPassengers();
+}
+
+void ModScript::OnVehicleRemoved( Vehicle* vehicle, bool deleted )
+{
+    for( int i = 0; i < s_NumPassengers; i++ )
+    {
+        VehicleCharacter& p = s_Passengers[ i ];
+        if( p.vehicle == vehicle )
+        {
+            if( p.jumped ) DetachJumped( p.npc, vehicle );
+            else Unseat( p );           // seated again when it is back
+            if( deleted ) p.vehicle = NULL;
+        }
+    }
+    for( int i = s_NumConPassengers - 1; i >= 0; i-- )
+    {
+        ConPassenger& e = s_ConPassengers[ i ];
+        if( e.vehicle == vehicle )
+        {
+            if( e.jumped ) DetachJumped( e.npc, vehicle );
+            if( !e.jumped || e.npc == NULL ) DropConPassenger( i );
+        }
+    }
 }
 
 void ModScript::OnRetry()
@@ -1591,6 +1870,7 @@ void ModScript::RemoveVehicleCharacters()
         Unseat( s_Passengers[ i ] );
     }
     s_NumPassengers = 0;
+    RemoveConPassengers();      // (seated again by the next mission's stages)
     RestoreVehicles();
     s_CollectibleSound = NULL;      // (the mission's stages hold the string)
     s_UseCameraPosition = false;

@@ -22,6 +22,9 @@
 #include <constants/vehicleenum.h>
 #include <presentation/gui/utility/hudmap.h>
 #include <radmath/radmath.hpp>
+#ifdef RAD_LINUX
+#include <worldsim/character/modseat.h>
+#endif
 #include <render/DSG/InstDynaPhysDSG.h>
 #include <render/IntersectManager/IntersectManager.h> // For terrain type enumeration.
 
@@ -156,6 +159,10 @@ public:
     int mModAbductable;
     int mModReset;
     bool mModNoDestroyedJumpOut;
+    // its CON file's AddVehicleCharacter passengers (seated by code/mission/modscript.cpp)
+    enum { MAX_MOD_CHARACTERS = 4 };
+    ModVehicleCharacter mModCharacters[ MAX_MOD_CHARACTERS ];
+    int mNumModCharacters;
     unsigned int GetModRefCount() const { return m_refCount; }  // the traffic manager frees only cars nobody else holds
 #endif
     // a husk: huskA (the only one the game had), or a mod's (CustomCarSupport Husk=/IsHusk=)

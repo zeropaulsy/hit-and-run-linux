@@ -85,6 +85,13 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   facing the given degrees (seat-rotation convention) or PI/2 when the seat is on the driver's side (x sign), else
   -PI/2; then kept (`jumped`) until removed or the mission ends. Checked: L1 m1sd famil_v (scale 2, rotation 0,
   visible; car destroyed in gdb with SyncVisualDamage(0): Lisa jumps, Bart goes). Bobbing/animation not looked at.
+  CON AddVehicleCharacter*/SetVehicleCharacter*: stored on the car under construction (`Vehicle::mModCharacters`,
+  4, worldsim/character/modseat.h); every active car of the type seated each frame (`UpdateConPassengers`, 32
+  passengers, only with 8 character slots left: `CharacterManager::AddCharacter` overran its 64 when full; the
+  stage ones check for 1). Suppressed = SuppressDriver of itself or a SuppressionCharacter ("none": never); L1
+  suppresses lisa. Leave on `VehicleCentral::RemoveVehicleFromActiveList` / `~Vehicle` (`ModScript::OnVehicleRemoved`;
+  also stage passengers), mission end. Jumped-out ones drop their target car once in Loco, gone beyond 150 m.
+  Checked: famil_v Bart (scale, jump out), L1 minivanA Milhouse in traffic (seated/left 44 times over m1-m3sd).
   Traffic groups -> `TrafficManager::SetModTrafficGroup`: SetStageTrafficGroup at stage start (kept after);
   UseTrafficGroup / a retry's SetCheckpointTrafficGroup in `Mission::InitDynaLoad` (restart/select, not SD -> main).
   SetHitAndRunDecayInterior corrected only when hack required.

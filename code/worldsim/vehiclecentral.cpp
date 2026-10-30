@@ -54,6 +54,7 @@
 
 #include <p3d/billboardobject.hpp>
 #include <shar_mods.h>
+#include <mission/modscript.h>
 
 int VehicleCentral::GetMaxActiveVehicles()
 {
@@ -1185,6 +1186,9 @@ bool VehicleCentral::RemoveVehicleFromActiveList(Vehicle* vehicle)
 
             mActiveVehicleList[i] = 0;
             mNumActiveVehicles--;
+#ifdef RAD_LINUX
+            ModScript::OnVehicleRemoved( vehicle, false );  // Linux port: a mod's passengers leave it
+#endif
 
             // make sure controller slot doesn't have junk left lying around in it.
             if( mActiveVehicleControllerList[i] )

@@ -17,6 +17,7 @@
 class Console;
 class Mission;
 class MissionStage;
+class Vehicle;
 
 struct ModStageVehicleCharacter
 {
@@ -124,6 +125,8 @@ namespace ModScript
     void OnMissionInitialize( Mission* mission );
     // Mission::InitDynaLoad (selecting or restarting it, not a sunday drive's mission following it): its traffic group
     void OnMissionReset( Mission* mission );
+    // VehicleCentral::RemoveVehicleFromActiveList, ~Vehicle: its passengers leave it
+    void OnVehicleRemoved( Vehicle* vehicle, bool deleted );
     // Mission::Reset: passengers leave, cars get back the settings the stages changed
     void RemoveVehicleCharacters();
     // Mission::Finalize: that, and the player's model back (SetStageCharacterModel)
