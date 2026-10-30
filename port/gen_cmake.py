@@ -24,7 +24,7 @@ PDDI_GL = {
                 "libs/pure3d/pddi/base/font.cpp", "libs/pure3d/pddi/base/pddiobj.cpp",
                 "libs/pure3d/pddi/gl/glcon.cpp", "libs/pure3d/pddi/gl/gldev.cpp", "libs/pure3d/pddi/gl/glmat.cpp",
                 "libs/pure3d/pddi/gl/gltex.cpp", "libs/pure3d/pddi/gl/glpipeline.cpp", "libs/pure3d/pddi/gl/glpost.cpp",
-                "libs/pure3d/pddi/gl/glcustom.cpp",
+                "libs/pure3d/pddi/gl/glcustom.cpp", "libs/pure3d/pddi/gl/glshaders.cpp",
                 "libs/pure3d/pddi/gl/display_linux/gldisplay.cpp"],
     # libpng/zlib: images for post-processing passes (glpost.cpp)
     "includes": ["libs", "libs/radmath", "libs/pure3d", "libs/pure3d/lib/libpng", "libs/pure3d/lib/zlib"],
@@ -70,6 +70,11 @@ WIN_SDK_RE = re.compile(r"sdks/(dx8|dx9|win32|eax\w*|mfc|XBox|GameCube)", re.I)
 COMPAT_DIR = "port/compat"
 LUA_DIR = "port/third_party/lua"
 LUA_SOURCES = sorted(f"{LUA_DIR}/{f}" for f in os.listdir(os.path.join(vcx.ROOT, LUA_DIR)) if f.endswith(".c"))
+GLSLANG_DIR = "port/third_party/glslang"
+GLSLANG_SOURCES = sorted(os.path.relpath(os.path.join(d, f), vcx.ROOT)
+                         for sub in ("glslang", "SPIRV")
+                         for d, _, files in os.walk(os.path.join(vcx.ROOT, GLSLANG_DIR, sub))
+                         for f in files if f.endswith(".cpp")) + [f"{GLSLANG_DIR}/shar_glslang.cpp"]
 COMPAT_HEADER = "port/compat/msvc_compat.h"
 PLATFORM_DIRS = ("/win32/", "/dx8/")      # sources here need a Linux implementation; excluded for now
 
@@ -157,6 +162,14 @@ def main():
         f"add_library(lua STATIC {' '.join(LUA_SOURCES)})",
         "target_compile_options(lua PRIVATE -O2)",
         "target_compile_definitions(lua PRIVATE LUA_USE_POSIX)",
+        "# glslang (GLSL -> SPIR-V for the Vulkan renderer): a shared library with its own C++ runtime and allocator, out",
+        "# of reach of the game's operator new (port/third_party/glslang/shar_glslang.h)",
+        f"add_library(shar_glslang SHARED {' '.join(GLSLANG_SOURCES)})",
+        "target_compile_options(shar_glslang PRIVATE -std=c++17 -O2 -g0 -w -fvisibility=hidden)",
+        f"target_include_directories(shar_glslang PRIVATE {GLSLANG_DIR} {GLSLANG_DIR}/generated)",
+        "target_link_options(shar_glslang PRIVATE ${SHAR_ARCH} -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL "
+        f"-Wl,--version-script=${{CMAKE_SOURCE_DIR}}/{GLSLANG_DIR}/shar_glslang.map)",
+        "target_link_libraries(shar_glslang PRIVATE pthread)",
         f"add_compile_definitions({' '.join(PLATFORM_DEFINES)})",
         "# MSVC built-ins/CRT names -> GCC/POSIX, and a types-only windows.h (searched after the source dirs)",
         f"add_compile_options(\"SHELL:-include ${{CMAKE_SOURCE_DIR}}/{COMPAT_HEADER}\")",
@@ -222,7 +235,7 @@ def main():
     # static libraries reference each other in both directions (pure3d <-> pddigl/libpng, radmusic -> radsound,
     # ...); MSVC resolves that automatically, GNU ld needs them in a group
     out.append(f"target_link_libraries(srr2 PRIVATE -Wl,--start-group {' '.join(l for l in libs)} shar_compat lua "
-               f"-Wl,--end-group SDL2 GL openal avformat avcodec swscale swresample avutil pthread dl)")
+               f"-Wl,--end-group shar_glslang SDL2 GL openal avformat avcodec swscale swresample avutil pthread dl)")
     open(os.path.join(vcx.ROOT, "CMakeLists.txt"), "w").write("\n".join(out) + "\n")
 
     with open(os.path.join(vcx.ROOT, "port/excluded_platform_sources.txt"), "w") as f:

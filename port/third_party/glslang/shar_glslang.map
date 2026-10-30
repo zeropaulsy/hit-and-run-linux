@@ -1,0 +1,1 @@
+{ global: shar_glsl_compile; shar_glsl_free; local: *; };

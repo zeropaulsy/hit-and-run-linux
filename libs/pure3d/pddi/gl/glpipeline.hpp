@@ -12,6 +12,7 @@
 #define _GLPIPELINE_HPP_
 
 #include <pddi/gl/display_linux/gl.hpp>
+#include <pddi/gl/glshaders.hpp>
 
 class pglProgram
 {
@@ -59,16 +60,6 @@ const int pglMaxCustomPrograms = 32;       // user material shaders (glcustom.cp
 // consistent, so there is no "reverse": shaders tell faces apart by their normals instead.
 enum { PGL_CULL_GAME, PGL_CULL_NONE };
 
-// the programs, one per kind of pddi shader (glmat.cpp)
-enum pglProgramType
-{
-    PGL_PROGRAM_SIMPLE,         // "simple": diffuse * texture
-    PGL_PROGRAM_REFLECTION,     // "environment", "spheremap": diffuse * texture + envBlend * reflection map
-    PGL_PROGRAM_REFRACTION,     // "refract" (the PS2 pddi's; mods' RefractionShaderSupport), HoverCarRefraction's
-                                // materials (pglMat): the frame drawn so far, looked up offset by the normal, times
-                                // the refraction colour, over the material by refractBlend
-    PGL_PROGRAM_COUNT
-};
 
 class pglPipeline
 {
@@ -166,17 +157,6 @@ public:
 private:
     // state groups; each program keeps the version of each it last received
     enum { GROUP_MATRICES, GROUP_LIGHTS, GROUP_FOG, GROUP_MATERIAL, GROUP_COUNT };
-
-    enum
-    {
-        U_PROJECTION, U_MODELVIEW, U_NORMALMATRIX,
-        U_LIT, U_MATAMBIENT, U_MATDIFFUSE, U_MATSPECULAR, U_MATEMISSIVE, U_SHININESS,
-        U_GLOBALAMBIENT, U_LIGHTCOUNT, U_LIGHTPOSITION, U_LIGHTCOLOUR, U_LIGHTATTEN, U_LIGHTRANGE,
-        U_TEXTURED, U_TEXTURE, U_FOG, U_FOGCOLOUR, U_FOGEND, U_FOGSCALE, U_ALPHACOMPARE, U_ALPHAREF,
-        U_REFLECTIONTEXTURED, U_REFLECTION, U_ENVBLEND, U_ALPHATOCOVERAGE, U_TIME, U_RESOLUTION, U_MIPALPHA,
-        U_SCREEN, U_REFRACTCOLOUR, U_REFRACTINDEX, U_REFRACTBLEND,
-        U_COUNT
-    };
 
     struct Program
     {
