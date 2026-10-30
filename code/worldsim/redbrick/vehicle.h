@@ -163,6 +163,20 @@ public:
     enum { MAX_MOD_CHARACTERS = 4 };
     ModVehicleCharacter mModCharacters[ MAX_MOD_CHARACTERS ];
     int mNumModCharacters;
+    // its CON file's SetConditionalParameter: a drawable shown, or the car having doors / a high roof, while any of
+    // the conditions on it holds (vehicle health = hit points in [min, max]; level = min, from 1)
+    struct ModConditional
+    {
+        enum Param { DRAWABLE, HAS_DOORS, HIGH_ROOF } param;
+        tUID drawable;
+        enum Condition { HEALTH, LEVEL } condition;
+        float min, max;
+    };
+    enum { MAX_MOD_CONDITIONALS = 8 };
+    ModConditional mModConditionals[ MAX_MOD_CONDITIONALS ];
+    int mNumModConditionals;
+    void UpdateModConditionals();
+    float mModWheelieXOffset;   // SetWheelieOffsetX
     unsigned int GetModRefCount() const { return m_refCount; }  // the traffic manager frees only cars nobody else holds
 #endif
     // a husk: huskA (the only one the game had), or a mod's (CustomCarSupport Husk=/IsHusk=)

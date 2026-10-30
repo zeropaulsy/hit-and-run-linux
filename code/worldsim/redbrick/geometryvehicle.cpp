@@ -3452,3 +3452,19 @@ void GeometryVehicle::AdvanceAnimationControllers( float deltaTime )
     }
 }
 
+#ifdef RAD_LINUX
+//=============================================================================
+// GeometryVehicle::SetModDrawableVisible
+//=============================================================================
+void GeometryVehicle::SetModDrawableVisible( tUID uid, bool visible )
+{
+    for( int i = 0; mCompositeDrawable != NULL && i < mCompositeDrawable->GetNumDrawableElement(); i++ )
+    {
+        tCompositeDrawable::DrawableElement* element = mCompositeDrawable->GetDrawableElement( i );
+        if( element != NULL && element->GetDrawable() != NULL && element->GetUID() == uid )
+        {
+            element->SetVisibility( visible );
+        }
+    }
+}
+#endif

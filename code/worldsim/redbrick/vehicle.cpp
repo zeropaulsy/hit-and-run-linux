@@ -2783,12 +2783,62 @@ void Vehicle::PostSubstepUpdate(float dt)
 
     // hmm... this might be the place to try moving the characters?
     BounceCharacters(dt);
+#ifdef RAD_LINUX
+    UpdateModConditionals();
+#endif
 
 
     
 }
 
 
+#ifdef RAD_LINUX
+//=============================================================================
+// Vehicle::UpdateModConditionals
+//=============================================================================
+// Linux port: a mod's SetConditionalParameter (AdditionalScriptFunctionality, CON file): each target is on while
+// any of its conditions holds
+//=============================================================================
+void Vehicle::UpdateModConditionals()
+{
+    if( mNumModConditionals == 0 )
+    {
+        return;
+    }
+    int level = static_cast< int >( GetGameplayManager()->GetCurrentLevelIndex() ) + 1;
+    bool doors = false, roof = false, anyDoors = false, anyRoof = false;
+    for( int i = 0; i < mNumModConditionals; i++ )
+    {
+        const ModConditional& c = mModConditionals[ i ];
+        bool holds = c.condition == ModConditional::HEALTH ? ( mHitPoints >= c.min && mHitPoints <= c.max )
+                                                           : level == static_cast< int >( c.min );
+        switch( c.param )
+        {
+        case ModConditional::DRAWABLE:
+        {
+            // (several conditions on one drawable: shown if any holds)
+            bool visible = holds;
+            for( int j = 0; j < mNumModConditionals && !visible; j++ )
+            {
+                const ModConditional& o = mModConditionals[ j ];
+                if( j != i && o.param == ModConditional::DRAWABLE && o.drawable == c.drawable )
+                {
+                    visible = o.condition == ModConditional::HEALTH ? ( mHitPoints >= o.min && mHitPoints <= o.max )
+                                                                    : level == static_cast< int >( o.min );
+                }
+            }
+            if( mGeometryVehicle != NULL ) mGeometryVehicle->SetModDrawableVisible( c.drawable, visible );
+            break;
+        }
+        case ModConditional::HAS_DOORS: anyDoors = true; doors = doors || holds; break;
+        case ModConditional::HIGH_ROOF: anyRoof = true; roof = roof || holds; break;
+        }
+    }
+    if( anyDoors ) mHasDoors = doors;
+    if( anyRoof ) mHighRoof = roof;
+}
+
+#endif
 //=============================================================================
 // Vehicle::BounceCharacters
 //=============================================================================

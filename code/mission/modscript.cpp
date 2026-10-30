@@ -1191,6 +1191,58 @@ public:
         if( c != NULL ) c->settings.visible = true;
     }
 
+    static void SetWheelieOffsetX( int argc, char** argv )
+    {
+        Vehicle* v = ConVehicle( argv[ 0 ] );
+        if( v != NULL ) v->mModWheelieXOffset = static_cast< float >( atof( argv[ 1 ] ) );
+    }
+    // SetConditionalParameter( "drawableVisibility", drawable, condition, values... ) or ( "hasDoors" / "highRoof",
+    // condition, values... ); conditions: "vehicleHealth", min, max or "level", level
+    static void SetConditionalParameter( int argc, char** argv )
+    {
+        Vehicle* v = ConVehicle( argv[ 0 ] );
+        if( v == NULL ) return;
+        if( v->mNumModConditionals >= Vehicle::MAX_MOD_CONDITIONALS )
+        {
+            fprintf( stderr, "mods: %s: %s has %d already, ignored\n", argv[ 0 ], v->GetName(), v->mNumModConditionals );
+            return;
+        }
+        Vehicle::ModConditional c;
+        c.drawable = 0;
+        int arg = 2;
+        if( strcasecmp( argv[ 1 ], "drawableVisibility" ) == 0 )
+        {
+            c.param = Vehicle::ModConditional::DRAWABLE;
+            c.drawable = tEntity::MakeUID( argv[ arg++ ] );
+        }
+        else if( strcasecmp( argv[ 1 ], "hasDoors" ) == 0 ) c.param = Vehicle::ModConditional::HAS_DOORS;
+        else if( strcasecmp( argv[ 1 ], "highRoof" ) == 0 ) c.param = Vehicle::ModConditional::HIGH_ROOF;
+        else
+        {
+            fprintf( stderr, "mods: %s: unknown parameter %s, ignored\n", argv[ 0 ], argv[ 1 ] );
+            return;
+        }
+        const char* condition = arg < argc ? argv[ arg++ ] : "";
+        int values = argc - arg;
+        if( strcasecmp( condition, "vehicleHealth" ) == 0 && values >= 2 )
+        {
+            c.condition = Vehicle::ModConditional::HEALTH;
+            c.min = static_cast< float >( atof( argv[ arg ] ) );
+            c.max = static_cast< float >( atof( argv[ arg + 1 ] ) );
+        }
+        else if( strcasecmp( condition, "level" ) == 0 && values >= 1 )
+        {
+            c.condition = Vehicle::ModConditional::LEVEL;
+            c.min = c.max = static_cast< float >( atoi( argv[ arg ] ) );
+        }
+        else
+        {
+            fprintf( stderr, "mods: %s: condition \"%s\" unknown or missing values, ignored\n", argv[ 0 ], condition );
+            return;
+        }
+        v->mModConditionals[ v->mNumModConditionals++ ] = c;
+    }
+
     static void StageVehicleSetting( const char* command, const char* car, ModStageVehicleSetting::Kind kind, bool value )
     {
         ModStage* s = Stage( command );
@@ -1739,8 +1791,8 @@ public:
             { "SetParkedCarsEnabled", SetParkedCarsEnabled, 1, 1 },
             { "SetPedsEnabled", SetPedsEnabled, 1, 1 },
             // CON commands
-            { "SetConditionalParameter", Unsupported, 3, 5 },
-            { "SetWheelieOffsetX", Unsupported, 1, 1 },
+            { "SetConditionalParameter", SetConditionalParameter, 3, 5 },
+            { "SetWheelieOffsetX", SetWheelieOffsetX, 1, 1 },
             { "AddVehicleCharacter", AddVehicleCharacter, 1, 3 },
             { "AddVehicleCharacterSuppressionCharacter", AddVehicleCharacterSuppressionCharacter, 2, 2 },
             { "SetVehicleCharacterAnimation", SetVehicleCharacterAnimation, 2, 3 },

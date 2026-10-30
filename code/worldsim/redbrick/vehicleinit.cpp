@@ -106,6 +106,8 @@ Vehicle::Vehicle() :
     mModReset( -1 ),
     mModNoDestroyedJumpOut( false ),
     mNumModCharacters( 0 ),
+    mNumModConditionals( 0 ),
+    mModWheelieXOffset( 0.0f ),
     mNumFakeWheelDrivers( 0 ),
 #endif
     mTerrainType( TT_Road),

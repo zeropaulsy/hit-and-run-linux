@@ -92,6 +92,12 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   suppresses lisa. Leave on `VehicleCentral::RemoveVehicleFromActiveList` / `~Vehicle` (`ModScript::OnVehicleRemoved`;
   also stage passengers), mission end. Jumped-out ones drop their target car once in Loco, gone beyond 150 m.
   Checked: famil_v Bart (scale, jump out), L1 minivanA Milhouse in traffic (seated/left 44 times over m1-m3sd).
+  CON SetConditionalParameter -> `Vehicle::mModConditionals` (8), evaluated in `PostSubstepUpdate`
+  (`UpdateModConditionals`): a target is on while any of its conditions holds; vehicleHealth = `mHitPoints` in
+  [min, max] (the docs' 0-3 scale fits hit points; unconfirmed); drawableVisibility = `GeometryVehicle::
+  SetModDrawableVisible` (composite elements by UID), hasDoors/highRoof = `mHasDoors`/`mHighRoof` (untouched without
+  one). SetWheelieOffsetX -> `mModWheelieXOffset`, added with the Y/Z offsets (physicslocomotioncontrollerforces).
+  Checked: famil_v DoorDRotShape (level 2) and HoodRotShape (health 0-1) hidden in L1; wheelie not driven.
   Traffic groups -> `TrafficManager::SetModTrafficGroup`: SetStageTrafficGroup at stage start (kept after);
   UseTrafficGroup / a retry's SetCheckpointTrafficGroup in `Mission::InitDynaLoad` (restart/select, not SD -> main).
   SetHitAndRunDecayInterior corrected only when hack required.

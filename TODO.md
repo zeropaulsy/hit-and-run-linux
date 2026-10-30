@@ -39,8 +39,8 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
   (AddStageVehicleCharacter, SetStageVehicleCharacter*), stage vehicle settings (SetStageVehicleAbductable/AllowSeatSlide/Reset/
   NoDestroyedJumpOut), SetStageCharacterModel, SetObj/CondSound, SetObjExplosion, SetObjUseCameraPosition, SetCollectibleSoundEffect
   (not checked in play), SetPedsEnabled / SetParkedCarsEnabled, CON passengers (AddVehicleCharacter*,
-  SetVehicleCharacter*). Left:
-  - [ ] CON commands (SetConditionalParameter, SetWheelieOffsetX)
+  SetVehicleCharacter*), SetConditionalParameter, SetWheelieOffsetX. Left:
+  - [ ] SetObjFailDistance, SetNoHitAndRunMusicForStage, SetStageEnabledCheats, SetHUDMapDrawable (logged, ignored)
 - [ ] **CustomLimits [Sound]** PlayingClipPlayerLimit / PlayingStreamPlayerLimit: the docs' defaults (25, 8) match
   nothing in this source (64 clip, 9 stream players); needs the retail behaviour. Values up to 64/9 fit already
 - [ ] **CustomRoadBehaviour UTurnTolerance**: undocumented, logged and ignored

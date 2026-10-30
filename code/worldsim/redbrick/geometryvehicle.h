@@ -59,6 +59,10 @@ enum FCTrigger
 class GeometryVehicle
 {
 public:
+#ifdef RAD_LINUX
+    // Linux port: a mod's SetConditionalParameter drawableVisibility: the elements drawing this drawable
+    void SetModDrawableVisible( tUID uid, bool visible );
+#endif
 
     GeometryVehicle();
     ~GeometryVehicle();
