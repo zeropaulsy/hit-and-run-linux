@@ -90,7 +90,7 @@ stage always works at full size.
 
 | File | Stage | What it does |
 |------|-------|--------------|
-| `ssao.glsl`, `ssao_apply.glsl` | scene | ambient occlusion: darkens corners, recesses and the ground around objects (two passes, in this order; `SHOW_AO` in `ssao_apply.glsl` shows it alone; works at half size, `#pragma shar_scale` in `ssao.glsl`) |
+| `ssao.glsl`, `ssao_blur_h.glsl`, `ssao_blur_v.glsl` | scene | ambient occlusion: darkens corners, recesses and the ground around objects (three passes, in this order: the occlusion, then an edge-aware blur that also darkens the picture; `SHOW_AO` in `ssao_blur_v.glsl` shows it alone; works at full size, `#pragma shar_scale` in `ssao.glsl`: 0.5 is a quarter of the cost) |
 | `tonemap.glsl` | scene | filmic tone mapping (`CURVE`: ACES, Hable, Reinhard): softer highlights, richer midtones; mid grey stays put; `SATURATION` sets how much of the curve's colour boost to keep |
 | `grade.glsl` | scene | colour grading: white balance, exposure, contrast, saturation, vibrance, lift / gamma / gain, split toning |
 | `lut.glsl` | scene | colour grading with a lookup-table image (`lut/`: `neutral`, `warm`, `teal_orange`, `cool`); see below |
