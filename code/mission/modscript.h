@@ -46,6 +46,10 @@ struct ModStage
     bool collectibleSoundSet;   // SetCollectibleSoundEffect
     char collectibleSound[ 48 ];    // "" = none
     int trafficGroup;           // SetStageTrafficGroup; -1 = unchanged (kept after the stage)
+    // Add/SetStageDynaLoadData: zones loaded on reaching the stage ("" = none), Set dumping all loaded ones first
+    char dynaLoad[ 512 ];
+    char dynaLoadInterior[ 32 ];
+    bool dynaLoadDump;
     // SetStageAirGravity / KickForce / SlamForce (CharacterTune), restored after the stage
     bool airGravitySet, kickForceSet, slamForceSet;
     float airGravity, kickForce, slamForce;

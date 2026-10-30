@@ -26,6 +26,9 @@
 #include <memory/srrmemory.h>
 #include <meta/locator.h>
 #include <meta/carstartlocator.h>
+#include <meta/zoneeventlocator.h>
+#include <render/RenderManager/RenderManager.h>
+#include <render/RenderManager/RenderLayer.h>
 #include <p3d/utility.hpp>
 #include <worldsim/hitnrunmanager.h>
 #include <worldsim/coins/coinmanager.h>
@@ -64,6 +67,7 @@ ModStage::ModStage() :
     allowCancel( -1 ),
     collectibleSoundSet( false ),
     trafficGroup( -1 ),
+    dynaLoadDump( false ),
     airGravitySet( false ),
     kickForceSet( false ),
     slamForceSet( false ),
@@ -86,6 +90,8 @@ ModStage::ModStage() :
     savedSlamForce( 0.0f )
 {
     collectibleSound[ 0 ] = '\0';
+    dynaLoad[ 0 ] = '\0';
+    dynaLoadInterior[ 0 ] = '\0';
     checkpointDynaLoad[ 0 ] = '\0';
     checkpointInterior[ 0 ] = '\0';
     checkpointCarLocator[ 0 ] = '\0';
@@ -581,6 +587,16 @@ public:
         ModStage* s = Stage( argv[ 0 ] );
         if( s != NULL ) { s->slamForceSet = true; s->slamForce = static_cast< float >( atof( argv[ 1 ] ) ); }
     }
+    static void StageDynaLoadData( int argc, char** argv, bool dump )
+    {
+        ModStage* s = Stage( argv[ 0 ] );
+        if( s == NULL ) return;
+        Copy( s->dynaLoad, sizeof( s->dynaLoad ), argv[ 1 ] );
+        Copy( s->dynaLoadInterior, sizeof( s->dynaLoadInterior ), argc > 2 ? argv[ 2 ] : "" );
+        s->dynaLoadDump = dump;
+    }
+    static void AddStageDynaLoadData( int argc, char** argv ) { StageDynaLoadData( argc, argv, false ); }
+    static void SetStageDynaLoadData( int argc, char** argv ) { StageDynaLoadData( argc, argv, true ); }
     static void SetStageTrafficGroup( int argc, char** argv )
     {
         ModStage* s = Stage( argv[ 0 ] );
@@ -851,6 +867,30 @@ public:
         return false;
     }
 
+    // Add/SetStageDynaLoadData on reaching the stage: Set dumps every loaded zone first and loads as a mission start
+    // does (the game's debug teleport does the same); Add loads alongside, as street race props do
+    static void StageDynaLoad( ModStage* mod )
+    {
+        Mission* mission = GetGameplayManager()->GetCurrentMission();
+        if( mission == NULL ) return;
+        ZoneEventLocator* zone = new( GetGameplayManager()->GetCurrentMissionHeap() ) ZoneEventLocator;
+        tRefCounted::Assign( mission->mModStageDynaLoad, zone );
+        zone->SetZoneSize( strlen( mod->dynaLoad ) + 1 );
+        zone->SetZone( mod->dynaLoad );
+        zone->SetPlayerEntered();
+        if( mod->dynaLoadInterior[ 0 ] != '\0' ) zone->SetName( mod->dynaLoadInterior );
+        if( Log() ) fprintf( stderr, "mods: stage dyna load %s\"%s\"\n", mod->dynaLoadDump ? "(dump all) " : "", mod->dynaLoad );
+        if( mod->dynaLoadDump )
+        {
+            GetRenderManager()->mpLayer( RenderEnums::LevelSlot )->DumpAllDynaLoads( 1, GetRenderManager()->mEntityDeletionList );
+            GetEventManager()->TriggerEvent( EVENT_FIRST_DYNAMIC_ZONE_START, zone );
+        }
+        else
+        {
+            GetEventManager()->TriggerEvent( static_cast< EventEnum >( EVENT_LOCATOR + LocatorEvent::DYNAMIC_ZONE ), zone );
+        }
+    }
+
     // Applying a stage's settings
     static void StageStart( MissionStage* stage )
     {
@@ -906,6 +946,7 @@ public:
             if( loc != NULL ) loc->SetFlag( Locator::ACTIVE, false );
         }
         ApplyPassengers( stage );
+        if( first && mod->dynaLoad[ 0 ] != '\0' ) StageDynaLoad( mod );
         if( Log() )
         {
             fprintf( stderr, "mods: stage settings: payout %d, hit & run %.0f%s, decays %.1f/%.1f/%.1f, %d trigger(s) off%s\n",
@@ -1078,8 +1119,8 @@ public:
             { "SetStageSlamForce", SetStageSlamForce, 1, 1 },
             { "SetStageEnabledCheats", Unsupported, 1, 15 },
             { "SetStageTrafficGroup", SetStageTrafficGroup, 1, 1 },
-            { "AddStageDynaLoadData", Unsupported, 1, 2 },
-            { "SetStageDynaLoadData", Unsupported, 1, 2 },
+            { "AddStageDynaLoadData", AddStageDynaLoadData, 1, 2 },
+            { "SetStageDynaLoadData", SetStageDynaLoadData, 1, 2 },
             { "ResetStageVehicleAbductable", Unsupported, 1, 1 },
             { "SetStageVehicleAbductable", Unsupported, 2, 2 },
             { "SetStageVehicleAllowSeatSlide", Unsupported, 2, 2 },

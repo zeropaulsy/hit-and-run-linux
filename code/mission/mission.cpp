@@ -172,6 +172,7 @@ Mission::Mission() :
     , mModSpawnsDisabled( false )
     , mModTrafficGroup( -1 )
     , mModRestartTrafficGroup( -1 )
+    , mModStageDynaLoad( NULL )
 #endif
 {
     strcpy( mcName, "" );
@@ -213,6 +214,9 @@ Mission::~Mission()
     {
         mDynaloadLoc->Release();
     }
+#ifdef RAD_LINUX
+    tRefCounted::Release( mModStageDynaLoad );
+#endif
 
     unsigned int k;
     for ( k = 0; k < mNumBonusObjectives; ++k )

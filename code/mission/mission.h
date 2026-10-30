@@ -303,6 +303,8 @@ private:
     // UseTrafficGroup (selecting or restarting the mission) and a retry's SetCheckpointTrafficGroup; -1 = unset
     int mModTrafficGroup;
     int mModRestartTrafficGroup;
+    // Add/SetStageDynaLoadData: the zone load sent last (kept until the next, like mDynaloadLoc)
+    ZoneEventLocator* mModStageDynaLoad;
     void ModStreetRacePropLoad();
 #endif
 };

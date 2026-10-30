@@ -82,6 +82,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   SetHitAndRunDecayInterior corrected only when hack required.
   SetStageAirGravity/KickForce/SlamForce: `CharacterTune` statics, saved/restored with the H&R settings (gravity >= 0
   ignored, as documented).
+  Add/SetStageDynaLoadData once per stage entry (`StageDynaLoad`, locator in `Mission::mModStageDynaLoad`): Add =
+  `EVENT_LOCATOR+DYNAMIC_ZONE` (street race props' way); Set = `DumpAllDynaLoads(1)` + `EVENT_FIRST_DYNAMIC_ZONE_START`
+  (debug teleport's way). Interior name -> locator name. Stage 1's Reset runs twice at mission start: loads twice.
   AddParkedCar -> `ParkedCarManager::AddCarType` (array 5 -> `MAX_MOD_CARS` 16, extra ignored with a message); the
   mod loads the car's p3d itself. Zones take the first free type, so later types park only once enough zones load.
 - CustomStatsTotals (`charactersheet/modstatstotals.cpp`): totals for scrapbook, pause progress, mission select,
