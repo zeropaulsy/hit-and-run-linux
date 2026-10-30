@@ -70,7 +70,7 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   [FakeWheel] (`FakeWheelJointDriver`), IsHusk/Husk= (`Vehicle::IsHuskModel()`, `HuskPool`). Unplayed: custom husk,
   PreviewScale, IsHusk.
 - AdditionalScriptFunctionality (`code/mission/modscript.cpp`, `objectives/modobjectives.cpp`,
-  `conditions/modconditions.cpp`; LINUX_EXTRA): all commands registered (console table 512); unimplemented log once.
+  `conditions/modconditions.cpp`; LINUX_EXTRA): all commands registered (console table 512) and implemented.
   Objectives run as type "dummy": `ModCounter` (coins, wrench, wasps, destroycars, event, hitandrun*, peds, jump,
   speed, spring), AnimatedCam (+ SetObjUseCameraPosition -> `ModScript::SpawnCenter`), insidetrigger/outsidetrigger
   (`ModTrigger`). Conditions: counters after SetCondDelay, maintainspeed, triggers; unknown names skipped.
@@ -127,6 +127,8 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   SetHUDMapDrawable -> `Mission::mModHudMap`, pending from `Mission::Initialize` (SD -> main too, retries) until a stage
   starts with a HUD (`ApplyHudMap`, `CHudMap::ModSetMapDrawable`, any inventory section); never undone (documented).
   Checked: L1 M1 with l2hudmap.p3d loaded in m1l: L2 map shown.
+  SetObjFailDistance -> `CollectDumpedObjective::ModSetFailDistance` (the original's 200 between the player and an
+  active item, only with BindCollectibleTo; 0 = never). Checked: L3 M5 (nofail): 1 trips the check at once, 0 never.
 - CustomStatsTotals (`charactersheet/modstatstotals.cpp`): totals for scrapbook, pause progress, mission select,
   `QueryPercent*`; defaults reproduce original (100.3% on a complete save).
 - CustomAudioSupport (`shar_modaudio.cpp`; `musicplayer.cpp` startingAmbience/startingExteriorAmbience/

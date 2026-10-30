@@ -96,7 +96,8 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 - [x] CustomShopSupport: car shop seller and conversation; phone booth and skin shop item lists and icons
 - [x] CustomDialogueCharacterCodes: new speaker codes, outfit voices ([NongenericOutfits]/[NongenericCharacters])
 - [x] 3DPhoneBoothPreviewSupport (all settings)
-- [x] AdditionalScriptFunctionality: what the Futurama demo uses (see To do for the rest)
+- [x] AdditionalScriptFunctionality: every command, objective and condition (SetCollectibleSoundEffect, passenger
+  bobbing/animation and SetStageVehicleReset not checked in play)
 - [x] CustomCarSupport: every setting ([FakeWheel] CopySkidMarks read, not drawn)
 - [x] CustomAudioSupport: every setting (mission/level ambience, interior music, BirdSound, MusicSamplingRate,
   ForcedMusicRMSLevel)

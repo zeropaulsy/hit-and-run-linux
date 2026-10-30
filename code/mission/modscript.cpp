@@ -19,6 +19,7 @@
 #include <mission/missionstage.h>
 #include <mission/gameplaymanager.h>
 #include <mission/objectives/modobjectives.h>
+#include <mission/objectives/collectdumpedobjective.h>
 #include <mission/conditions/modconditions.h>
 #include <mission/charactersheet/charactersheetmanager.h>
 #include <mission/rewards/reward.h>
@@ -161,26 +162,6 @@ bool ParseBool( const char* value )
 void Copy( char* to, size_t size, const char* from )
 {
     snprintf( to, size, "%s", from );
-}
-
-// each unsupported command's name once
-void ReportUnsupported( const char* name )
-{
-    static radKey32 s_Reported[ 64 ];
-    static int s_NumReported = 0;
-    radKey32 key = radMakeCaseInsensitiveKey32( name );
-    for( int i = 0; i < s_NumReported; i++ )
-    {
-        if( s_Reported[ i ] == key )
-        {
-            return;
-        }
-    }
-    if( s_NumReported < 64 )
-    {
-        s_Reported[ s_NumReported++ ] = key;
-    }
-    fprintf( stderr, "mods: AdditionalScriptFunctionality: %s not supported yet, ignored\n", name );
 }
 
 Vehicle* FindVehicle( const char* name )
@@ -766,8 +747,6 @@ public:
         return c != NULL ? &c->GetCounter() : NULL;
     }
 
-    static void Unsupported( int argc, char** argv ) { ReportUnsupported( argv[ 0 ] ); }
-    static bool UnsupportedConditional( int argc, char** argv ) { ReportUnsupported( argv[ 0 ] ); return false; }
 
     // Objectives
     static void AddObjTargetModel( int argc, char** argv )
@@ -809,6 +788,11 @@ public:
     {
         ModCameraObjective* o = Objective< ModCameraObjective >( argv[ 0 ] );
         if( o != NULL ) o->SetUseCameraPosition( ParseBool( argv[ 1 ] ) );
+    }
+    static void SetObjFailDistance( int argc, char** argv )
+    {
+        CollectDumpedObjective* o = Objective< CollectDumpedObjective >( argv[ 0 ] );
+        if( o != NULL ) o->ModSetFailDistance( static_cast< float >( atof( argv[ 1 ] ) ) );
     }
     static void SetObjExplosion( int argc, char** argv )
     {
@@ -1788,7 +1772,7 @@ public:
             { "SetObjUseCameraPosition", SetObjUseCameraPosition, 1, 1 },
             { "SetObjDecay", SetObjDecay, 1, 2 },
             { "SetObjExplosion", SetObjExplosion, 2, 3 },
-            { "SetObjFailDistance", Unsupported, 1, 1 },
+            { "SetObjFailDistance", SetObjFailDistance, 1, 1 },
             { "SetObjMessageIndex", SetObjMessageIndex, 1, 1 },
             { "SetObjSound", SetObjSound, 1, 4 },
             { "SetObjThreshold", SetObjThreshold, 1, 1 },
