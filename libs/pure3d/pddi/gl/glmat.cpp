@@ -576,8 +576,13 @@ void pglMat::SetMaterialName(const char* name, const char* file)
 }
 
 // for p3d's shader loader (tShaderLoader): the material's name and the art file it is in
+void pvkSetMaterialName(pddiShader* shader, const char* name, const char* file);     // vk/vkmat.cpp
+bool pvkActive();
+
 void pglSetMaterialName(pddiShader* shader, const char* name, const char* file)
 {
-    if(shader)
+    if(pvkActive())
+        pvkSetMaterialName(shader, name, file);
+    else if(shader)
         ((pglMat*)shader)->SetMaterialName(name, file);
 }

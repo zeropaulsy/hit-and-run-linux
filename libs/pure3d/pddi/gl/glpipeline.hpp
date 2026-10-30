@@ -13,6 +13,7 @@
 
 #include <pddi/gl/display_linux/gl.hpp>
 #include <pddi/gl/glshaders.hpp>
+#include <pddi/gl/glcustom.hpp>
 
 class pglProgram
 {
@@ -61,7 +62,7 @@ const int pglMaxCustomPrograms = 32;       // user material shaders (glcustom.cp
 enum { PGL_CULL_GAME, PGL_CULL_NONE };
 
 
-class pglPipeline
+class pglPipeline : public pglCustomTarget
 {
 public:
     // what the material sets for a draw (pglMat::SetDevPass); textures are bound to units 0 and 1 by the material

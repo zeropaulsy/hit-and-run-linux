@@ -462,9 +462,12 @@ void pglPipeline::UploadUniforms(Program& p)
 
 static bool s_recaptureScreen = false;     // pglRecaptureScreen
 
+void pvkRecaptureScreen();     // vk/vkpipeline.cpp
+
 void pglRecaptureScreen()
 {
     s_recaptureScreen = true;
+    pvkRecaptureScreen();
 }
 
 void pglPipeline::CaptureScreen()

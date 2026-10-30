@@ -25,9 +25,15 @@ PDDI_GL = {
                 "libs/pure3d/pddi/gl/glcon.cpp", "libs/pure3d/pddi/gl/gldev.cpp", "libs/pure3d/pddi/gl/glmat.cpp",
                 "libs/pure3d/pddi/gl/gltex.cpp", "libs/pure3d/pddi/gl/glpipeline.cpp", "libs/pure3d/pddi/gl/glpost.cpp",
                 "libs/pure3d/pddi/gl/glcustom.cpp", "libs/pure3d/pddi/gl/glshaders.cpp",
-                "libs/pure3d/pddi/gl/display_linux/gldisplay.cpp"],
+                "libs/pure3d/pddi/gl/display_linux/gldisplay.cpp",
+                # the Vulkan renderer (renderer=vulkan; OpenGL stays the fallback): same library, same heap
+                "libs/pure3d/pddi/vk/vkfuncs.cpp", "libs/pure3d/pddi/vk/vkcore.cpp", "libs/pure3d/pddi/vk/vkpipeline.cpp",
+                "libs/pure3d/pddi/vk/vktex.cpp", "libs/pure3d/pddi/vk/vkcon.cpp", "libs/pure3d/pddi/vk/vkmat.cpp",
+                "libs/pure3d/pddi/vk/vkdisplay.cpp", "libs/pure3d/pddi/vk/vkdev.cpp"],
     # libpng/zlib: images for post-processing passes (glpost.cpp)
-    "includes": ["libs", "libs/radmath", "libs/pure3d", "libs/pure3d/lib/libpng", "libs/pure3d/lib/zlib"],
+    # glslang: GLSL -> SPIR-V for the Vulkan renderer (port/third_party/glslang/shar_glslang.h)
+    "includes": ["libs", "libs/radmath", "libs/pure3d", "libs/pure3d/lib/libpng", "libs/pure3d/lib/zlib",
+                 "port/third_party/glslang"],
     "defines": ["RAD_RELEASE", "NDEBUG"],
 }
 PDDI_GL_DEBUG_DEFINES = ["RAD_DEBUG", "_DEBUG"]

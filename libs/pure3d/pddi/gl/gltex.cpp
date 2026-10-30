@@ -134,6 +134,12 @@ static void DecodeDXT(const unsigned char* blocks, int width, int height, unsign
     }
 }
 
+// for the Vulkan pddi (vk/vktex.cpp)
+void pglDecodeDXT(const unsigned char* blocks, int width, int height, unsigned format, unsigned* pixels)
+{
+    DecodeDXT(blocks, width, height, format, pixels);
+}
+
 int pglTexture::MipBytes(int mip)
 {
     int w = xSize >> mip, h = ySize >> mip;

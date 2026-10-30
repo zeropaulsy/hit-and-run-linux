@@ -17,6 +17,12 @@
 #include <pddi/gl/glcon.hpp>
 #include <pddi/gl/glpost.hpp>
 
+// the Vulkan renderer's side of the game's calls (vk/vkcore.cpp, vk/vkdisplay.cpp)
+bool pvkActive();
+void pvkPostProcessScene();
+void pvkSetAntialiasing(int samples);
+void pvkSetTextureFiltering(bool mipmaps, float anisotropy);
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -383,6 +389,14 @@ static void WriteChunk(FILE* f, const char* type, const unsigned char* data, uns
     free(buf);
 }
 
+static void SavePNG(const char* path, int w, int h, const unsigned char* rgbaBottomUp);
+
+// for the Vulkan pddi's screenshots (vk/vkdisplay.cpp)
+void pglSavePNG(const char* path, int w, int h, const unsigned char* rgbaBottomUp)
+{
+    SavePNG(path, w, h, rgbaBottomUp);
+}
+
 static void SavePNG(const char* path, int w, int h, const unsigned char* rgbaBottomUp)
 {
     FILE* f = fopen(path, "wb");
@@ -599,7 +613,9 @@ static void SwapWithVsync( SDL_Window* window )
 // the scene stage of the user's post-processing (glpost.hpp), called by the game before it draws the GUI layer
 void pglPostProcessScene()
 {
-    if( s_display )
+    if( pvkActive( ) )
+        pvkPostProcessScene( );        // the Vulkan renderer (vk/vkdisplay.cpp)
+    else if( s_display )
         s_display->PostProcess( PGL_POST_SCENE );
 }
 
@@ -631,6 +647,7 @@ void pglSetTextureFiltering( int mipmaps, int anisotropy )
         g_pglAnisotropy = (float)atoi( e );
     if( s_display )
         s_display->GetPipeline( )->SetTextureFiltering( g_pglMipmaps, g_pglAnisotropy );
+    pvkSetTextureFiltering( g_pglMipmaps, g_pglAnisotropy );
 }
 
 // for the game's settings (Win32Platform::LoadConfig: simpsons.ini antialiasing=)
@@ -638,6 +655,7 @@ void pglSetAntialiasing( int samples )
 {
     if( s_display )
         s_display->SetAntialiasing( samples );
+    pvkSetAntialiasing( samples );
 }
 
 void pglDisplay::SetAntialiasing( int samples )
@@ -787,6 +805,12 @@ static void AddMode(pddiModeInfo* modes, int& n, int w, int h, int bpp)
     modes[n].height = h;
     modes[n].bpp = bpp;
     n++;
+}
+
+// for the Vulkan pddi (vk/vkdev.cpp)
+unsigned pglFillDisplayModes(pddiModeInfo* displayModes)
+{
+    return pglDisplay::FillDisplayModes(displayModes);
 }
 
 unsigned pglDisplay::FillDisplayModes(pddiModeInfo* displayModes)

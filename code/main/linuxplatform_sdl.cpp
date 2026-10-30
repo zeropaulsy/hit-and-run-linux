@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <unistd.h>
 
 #include <radcontroller.hpp>
@@ -67,11 +68,36 @@ static void DisableHizOnIceLake()
     }
 }
 
+bool pvkStart( SDL_Window* window );     // pddi/vk/vkcore.cpp
+
+// The renderer (Options > Graphics, simpsons.ini renderer=opengl|vulkan; SHAR_RENDERER overrides) decides the kind of
+// window, so simpsons.ini is looked at here, long before the config manager reads it. A change applies on the next
+// start.
+static bool WantVulkan()
+{
+    const char* e = getenv( "SHAR_RENDERER" );
+    if( e )
+        return strcasecmp( e, "vulkan" ) == 0;
+    FILE* f = fopen( "simpsons.ini", "r" );
+    if( f == NULL )
+        return false;
+    bool vulkan = false;
+    char line[ 256 ];
+    while( fgets( line, sizeof( line ), f ) )
+    {
+        if( strncasecmp( line, "renderer=", 9 ) == 0 )
+            vulkan = strncasecmp( line + 9, "vulkan", 6 ) == 0;
+    }
+    fclose( f );
+    return vulkan;
+}
+
 //==============================================================================
 // Win32Platform::InitializeWindow
 //==============================================================================
 // Creates the game window. The GL context itself is created by the PDDI display (gldisplay.cpp) on this
-// window, so the GL attributes must be set here, before the window exists.
+// window, so the GL attributes must be set here, before the window exists. For the Vulkan renderer the window is a
+// Vulkan one and Vulkan is started on it here (pvkStart); when it cannot draw, the window is made again for OpenGL.
 bool Win32Platform::InitializeWindow( HINSTANCE hInstance )
 {
     mhInstance = hInstance;
@@ -108,7 +134,8 @@ bool Win32Platform::InitializeWindow( HINSTANCE hInstance )
 
     fprintf( stderr, "SDL video driver: %s\n", SDL_GetCurrentVideoDriver( ) );
 
-    SDL_Window* window = CreateGameWindow();
+    bool vulkan = WantVulkan( );
+    SDL_Window* window = CreateGameWindow( vulkan );
     if( window == NULL && strcmp( SDL_GetCurrentVideoDriver( ), "wayland" ) == 0 )
     {
         // A Wayland window can still fail where X11 works (a driver's EGL platform): fall back to XWayland
@@ -118,8 +145,14 @@ bool Win32Platform::InitializeWindow( HINSTANCE hInstance )
         if( SDL_InitSubSystem( SDL_INIT_VIDEO ) == 0 )
         {
             fprintf( stderr, "SDL video driver: %s\n", SDL_GetCurrentVideoDriver( ) );
-            window = CreateGameWindow();
+            window = CreateGameWindow( vulkan );
         }
+    }
+    if( window != NULL && vulkan && !pvkStart( window ) )
+    {
+        fprintf( stderr, "Vulkan renderer unavailable: using OpenGL\n" );
+        SDL_DestroyWindow( window );
+        window = CreateGameWindow( false );
     }
     if( window == NULL )
     {
@@ -138,7 +171,7 @@ bool Win32Platform::InitializeWindow( HINSTANCE hInstance )
 }
 
 // The GL attributes belong to the video subsystem: set them again after it is restarted
-SDL_Window* Win32Platform::CreateGameWindow()
+SDL_Window* Win32Platform::CreateGameWindow( bool vulkan )
 {
     // Pure3D's GL renderer runs on an OpenGL 3.3 core context (pddi/gl/glpipeline.hpp). SHAR_GL_DEBUG=1 asks for a
     // debug context: the driver's errors and warnings are printed as they happen.
@@ -163,7 +196,8 @@ SDL_Window* Win32Platform::CreateGameWindow()
     SDL_Window* window = SDL_CreateWindow( ApplicationName,
                                            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                            x, y,
-                                           SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE |
+                                           ( vulkan ? SDL_WINDOW_VULKAN : SDL_WINDOW_OPENGL ) |
+                                           SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE |
                                            SDL_WINDOW_ALLOW_HIGHDPI );     // Wayland with display scaling: render
                                                                            // at the screen's pixels (the display
                                                                            // follows SDL_GL_GetDrawableSize)

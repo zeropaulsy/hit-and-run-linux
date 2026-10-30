@@ -80,7 +80,7 @@ public:
     // before anything else is done.
     static bool InitializeWindow( HINSTANCE hInstance );
 #ifdef RAD_LINUX
-    static struct SDL_Window* CreateGameWindow();
+    static struct SDL_Window* CreateGameWindow( bool vulkan );
 #endif
     static void InitializeFoundation();
     static void InitializeMemory();
@@ -186,7 +186,7 @@ public:
     enum Renderer
     {
         RENDERER_OPENGL,
-        RENDERER_VULKAN,        // not implemented yet: OpenGL is used
+        RENDERER_VULKAN,        // the next start (the window is made for one); OpenGL if Vulkan cannot draw
 
         NUM_RENDERERS
     };

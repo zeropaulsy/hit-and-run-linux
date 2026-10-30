@@ -1206,7 +1206,8 @@ void Win32Platform::LoadConfig( ConfigString& config )
         }
         else if( _stricmp( property, "renderer" ) == 0 )
         {
-            // Linux port: opengl or vulkan (reserved: OpenGL is the only renderer so far)
+            // Linux port: opengl or vulkan; read before the window exists (linuxplatform_sdl.cpp WantVulkan), this is
+            // the setting the options menu shows and saves
             mRenderer = _stricmp( value, "vulkan" ) == 0 ? RENDERER_VULKAN : RENDERER_OPENGL;
         }
 #endif
@@ -1215,15 +1216,6 @@ void Win32Platform::LoadConfig( ConfigString& config )
 #ifdef RAD_LINUX
     pglSetAntialiasing( mAntialiasing );
     pglSetTextureFiltering( mMipmaps ? 1 : 0, mAnisotropy );
-    if( mRenderer == RENDERER_VULKAN )
-    {
-        static bool s_told = false;
-        if( !s_told )
-        {
-            fprintf( stderr, "renderer=vulkan: the Vulkan renderer is not implemented yet, using OpenGL\n" );
-            s_told = true;
-        }
-    }
 #endif
 
     // apply the new settings.

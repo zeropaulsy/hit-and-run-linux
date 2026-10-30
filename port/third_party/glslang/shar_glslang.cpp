@@ -53,12 +53,15 @@ SHAR_EXPORT int shar_glsl_compile(const char* name, const char* header, const ch
     {
         glslang::TShader vertex(EShLangVertex), fragment(EShLangFragment);
         glslang::TShader* shaders[2] = { &vertex, &fragment };
-        const char* sources[2][2] = { { header ? header : "", vertexSource },
-                                      { fragmentHeader ? fragmentHeader : (header ? header : ""), fragmentSource } };
+        // without a header the source must be the only string (#version has to come first)
+        const char* fh = fragmentHeader ? fragmentHeader : header;
+        const char* sources[2][2] = { { header ? header : vertexSource, vertexSource },
+                                      { fh ? fh : fragmentSource, fragmentSource } };
+        const int counts[2] = { header ? 2 : 1, fh ? 2 : 1 };
         for(int s = 0; s < 2 && ok; s++)
         {
             glslang::TShader& shader = *shaders[s];
-            shader.setStrings(sources[s], 2);
+            shader.setStrings(sources[s], counts[s]);
             shader.setEnvInput(glslang::EShSourceGlsl, s == 0 ? EShLangVertex : EShLangFragment,
                                glslang::EShClientVulkan, 100);
             shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_0);

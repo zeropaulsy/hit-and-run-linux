@@ -10,10 +10,17 @@
 #ifndef _GLCUSTOM_HPP_
 #define _GLCUSTOM_HPP_
 
-class pglPipeline;
+// what builds the shaders: the GL pipeline (glpipeline.hpp) or the Vulkan one (vk/vkpipeline.hpp)
+class pglCustomTarget
+{
+public:
+    // the program slot for a material, -1 when it does not build (the reason printed)
+    virtual int BuildCustomProgram(const char* name, const char* source) = 0;
+    virtual void ReleaseCustomPrograms() = 0;
+};
 
 // from BeginFrame (render thread): loads the rules and shaders the first time, then reloads changed ones
-void pglCustomUpdate(pglPipeline* pipeline);
+void pglCustomUpdate(pglCustomTarget* pipeline);
 
 // bumped whenever the rules or shaders are reloaded: materials look themselves up again
 unsigned pglCustomGeneration();

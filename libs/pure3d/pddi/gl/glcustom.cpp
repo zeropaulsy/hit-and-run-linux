@@ -85,7 +85,7 @@ static char* Trim(char* s)
 }
 
 // the file's index in s_files, building it the first time; -1 when there is no room
-static int AddFile(pglPipeline* pipeline, const char* name, const char* path, const char* source)
+static int AddFile(pglCustomTarget* pipeline, const char* name, const char* path, const char* source)
 {
     for(int i = 0; i < s_fileCount; i++)
     {
@@ -113,7 +113,7 @@ static int AddFile(pglPipeline* pipeline, const char* name, const char* path, co
 // comment.
 // files[] / texts[] are the mod's Shaders/ folder (mod and names NULL for the user's folder, whose files are read
 // from disk).
-static void ParseRules(pglPipeline* pipeline, char* text, const char* source, const char* mod, char** names,
+static void ParseRules(pglCustomTarget* pipeline, char* text, const char* source, const char* mod, char** names,
                        char** texts, int count)
 {
     int kind = RULE_TYPE;
@@ -194,7 +194,7 @@ static void ParseRules(pglPipeline* pipeline, char* text, const char* source, co
     }
 }
 
-static void Load(pglPipeline* pipeline)
+static void Load(pglCustomTarget* pipeline)
 {
     pipeline->ReleaseCustomPrograms();
     s_ruleCount = 0;
@@ -251,7 +251,7 @@ static void Load(pglPipeline* pipeline)
     }
 }
 
-void pglCustomUpdate(pglPipeline* pipeline)
+void pglCustomUpdate(pglCustomTarget* pipeline)
 {
     if(!s_loaded)
     {
