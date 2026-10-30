@@ -121,6 +121,9 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   SetStageEnabledCheats: `ModStage::cheats` -> `CheatInputSystem::SetModStageCheats` (ORed in `IsCheatEnabled`, the
   player's own untouched) at stage start, off at Finalize / mission reset. x5StageTime also counts in that stage's
   SetStageTime/AddStageTime when it comes before them (times are scaled as the script runs). Checked: L1 M1 10 s -> 50.
+  SetNoHitAndRunMusicForStage: `ModScript::NoHitAndRunMusic()` while the stage runs; `MusicPlayer::HandleEvent` skips a
+  Hit & Run start then, and that Hit & Run's caught/evaded (whatever stage it ends in). Checked: meter forced to 100
+  in gdb, L1 M1: MEVENT 32 without, none with.
 - CustomStatsTotals (`charactersheet/modstatstotals.cpp`): totals for scrapbook, pause progress, mission select,
   `QueryPercent*`; defaults reproduce original (100.3% on a complete save).
 - CustomAudioSupport (`shar_modaudio.cpp`; `musicplayer.cpp` startingAmbience/startingExteriorAmbience/

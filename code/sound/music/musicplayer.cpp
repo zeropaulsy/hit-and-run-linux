@@ -39,6 +39,7 @@
 
 #include <shar_modaudio.h>
 #include <shar_mods.h>
+#include <mission/modscript.h>
 
 #include <radload/radload.hpp>
 
@@ -620,6 +621,23 @@ void MusicPlayer::HandleEvent( EventEnum id, void* pEventData )
         ( id == EVENT_HIT_AND_RUN_START || id == EVENT_HIT_AND_RUN_CAUGHT || id == EVENT_HIT_AND_RUN_EVADED ) )
     {
         return;
+    }
+    // SetNoHitAndRunMusicForStage (AdditionalScriptFunctionality): the same for a Hit & Run starting in such a stage,
+    // to its end (a stage changing meanwhile does not bring the music in or cut it off)
+    static bool s_modStageSkipped = false;
+    if( id == EVENT_HIT_AND_RUN_START && !s_HitAndRun && ModScript::NoHitAndRunMusic() )
+    {
+        s_modStageSkipped = true;
+        return;
+    }
+    if( id == EVENT_HIT_AND_RUN_CAUGHT || id == EVENT_HIT_AND_RUN_EVADED )
+    {
+        bool skipped = s_modStageSkipped;
+        s_modStageSkipped = false;
+        if( skipped )
+        {
+            return;
+        }
     }
 #endif
 

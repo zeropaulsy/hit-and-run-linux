@@ -76,6 +76,7 @@ ModStage::ModStage() :
     kickForce( 0.0f ),
     slamForce( 0.0f ),
     cheats( 0 ),
+    noHitAndRunMusic( false ),
     numTriggers( 0 ),
     numVehicleCharacters( 0 ),
     numVehicleSettings( 0 ),
@@ -132,6 +133,7 @@ bool s_Retry = false;       // the mission being set up is a retry (checkpoints 
 bool s_Loading = false;     // a retry's script is running (IfCurrentCheckpoint)
 const char* s_CollectibleSound = NULL;  // the current stage's SetCollectibleSoundEffect (its ModStage's string)
 bool s_UseCameraPosition = false;       // a camera objective with SetObjUseCameraPosition is running
+bool s_NoHitAndRunMusic = false;        // the running stage has SetNoHitAndRunMusicForStage
 // SetStageCharacterModel: the player's own model while a stage's is on (put back when a stage without one starts,
 // or the mission ends: not between two stages that both set it, which would reload it)
 bool s_ModelSwapped = false;
@@ -1020,6 +1022,11 @@ public:
         ModStage* s = Stage( argv[ 0 ] );
         if( s != NULL ) s->trafficGroup = atoi( argv[ 1 ] );
     }
+    static void SetNoHitAndRunMusicForStage( int argc, char** argv )
+    {
+        ModStage* s = Stage( argv[ 0 ] );
+        if( s != NULL ) s->noHitAndRunMusic = true;
+    }
     static void SetCollectibleSoundEffect( int argc, char** argv )
     {
         ModStage* s = Stage( argv[ 0 ] );
@@ -1556,6 +1563,7 @@ public:
         ModStage* mod = stage->GetModStage();
         ApplyPlayerModel( mod );
         GetCheatInputSystem()->SetModStageCheats( mod != NULL ? mod->cheats : 0 );
+        s_NoHitAndRunMusic = mod != NULL && mod->noHitAndRunMusic;
         if( mod != NULL && mod->cheats != 0 && Log() ) fprintf( stderr, "mods: stage cheats 0x%x on\n", mod->cheats );
         if( mod == NULL )
         {
@@ -1641,6 +1649,7 @@ public:
             return;
         }
         if( mod->cheats != 0 ) GetCheatInputSystem()->SetModStageCheats( 0 );
+        if( mod->noHitAndRunMusic ) s_NoHitAndRunMusic = false;
         if( mod->saved )
         {
             HitnRunManager* hnr = GetHitnRunManager();
@@ -1775,7 +1784,7 @@ public:
             { "SetStageAllowMissionCancel", SetStageAllowMissionCancel, 1, 1 },
             { "AddStageVehicleCharacter", AddStageVehicleCharacter, 2, 4 },
             { "RemoveStageVehicleCharacter", RemoveStageVehicleCharacter, 2, 2 },
-            { "SetNoHitAndRunMusicForStage", Unsupported, 0, 0 },
+            { "SetNoHitAndRunMusicForStage", SetNoHitAndRunMusicForStage, 0, 0 },
             { "SetCollectibleSoundEffect", SetCollectibleSoundEffect, 1, 1 },
             { "SetStageCharacterModel", SetStageCharacterModel, 1, 2 },
             { "SetStageAirGravity", SetStageAirGravity, 1, 1 },
@@ -1947,6 +1956,7 @@ void ModScript::RemoveVehicleCharacters()
     s_CollectibleSound = NULL;      // (the mission's stages hold the string)
     s_UseCameraPosition = false;
     GetCheatInputSystem()->SetModStageCheats( 0 );
+    s_NoHitAndRunMusic = false;
 }
 
 void ModScript::OnMissionFinalize()
@@ -1958,6 +1968,11 @@ void ModScript::OnMissionFinalize()
 const char* ModScript::CollectibleSound()
 {
     return s_CollectibleSound;
+}
+
+bool ModScript::NoHitAndRunMusic()
+{
+    return s_NoHitAndRunMusic;
 }
 
 void ModScript::SetUseCameraPosition( bool use )

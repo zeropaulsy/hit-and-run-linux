@@ -81,6 +81,7 @@ struct ModStage
     bool airGravitySet, kickForceSet, slamForceSet;
     float airGravity, kickForce, slamForce;
     unsigned int cheats;        // SetStageEnabledCheats: bits by eCheatID, on during the stage
+    bool noHitAndRunMusic;      // SetNoHitAndRunMusicForStage
 
     int numTriggers;            // DisableTrigger
     char triggers[ MAX_TRIGGERS ][ 32 ];
@@ -135,6 +136,9 @@ namespace ModScript
 
     // SetCollectibleSoundEffect: the sound for collecting a delivery/dump/race item, "" for none, NULL for the game's
     const char* CollectibleSound();
+
+    // SetNoHitAndRunMusicForStage: the running stage's (MusicPlayer skips the Hit & Run music)
+    bool NoHitAndRunMusic();
 
     // SetObjUseCameraPosition: a camera objective sets it while it runs; then the traffic and pedestrian managers
     // spawn around the camera (SpawnCenter replaces the player's position and returns true)
