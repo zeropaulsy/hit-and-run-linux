@@ -1,6 +1,6 @@
 // A post pass written for Vulkan: standard Vulkan GLSL with its own declarations (no header is put in front of it),
-// compiled ahead of time to SPIR-V (vulkan_test.spv, the file post.ini names): python3 port/spirv.py
-// shaders/post/vulkan_test.frag. Vulkan renderer only; the OpenGL renderer skips .spv passes.
+// compiled ahead of time to SPIR-V (test.spv, the file post.ini names): python3 port/spirv.py
+// shaders/post/vulkan/test.frag. Vulkan renderer only; the OpenGL renderer skips .spv passes.
 // Effect: colour fringes towards the screen's edges (chromatic aberration) and a cool haze over distant things.
 #version 450
 

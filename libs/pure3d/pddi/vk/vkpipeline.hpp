@@ -113,6 +113,7 @@ public:
                      VkDeviceSize* strides);
 
     int BuildCustomProgram(const char* name, const char* source);
+    int BuildCustomSpirv(const char* name, const unsigned* words, size_t count, const char* pragmas);
     int CustomCull(int slot) const;
     void ReleaseCustomPrograms();
     int CustomProgramCount() const { return customCount; }
@@ -152,8 +153,11 @@ private:
     void Changed(int group) { version[group]++; }
     bool AlphaToCoverage() const;
     bool BuildProgram(Program& p, const char* name, const char* header, const char* fragmentBody, bool custom,
-                      const char* fragmentHeader, const char* vertexBody);
+                      const char* fragmentHeader, const char* vertexBody, const unsigned* spirvFragment = NULL,
+                      size_t spirvWords = 0);
     void ReleaseProgram(Program& p);
+    bool FitSpirv(unsigned* words, size_t count, const unsigned* vertexWords, size_t vertexCount, const Program& p,
+                  const char* name);
     void UploadUniforms(Program& p);
     void SetFloats(Program& p, int u, const float* v, int count, int components);
     void SetInt(Program& p, int u, int v);

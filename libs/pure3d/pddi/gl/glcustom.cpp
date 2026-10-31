@@ -56,7 +56,8 @@ static time_t FileTime(const char* path)
     return stat(path, &st) == 0 ? st.st_mtime : 0;
 }
 
-static char* ReadFile(const char* path)
+// NUL-terminated; size (if given) gets the bytes read
+static char* ReadFile(const char* path, size_t* sizeOut = NULL)
 {
     FILE* f = fopen(path, "rb");
     if(!f)
@@ -69,6 +70,8 @@ static char* ReadFile(const char* path)
     {
         size = (long)fread(text, 1, size, f);
         text[size] = 0;
+        if(sizeOut)
+            *sizeOut = size;
     }
     fclose(f);
     return text;
@@ -84,8 +87,22 @@ static char* Trim(char* s)
     return s;
 }
 
-// the file's index in s_files, building it the first time; -1 when there is no room
-static int AddFile(pglCustomTarget* pipeline, const char* name, const char* path, const char* source)
+int pglCustomTarget::BuildCustomSpirv(const char* name, const unsigned*, size_t, const char*)
+{
+    fprintf(stderr, "PDDI: material shaders: %s is SPIR-V, for the Vulkan renderer only: skipped\n", name);
+    return -1;
+}
+
+static bool IsSpirv(const char* name)
+{
+    size_t length = strlen(name);
+    return length > 4 && strcasecmp(name + length - 4, ".spv") == 0;
+}
+
+// the file's index in s_files, building it the first time; -1 when there is no room. size: source's bytes;
+// pragmas: a SPIR-V file's .frag beside it, or NULL
+static int AddFile(pglCustomTarget* pipeline, const char* name, const char* path, const char* source, size_t size,
+                   const char* pragmas)
 {
     for(int i = 0; i < s_fileCount; i++)
     {
@@ -102,7 +119,9 @@ static int AddFile(pglCustomTarget* pipeline, const char* name, const char* path
     snprintf(f.path, sizeof(f.path), "%s", path ? path : "");
     f.mtime = path ? FileTime(path) : 0;
     f.slot = -1;
-    if(source)
+    if(source && IsSpirv(name))
+        f.slot = pipeline->BuildCustomSpirv(name, (const unsigned*)source, size / 4, pragmas ? pragmas : "");
+    else if(source)
         f.slot = pipeline->BuildCustomProgram(name, source);
     else
         fprintf(stderr, "PDDI: material shaders: can't read %s\n", path ? path : name);
@@ -114,7 +133,7 @@ static int AddFile(pglCustomTarget* pipeline, const char* name, const char* path
 // files[] / texts[] are the mod's Shaders/ folder (mod and names NULL for the user's folder, whose files are read
 // from disk).
 static void ParseRules(pglCustomTarget* pipeline, char* text, const char* source, const char* mod, char** names,
-                       char** texts, int count)
+                       char** texts, size_t* sizes, int count)
 {
     int kind = RULE_TYPE;
     bool inSection = false;
@@ -169,21 +188,39 @@ static void ParseRules(pglCustomTarget* pipeline, char* text, const char* source
             {
                 char path[800];
                 snprintf(path, sizeof(path), "%s/%s", s_folder, file);
-                char* shader = ReadFile(path);
-                index = AddFile(pipeline, file, path, shader);
+                size_t size = 0;
+                char* shader = ReadFile(path, &size);
+                char* pragmas = NULL;
+                if(IsSpirv(file))
+                {
+                    char sidecar[800];
+                    snprintf(sidecar, sizeof(sidecar), "%.*s.frag", (int)strlen(path) - 4, path);
+                    pragmas = ReadFile(sidecar);
+                }
+                index = AddFile(pipeline, file, path, shader, size, pragmas);
                 free(shader);
+                free(pragmas);
             }
             else if(*file)
             {
                 char name[300];
                 snprintf(name, sizeof(name), "%s:%s", mod, file);
                 const char* shader = NULL;
+                const char* pragmas = NULL;
+                size_t size = 0;
+                char sidecar[300];
+                snprintf(sidecar, sizeof(sidecar), "%.*s.frag", (int)strlen(file) - 4, file);
                 for(int i = 0; i < count; i++)
                 {
                     if(strcasecmp(names[i], file) == 0)
+                    {
                         shader = texts[i];
+                        size = sizes[i];
+                    }
+                    if(IsSpirv(file) && strcasecmp(names[i], sidecar) == 0)
+                        pragmas = texts[i];
                 }
-                index = AddFile(pipeline, name, NULL, shader);
+                index = AddFile(pipeline, name, NULL, shader, size, pragmas);
             }
             if(index >= 0)
                 r.files[r.passes++] = index;
@@ -206,7 +243,7 @@ static void Load(pglCustomTarget* pipeline)
     char* text = ReadFile(s_iniPath);
     if(text)
     {
-        ParseRules(pipeline, text, s_iniPath, NULL, NULL, NULL, 0);
+        ParseRules(pipeline, text, s_iniPath, NULL, NULL, NULL, NULL, 0);
         free(text);
     }
 
@@ -225,7 +262,7 @@ static void Load(pglCustomTarget* pipeline)
         for(int i = 0; i < count; i++)
         {
             if(strcasecmp(names[i], "materials.ini") == 0)
-                ParseRules(pipeline, texts[i], source, mod, names, texts, count);
+                ParseRules(pipeline, texts[i], source, mod, names, texts, sizes, count);
         }
         for(int i = 0; i < count; i++)
         {

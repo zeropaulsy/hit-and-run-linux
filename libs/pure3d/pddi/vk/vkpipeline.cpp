@@ -61,6 +61,149 @@ pvkPipeline::~pvkPipeline()
 // Programs
 //-----------------------------------------------------------------------------
 
+// SPIR-V material shaders (shaders/README.md): a whole fragment stage written for Vulkan, fitted to the game's program
+// by name: its inputs get the locations of the game's vertex outputs of the same name, its uniform block members the
+// offsets of the game's uniforms (pglUniformNames), its samplers the game's bindings. Edited in place.
+enum { SPV_OP_NAME = 5, SPV_OP_MEMBER_NAME = 6, SPV_OP_VARIABLE = 59, SPV_OP_DECORATE = 71, SPV_OP_MEMBER_DECORATE = 72 };
+enum { SPV_LOCATION = 30, SPV_BINDING = 33, SPV_SET = 34, SPV_OFFSET = 35 };
+enum { SPV_UNIFORM_CONSTANT = 0, SPV_INPUT = 1, SPV_UNIFORM = 2, SPV_OUTPUT = 3 };
+
+struct SpirvModule
+{
+    const unsigned* words;
+    size_t count;
+    unsigned bound;
+    const char** names;         // by id
+    unsigned* storage;          // by id: a variable's storage class, ~0u for anything else
+};
+
+static bool ReadSpirv(SpirvModule& m, const unsigned* words, size_t count)
+{
+    memset(&m, 0, sizeof(m));
+    if(count < 5 || words[0] != 0x07230203 || words[3] == 0 || words[3] > 0x100000)
+        return false;
+    m.words = words;
+    m.count = count;
+    m.bound = words[3];
+    m.names = (const char**)calloc(m.bound, sizeof(const char*));
+    m.storage = (unsigned*)malloc(m.bound * sizeof(unsigned));
+    if(!m.names || !m.storage)
+        return false;
+    memset(m.storage, 0xff, m.bound * sizeof(unsigned));
+    for(size_t i = 5; i < count;)
+    {
+        unsigned op = words[i] & 0xffff, length = words[i] >> 16;
+        if(length == 0 || i + length > count)
+            return false;
+        if(op == SPV_OP_NAME && length >= 3 && words[i + 1] < m.bound)
+            m.names[words[i + 1]] = (const char*)&words[i + 2];
+        if(op == SPV_OP_VARIABLE && length >= 4 && words[i + 2] < m.bound)
+            m.storage[words[i + 2]] = words[i + 3];
+        i += length;
+    }
+    return true;
+}
+
+static void FreeSpirv(SpirvModule& m)
+{
+    free(m.names);
+    free(m.storage);
+}
+
+static const char* MemberName(const SpirvModule& m, unsigned type, unsigned member)
+{
+    for(size_t i = 5; i < m.count; i += m.words[i] >> 16)
+    {
+        const unsigned* w = &m.words[i];
+        if((w[0] & 0xffff) == SPV_OP_MEMBER_NAME && (w[0] >> 16) >= 4 && w[1] == type && w[2] == member)
+            return (const char*)&w[3];
+    }
+    return NULL;
+}
+
+// the location the vertex stage gives its output called name, -1 if it has none
+static int OutputLocation(const SpirvModule& vertex, const char* name)
+{
+    for(size_t i = 5; i < vertex.count; i += vertex.words[i] >> 16)
+    {
+        const unsigned* w = &vertex.words[i];
+        if((w[0] & 0xffff) == SPV_OP_DECORATE && (w[0] >> 16) >= 4 && w[2] == SPV_LOCATION && w[1] < vertex.bound &&
+           vertex.storage[w[1]] == SPV_OUTPUT && vertex.names[w[1]] && strcmp(vertex.names[w[1]], name) == 0)
+            return (int)w[3];
+    }
+    return -1;
+}
+
+bool pvkPipeline::FitSpirv(unsigned* words, size_t count, const unsigned* vertexWords, size_t vertexCount,
+                           const Program& p, const char* name)
+{
+    SpirvModule m, vertex;
+    bool ok = ReadSpirv(m, words, count) && ReadSpirv(vertex, vertexWords, vertexCount);
+    if(!ok)
+        fprintf(stderr, "PDDI: %s: not SPIR-V, or damaged\n", name);
+    bool fragmentMain = false;
+    for(size_t i = 5; ok && i < count; i += words[i] >> 16)
+    {
+        unsigned* w = &words[i];
+        unsigned op = w[0] & 0xffff, length = w[0] >> 16;
+        if(op == 15 && length >= 4 && w[1] == 4 && strcmp((const char*)&w[3], "main") == 0)
+            fragmentMain = true;                                // OpEntryPoint Fragment ... "main"
+        if(op == SPV_OP_DECORATE && length >= 4 && w[1] < m.bound)
+        {
+            const char* n = m.names[w[1]] ? m.names[w[1]] : "?";
+            unsigned storage = m.storage[w[1]];
+            if(w[2] == SPV_SET)
+                w[3] = 0;
+            else if(w[2] == SPV_LOCATION && storage == SPV_INPUT)
+            {
+                int location = OutputLocation(vertex, n);
+                if(location < 0)
+                {
+                    fprintf(stderr, "PDDI: %s: input %s is not one the game passes (names kept? see shaders/README.md)\n",
+                            name, n);
+                    ok = false;
+                }
+                w[3] = (unsigned)location;
+            }
+            else if(w[2] == SPV_BINDING && storage == SPV_UNIFORM)
+                w[3] = 0;                                       // the game's block
+            else if(w[2] == SPV_BINDING && storage == SPV_UNIFORM_CONSTANT)
+            {
+                int binding = strcmp(n, "uTexture") == 0 ? p.binding[SAMPLER_TEXTURE] :
+                              strcmp(n, "uReflection") == 0 ? p.binding[SAMPLER_REFLECTION] : -1;
+                if(binding < 0)
+                {
+                    fprintf(stderr, "PDDI: %s: sampler %s is not one the game binds (uTexture, uReflection)\n", name, n);
+                    ok = false;
+                }
+                w[3] = (unsigned)binding;
+            }
+        }
+        if(op == SPV_OP_MEMBER_DECORATE && length >= 5 && w[3] == SPV_OFFSET)
+        {
+            const char* n = MemberName(m, w[1], w[2]);
+            int offset = -1;
+            for(int u = 0; u < U_COUNT && n; u++)
+                if(strcmp(n, pglUniformNames[u]) == 0)
+                    offset = p.offset[u];
+            if(offset < 0)
+            {
+                fprintf(stderr, "PDDI: %s: uniform %s is not in the game's material block\n", name, n ? n : "?");
+                ok = false;
+            }
+            w[4] = (unsigned)offset;
+        }
+    }
+    if(ok && !fragmentMain)
+    {
+        fprintf(stderr, "PDDI: %s has no fragment entry point \"main\"\n", name);
+        ok = false;
+    }
+    FreeSpirv(m);
+    FreeSpirv(vertex);
+    return ok;
+}
+
 static char* Join(const char** parts)
 {
     size_t size = 1;
@@ -75,8 +218,10 @@ static char* Join(const char** parts)
     return s;
 }
 
+// spirvFragment: a SPIR-V material's fragment stage, used instead of the compiled one (fitted to it, FitSpirv)
 bool pvkPipeline::BuildProgram(Program& p, const char* name, const char* header, const char* fragmentBody, bool custom,
-                               const char* fragmentHeader, const char* vertexBody)
+                               const char* fragmentHeader, const char* vertexBody, const unsigned* spirvFragment,
+                               size_t spirvWords)
 {
     const char* vertexParts[] = { pglVertexDeclarations, vertexBody ? "#line 1\n" : "", vertexBody ? vertexBody : "",
                                   vertexBody ? "\n" : "", pglVertexMain, NULL };
@@ -102,8 +247,6 @@ bool pvkPipeline::BuildProgram(Program& p, const char* name, const char* header,
     }
 
     memset(&p, 0, sizeof(p));
-    p.vertex = pvkCreateShaderModule(compiled.vertex, compiled.vertexWords);
-    p.fragment = pvkCreateShaderModule(compiled.fragment, compiled.fragmentWords);
     p.blockSize = compiled.blockSize;
     for(int u = 0; u < U_COUNT; u++)
         p.offset[u] = -1;
@@ -137,6 +280,25 @@ bool pvkPipeline::BuildProgram(Program& p, const char* name, const char* header,
             fprintf(stderr, "PDDI: %s: sampler binding %d past the layout's\n", name, p.binding[s]);
             ok = false;
         }
+    }
+    if(ok)
+    {
+        p.vertex = pvkCreateShaderModule(compiled.vertex, compiled.vertexWords);
+        if(spirvFragment)
+        {
+            unsigned* fitted = (unsigned*)malloc(spirvWords * sizeof(unsigned));
+            ok = fitted != NULL;
+            if(ok)
+            {
+                memcpy(fitted, spirvFragment, spirvWords * sizeof(unsigned));
+                ok = FitSpirv(fitted, spirvWords, compiled.vertex, compiled.vertexWords, p, name);
+                if(ok)
+                    p.fragment = pvkCreateShaderModule(fitted, spirvWords);
+            }
+            free(fitted);
+        }
+        else
+            p.fragment = pvkCreateShaderModule(compiled.fragment, compiled.fragmentWords);
     }
     shar_glsl_free(&compiled);
     if(!ok || !p.vertex || !p.fragment)
@@ -273,6 +435,21 @@ int pvkPipeline::BuildCustomProgram(const char* name, const char* source)
     return customCount++;
 }
 
+// the game's custom program (its vertex stage, uniform block, bindings) with the SPIR-V as the fragment stage
+int pvkPipeline::BuildCustomSpirv(const char* name, const unsigned* words, size_t count, const char* pragmas)
+{
+    if(!ready || customCount == pvkMaxCustomPrograms)
+        return -1;
+    Program& p = programs[PGL_PROGRAM_COUNT + customCount];
+    static const char* header =
+        "#version 330 core\n#define REFLECTION 1\n#define REFRACTION 0\n#define CUSTOM 1\n#define MATERIAL_VERTEX 0\n";
+    if(!BuildProgram(p, name, header, "vec4 ShadeMaterial()\n{\n    return StandardColour();\n}\n", true, NULL, NULL,
+                     words, count))
+        return -1;
+    p.cull = CullDirective(pragmas);
+    return customCount++;
+}
+
 int pvkPipeline::CustomCull(int slot) const
 {
     return slot >= 0 && slot < customCount ? programs[PGL_PROGRAM_COUNT + slot].cull : PVK_CULL_GAME;
@@ -321,6 +498,10 @@ class pvkCustomTarget : public pglCustomTarget
 public:
     pvkPipeline* pipeline;
     int BuildCustomProgram(const char* name, const char* source) { return pipeline->BuildCustomProgram(name, source); }
+    int BuildCustomSpirv(const char* name, const unsigned* words, size_t count, const char* pragmas)
+    {
+        return pipeline->BuildCustomSpirv(name, words, count, pragmas);
+    }
     void ReleaseCustomPrograms() { pipeline->ReleaseCustomPrograms(); }
 };
 

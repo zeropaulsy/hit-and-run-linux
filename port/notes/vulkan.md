@@ -63,5 +63,10 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   are with `s_spirvVertexSource` (vUV location 0), fixed block offsets (`s_spirvOffsets`, 160 bytes), sampler slots =
   binding - 1 from the module's OpDecorate Binding; pragmas from the `.frag` beside it. glpost.cpp skips them.
   `port/spirv.py` compiles via `shar_spirv_compile` (libshar_glslang: plain Vulkan rules, no relaxed/shifts).
+- SPIR-V materials (`*.spv` in materials.ini): glcustom calls `pglCustomTarget::BuildCustomSpirv` (default: skip, GL).
+  vkpipeline `BuildCustomSpirv` compiles the game's CUSTOM program with a standard ShadeMaterial, then `FitSpirv`
+  patches the user's fragment by OpName/OpMemberName: input Location <- vertex output of that name, block member
+  Offset <- `p.offset[u]`, sampler Binding <- `p.binding[]`, set 0. `shaders/materials/vulkan/shar_material.glsl` =
+  pglFragmentPrelude (REFLECTION, CUSTOM) + FinishFragment as main: keep in step with glshaders.cpp.
 - 32-bit: non-dispatchable handles are all uint64_t (no overloads on handle type).
 

@@ -125,8 +125,9 @@ layout(set = 0, binding = 4) uniform sampler2D uMyImage;        // 4-7: the #pra
 `LinearDepth` and `ViewPosition` are not provided (copy them from above). Pragmas are read from the source beside the
 `.spv` (same name, `.frag`) when there is one. Compile with the game's own compiler, no SDK needed:
 `python3 port/spirv.py post/name.frag` writes `post/name.spv` (any SPIR-V compiler works: `glslc`, `glslangValidator
--V`). The game reloads the `.spv` when it changes. Example: `vulkan_test.frag` / `.spv` (colour fringes towards the
-edges, a cool haze over distant things).
+-V`). The game reloads the `.spv` when it changes. Examples in `post/vulkan/` (source `.frag` and compiled `.spv`):
+`tonemap` (`tonemap.glsl` written for Vulkan, the same result) and `test` (colour fringes towards the edges, a cool
+haze over distant things).
 
 ### Making your own LUT
 
@@ -260,3 +261,23 @@ and `vColour` are the way to include the world's own shading.
 | `normals.glsl` | anything | shows the normals as colours |
 
 They cost nothing measurable on a current graphics card.
+
+## Vulkan material shaders (SPIR-V)
+
+With the Vulkan renderer a material shader can also be SPIR-V: `materials.ini` names a `.spv` file
+(`*chars/* = materials/vulkan/softlit.spv`); the OpenGL renderer skips it. It is a whole fragment shader in Vulkan
+GLSL that starts like this and defines `ShadeMaterial()` as above:
+
+```glsl
+#version 450
+#include "shar_material.glsl"       // materials/vulkan/: everything listed under "Writing one", and main()
+```
+
+`shar_material.glsl` declares the inputs, uniforms and samplers with the same names, the same helper functions
+(`StandardColour()`, `Lighting()`, ...), and a `main()` that applies fog and the alpha test to what `ShadeMaterial()`
+returns. The game fits the compiled file to its own program by name: an input gets the location the game gives that
+name, a uniform block member that uniform's offset, `uTexture` / `uReflection` their bindings. So names matter (an
+unknown one is reported and the material drawn as usual), the numbers in the declarations do not, and the SPIR-V
+must keep its names (no `--strip`). Fragment stage only: no `MaterialVertex`. `#pragma shar_cull` goes in the `.frag`
+beside the `.spv`, read from there. Compile: `python3 port/spirv.py materials/vulkan/name.frag` (it expands the
+`#include`). Example: `materials/vulkan/softlit.frag` / `.spv`, `softlit.glsl` written for Vulkan (the same look).
