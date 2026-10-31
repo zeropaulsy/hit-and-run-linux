@@ -101,8 +101,10 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 - Shaders: built-ins get `#version 460` + GL_EXT_ray_query + PVK_SUN (SPIR-V 1.4 target switched on in
   shar_glslang by the header); binding 5 = TLAS. Storage blocks: shar_glslang reflects with
   EShReflectionSeparateBuffers (else an SSBO is taken as the uniform block: block too small, heap overrun).
-  Normals: smooth ones made at upload for buffers without (bound for unlit simple-program draws only), polygon
-  normal at creases (< 0.7).
+  Normals: smooth ones made at upload for buffers without (bound for unlit simple-program draws only): per vertex
+  only the faces at its position within ~37 deg of its own, either winding (`pvkSunSmoothNormals`; averaging all
+  bent the Simpsons' front wall towards its corners: dark wedges mistaken for shadows); shader takes the polygon
+  normal at creases (< 0.75: a 90 deg corner's mean is 0.707).
 - Cost (RTX 5060, 2560x1600 8x MSAA, L1 start): ~7 ms per full-screen ray per pixel; overdraw (alpha test stops
   early-z) multiplies it. Quad sharing (`pvkCore::quadFragment`, `PVK_SUN_QUAD`; `SHAR_SUN_QUAD=0` off): each pixel
   of a 2x2 quad traces every 4th spiral ray, sums shared by `subgroupQuadSwap*` (outside branches: helpers trace
@@ -111,6 +113,28 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   rim) per pixel, early-out when they agree. Rays fall from full at `SHAR_SUN_NEAR` (40 m) to 1 at twice it; shadow
   fades out 0.8-1x `SHAR_SUN_FAR` (250 m, 0 = never); rays `SHAR_SUN_REACH` (150 m) long. Defaults 40 -> 12 ms,
   SOFT=4 RAYS=12 79 -> 22 ms, all-penumbra low sun 75 -> 18 ms.
+- Baked map (`SHAR_SUN_BAKE`, on; `=0` = every ray per pixel through the whole scene, the comparison): the static
+  world's shadow as heights towards the sun (`dot(p, sun)`) of the first surface per texel, on 4 levels of 2048^2
+  texels on the plane facing the sun (`s_basis`, the shaders' disc axes), level 0 texel `SHAR_SUN_TEXEL` (0.04 m),
+  doubling. One float storage buffer (binding 9, 64 MB), toroidal (`& 2047`), windows round the camera moved when an
+  eighth off (`MapPlace`: the strips that came in are baked; `valid` = what draws may read, shrunk before the move).
+  Baked by a compute shader (`kBakeSource`, `shar_spirv_compile` stage 2): a ray down along -sun per texel through
+  the world's TLAS (alpha-tested casters as the draws'), budget `SHAR_SUN_BAKE_BUDGET` texels/frame (1M), in the
+  upload cmd after the TLAS builds. Two TLAS per frame: draws' (lit, moving, not-yet-baked) and world's (built only
+  in frames that bake). World = pre-lit, same transform `kWorldStreak` (30) frames, structure built <= 3 times;
+  kept 10 min unseen, dropped when in view < 60 m and not drawn 30 frames (knocked down). Came/went/rebuilt: the
+  64x64 tiles under its bounding sphere are dirty (`MarkDirty`, only where `valid`); a caster stays in the draws'
+  TLAS until no dirty tile is left (ticket). Load: one full rebake (12.5M texels); standing: ~0.
+- Map sampling (`SunMapShade`, glshaders.cpp): finest level whose valid window holds p with a margin of the widest
+  penumbra; p pushed a texel along the face. Receiver-plane bias: every tap compares with the face's plane where it
+  lands (`slope`, per texel; without it sloped ground counted itself as blockers). 9-tap blocker search (disc of a
+  blocker 40 m up, >= 2 texels), penumbra = mean blocker height x tan(sun radius), 2x`SHAR_SUN_RAYS` (8-32)
+  bilinear taps. Refine: penumbra < 2 texels and taps disagree (a crisp edge: texel steps, user report at SOFT=0.3),
+  or no level holds p: the pixel's rays (whole 2x2 quad) also trace the world's TLAS (binding 10, built every frame)
+  and replace the map. Else the map times the rays' (draws' TLAS) result.
+- Cost baked (same view, 2560x1600 8x): sun off ~1.5 ms, baked ~5.6 ms (before refine 3.6), SOFT=0.3 RAYS=16
+  ~10 ms (RAYS=8 6.5: rays at every crisp edge), all rays ~18 ms. Texel size barely changes the cost. Truncated: outer penumbrae of blockers > 40 m up (search disc); things gone out of view keep their
+  shadow until they are looked at (or 10 min).
 - Gaps: the game's blob shadow is still drawn under characters, custom material shaders get no sun,
   additive-blended foliage never casts.
 
@@ -150,6 +174,9 @@ What each setting does:
 - SHAR_SUN_FAR: shadows fade out towards this distance and no rays are traced past it (default 250 m, 0 = never).
 - SHAR_SUN_REACH: how far a ray looks for a caster (default 150 m). Raise it if tall buildings lose far shadows at a low sun.
 - SHAR_SUN_QUAD=0: turns off the 2x2 ray sharing (for comparing; slower).
+- SHAR_SUN_BAKE=0: traces every shadow per pixel, as before the baked map (for comparing; about 5x slower).
+- SHAR_SUN_TEXEL: the baked map's finest texel, default 0.04 m. Crisp edges are traced with rays whatever the texel; smaller only shrinks the baked area (0.01: about +-80 m, rays beyond).
+- With a crisp sun (SOFT 0.3-0.5) every shadow edge is ray traced: RAYS=6-8 is enough and much cheaper than 16.
 
 Tips:
 - Press F9 to flip the sun off and on in the same spot. That's the easiest way to judge any of these.

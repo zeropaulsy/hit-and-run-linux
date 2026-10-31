@@ -47,6 +47,7 @@
     X(vkCreateDescriptorSetLayout) X(vkDestroyDescriptorSetLayout) \
     X(vkCreatePipelineLayout) X(vkDestroyPipelineLayout) \
     X(vkCreateGraphicsPipelines) X(vkDestroyPipeline) X(vkCreatePipelineCache) X(vkDestroyPipelineCache) \
+    X(vkCreateComputePipelines) X(vkCmdDispatch) \
     X(vkGetPipelineCacheData) \
     X(vkCmdBeginRendering) X(vkCmdEndRendering) X(vkCmdPipelineBarrier2) \
     X(vkCmdBindPipeline) X(vkCmdBindVertexBuffers2) X(vkCmdBindIndexBuffer) X(vkCmdDraw) X(vkCmdDrawIndexed) \

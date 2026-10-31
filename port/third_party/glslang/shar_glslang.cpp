@@ -167,15 +167,17 @@ SHAR_EXPORT int shar_spirv_compile(const char* name, int stage, const char* sour
         s_initialised = true;
     }
     const EShMessages messages = (EShMessages)(EShMsgSpvRules | EShMsgVulkanRules);
-    const EShLanguage language = stage == 0 ? EShLangVertex : EShLangFragment;
+    const EShLanguage language = stage == 0 ? EShLangVertex : stage == 1 ? EShLangFragment : EShLangCompute;
+    // ray queries (the sun's bake, vksun.cpp) need SPIR-V 1.4
+    const bool rayQuery = strstr(source, "GL_EXT_ray_query") != NULL;
     std::string log;
     bool ok;
     {
         glslang::TShader shader(language);
         shader.setStrings(&source, 1);
         shader.setEnvInput(glslang::EShSourceGlsl, language, glslang::EShClientVulkan, 100);
-        shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_0);
-        shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
+        shader.setEnvClient(glslang::EShClientVulkan, rayQuery ? glslang::EShTargetVulkan_1_2 : glslang::EShTargetVulkan_1_0);
+        shader.setEnvTarget(glslang::EShTargetSpv, rayQuery ? glslang::EShTargetSpv_1_4 : glslang::EShTargetSpv_1_0);
         ok = shader.parse(GetDefaultResources(), 450, false, messages);
         AppendLog(log, "", shader.getInfoLog());
         glslang::TProgram program;

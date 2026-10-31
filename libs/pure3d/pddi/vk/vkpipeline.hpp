@@ -211,7 +211,7 @@ private:
     VkDeviceSize pushedOffset;
     VkImageView pushedViews[SAMPLER_COUNT];
     VkSampler pushedSamplers[SAMPLER_COUNT];
-    VkAccelerationStructureKHR pushedScene;
+    VkAccelerationStructureKHR pushedScene, pushedWorld;
 
     pvkTexture* texture;
     pvkTexture* reflection;

@@ -4,6 +4,7 @@
 
 #include <pddi/vk/vksun.hpp>
 #include <pddi/vk/vktex.hpp>
+#include <shar_glslang.h>
 
 #include <math.h>
 #include <pthread.h>
@@ -19,6 +20,12 @@ static const unsigned kMaxCasterIds = 65536;    // alpha-tested casters need an 
 static const int kMaskSize = 64;                // texels across an alpha mask
 static const int kMaxMasks = 1024;
 static const unsigned kGeometryWords = 8 * 1024 * 1024;  // alpha-tested casters' UVs and triangles (32 MB)
+static const int kMapSize = 2048;               // texels across a level of the baked map (a power of two)
+static const int kMapLevels = 4;
+static const unsigned kWorldKeepMs = 600000;    // a baked caster not drawn for this long leaves the world's scene
+static const unsigned kMissingFrames = 30;      // ... or when it is in view, near, and not drawn for this many frames
+static const float kMissingRange = 60.0f;
+static const unsigned kWorldStreak = 30;        // frames running with the same transform before it is baked
 
 static int s_wanted = -1;
 static bool s_enabled = true;
@@ -30,6 +37,9 @@ static float s_levels[3] = { 0.68f, 1.22f, 0.7f };
 static float s_softDegrees = 2.0f;      // the sun disc's radius: wider than the real sun's (0.27) for visible penumbrae
 static float s_rays = 6.0f;
 static float s_range[3] = { 40.0f, 250.0f, 150.0f };   // full rays to (one at twice it), no shadow past, ray length
+static int s_bake = 1;                  // SHAR_SUN_BAKE=0: every shadow ray traced per pixel
+static float s_mapTexel = 0.04f;        // SHAR_SUN_TEXEL: the baked map's level 0 texel (m); each level doubles it
+static unsigned s_bakeBudget = 1u << 20;    // SHAR_SUN_BAKE_BUDGET: texels baked a frame
 static const float* s_projectionSource;
 static float s_viewProjection[16];
 static bool s_viewProjectionSet = false;
@@ -94,6 +104,12 @@ bool pvkSunWanted()
         s_range[1] = EnvFloat("SHAR_SUN_FAR", s_range[1]);
         s_range[2] = EnvFloat("SHAR_SUN_REACH", s_range[2]);
         s_range[2] = s_range[2] < 1.0f ? 1.0f : s_range[2];
+        const char* bake = getenv("SHAR_SUN_BAKE");
+        s_bake = bake && bake[0] == '0' ? 0 : 1;
+        s_mapTexel = EnvFloat("SHAR_SUN_TEXEL", s_mapTexel);
+        s_mapTexel = s_mapTexel < 0.01f ? 0.01f : s_mapTexel;
+        float budget = EnvFloat("SHAR_SUN_BAKE_BUDGET", (float)s_bakeBudget);
+        s_bakeBudget = budget < 4096.0f ? 4096u : (unsigned)budget;
         const char* l = getenv("SHAR_SUN_LOG");
         s_logLevel = l ? atoi(l) : 0;
         s_log = s_logLevel > 0;
@@ -303,32 +319,79 @@ void pvkSunSmoothNormals(const float* p, unsigned vertexCount, const unsigned sh
 
     unsigned triangles;
     unsigned* list = Triangles(indices, count, strip, &triangles);
+    // per triangle its area-weighted normal; per vertex the sum of its own triangles' (the side it faces)
+    float* face = (float*)malloc((triangles ? triangles : 1) * 12);
     for(unsigned t = 0; t < triangles; t++)
     {
         unsigned a = list[t * 3], b = list[t * 3 + 1], c = list[t * 3 + 2];
+        float* n = &face[t * 3];
         if(a >= vertexCount || b >= vertexCount || c >= vertexCount)
+        {
+            n[0] = n[1] = n[2] = 0.0f;
             continue;
+        }
         float e1[3], e2[3];
         for(int k = 0; k < 3; k++)
         {
             e1[k] = p[b * 3 + k] - p[a * 3 + k];
             e2[k] = p[c * 3 + k] - p[a * 3 + k];
         }
-        float n[3] = { e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0] };
-        unsigned g[3] = { group[a], group[b], group[c] };
+        n[0] = e1[1] * e2[2] - e1[2] * e2[1];
+        n[1] = e1[2] * e2[0] - e1[0] * e2[2];
+        n[2] = e1[0] * e2[1] - e1[1] * e2[0];
         for(int i = 0; i < 3; i++)
             for(int k = 0; k < 3; k++)
-                normals[g[i] * 3 + k] += n[k];
+                normals[list[t * 3 + i] * 3 + k] += n[k];
     }
+    // the triangles at each position (counting sort by group)
+    unsigned* start = (unsigned*)calloc(vertexCount + 1, sizeof(unsigned));
+    unsigned* at = (unsigned*)malloc((triangles ? triangles : 1) * 3 * sizeof(unsigned));
+    for(unsigned i = 0; i < triangles * 3; i++)
+        if(list[i] < vertexCount)
+            start[group[list[i]] + 1]++;
+    for(unsigned v = 0; v < vertexCount; v++)
+        start[v + 1] += start[v];
+    unsigned* fill = (unsigned*)malloc(vertexCount * sizeof(unsigned));
+    memcpy(fill, start, vertexCount * sizeof(unsigned));
+    for(unsigned i = 0; i < triangles * 3; i++)
+        if(list[i] < vertexCount)
+            at[fill[group[list[i]]]++] = i / 3;
+    free(fill);
     free(list);
-    // a group's first vertex comes before the others: normalised by the time they copy it
+    // a vertex takes the triangles at its position within ~37 degrees of its own (either winding: the game draws
+    // with culling off): a wall's normal does not bend towards the walls round a corner (a darkened band along it)
+    float* own = (float*)malloc(vertexCount * 12);
+    memcpy(own, normals, vertexCount * 12);
     for(unsigned v = 0; v < vertexCount; v++)
     {
-        if(group[v] != v)
-            memcpy(&normals[v * 3], &normals[group[v] * 3], 12);
+        float* ref = &own[v * 3];
+        Normalise(ref);
+        float sum[3] = { 0.0f, 0.0f, 0.0f };
+        unsigned g = group[v];
+        for(unsigned i = start[g]; i < start[g + 1]; i++)
+        {
+            const float* n = &face[at[i] * 3];
+            float length = sqrtf(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+            if(length <= 0.0f)
+                continue;
+            float d = (n[0] * ref[0] + n[1] * ref[1] + n[2] * ref[2]) / length;
+            if(fabsf(d) < 0.8f)
+                continue;
+            float sign = d < 0.0f ? -1.0f : 1.0f;
+            for(int k = 0; k < 3; k++)
+                sum[k] += n[k] * sign;
+        }
+        float* out = &normals[v * 3];
+        if(sum[0] != 0.0f || sum[1] != 0.0f || sum[2] != 0.0f)
+            memcpy(out, sum, 12);
         else
-            Normalise(&normals[v * 3]);
+            memcpy(out, ref, 12);       // its own triangles span a crease: their mean (the shader takes the face's)
+        Normalise(out);
     }
+    free(own);
+    free(at);
+    free(start);
+    free(face);
     free(group);
 }
 
@@ -342,6 +405,7 @@ struct Blas
     pvkBuffer storage;
     bool alpha;                 // alpha-tested: UVs and triangles in the geometry buffer
     float size;                 // bounding box diagonal
+    float lo[3], hi[3];         // the bounding box
     // attached to the camera (sky pieces, a ring round it): its offset from the camera unchanged while it moves
     float offset[3], camera[3];
     unsigned offsetFrame;
@@ -406,6 +470,7 @@ static bool Scratch(VkDeviceSize size, VkDeviceAddress* address)
 //-----------------------------------------------------------------------------
 
 static pvkBuffer s_casterTable, s_masks, s_geometry;
+static pvkBuffer s_mapBuffer;      // the baked map (s_bake), heights as floats: level, row, column
 struct Range { unsigned offset, words; };
 static Range* s_geometryFree;
 static unsigned s_geometryFreeCount, s_geometryFreeCapacity;
@@ -501,10 +566,10 @@ void pvkSunForgetTexture(pvkTexture* texture)
 
 bool pvkSunBuffers(VkDescriptorBufferInfo* buffers)
 {
-    if(!s_casterTable.buffer || !s_masks.buffer || !s_geometry.buffer)
+    if(!s_casterTable.buffer || !s_masks.buffer || !s_geometry.buffer || !s_mapBuffer.buffer)
         return false;
-    const pvkBuffer* b[3] = { &s_casterTable, &s_masks, &s_geometry };
-    for(int i = 0; i < 3; i++)
+    const pvkBuffer* b[4] = { &s_casterTable, &s_masks, &s_geometry, &s_mapBuffer };
+    for(int i = 0; i < 4; i++)
     {
         buffers[i].buffer = b[i]->buffer;
         buffers[i].offset = 0;
@@ -547,6 +612,8 @@ static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float*
     }
     float d[3] = { hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2] };
     b.size = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    memcpy(b.lo, lo, sizeof(lo));
+    memcpy(b.hi, hi, sizeof(hi));
     b.huge = b.size > kHugeSize;
 
     // the input in host-visible memory, read by the build straight from there
@@ -690,6 +757,13 @@ struct Instance
     unsigned streak;            // frames running seen with this transform
     unsigned lastMs;
     bool keep;                  // pre-lit world: may stay out of view, in lit draws' rays (mask)
+    // baked (s_bake): pre-lit, the same transform 3 frames running and not rebuilt often: in the world's scene, not
+    // the draws' once its footprint is baked (ticket)
+    bool world;
+    unsigned ticket;
+    int builds;                 // its structure's builds when it became world: rebuilt since, its footprint again
+    unsigned missing;           // frames running in view, near and not drawn
+    float centre[3], radius;    // world space bounding sphere
 };
 
 static Instance* s_instances;
@@ -808,6 +882,17 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
     }
     for(int i = 0; i < 12; i++)
         in.key[i] = (int)lrintf(in.transform[i] * ((i & 3) == 3 ? 64.0f : 1024.0f));
+    float c[3] = { (b.lo[0] + b.hi[0]) * 0.5f, (b.lo[1] + b.hi[1]) * 0.5f, (b.lo[2] + b.hi[2]) * 0.5f };
+    float scale = 0.0f;
+    for(int row = 0; row < 3; row++)
+    {
+        in.centre[row] = in.transform[row * 4] * c[0] + in.transform[row * 4 + 1] * c[1] +
+                         in.transform[row * 4 + 2] * c[2] + in.transform[row * 4 + 3];
+        float column = sqrtf(in.transform[row] * in.transform[row] + in.transform[4 + row] * in.transform[4 + row] +
+                             in.transform[8 + row] * in.transform[8 + row]);
+        scale = column > scale ? column : scale;
+    }
+    in.radius = b.size * 0.5f * scale;
 
     if(s_hashSize == 0)
         RebuildHash();
@@ -822,6 +907,7 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
             o.lastFrame = s_frame;
             o.lastMs = SDL_GetTicks();
             o.keep = keep;
+            o.missing = 0;
             return;
         }
     }
@@ -856,11 +942,18 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
 // Top level: one per frame in flight, rebuilt every frame
 //-----------------------------------------------------------------------------
 
-struct Scene
+// the draws' (this frame's casters; baked: only what the map does not hold yet) and the world's (what the map is baked
+// from; the draws trace it where the map cannot draw an edge)
+struct Tlas
 {
     VkAccelerationStructureKHR as;
     pvkBuffer storage, scratch, instances;
     VkDeviceAddress scratchAddress, instanceAddress;
+};
+
+struct Scene
+{
+    Tlas draws, world;
 };
 
 static Scene s_scenes[pvkFrames];
@@ -884,6 +977,39 @@ static void TopLevelGeometry(VkAccelerationStructureGeometryKHR& geometry, VkAcc
     build.pGeometries = &geometry;
 }
 
+static bool MakeTlas(Tlas& t, const VkAccelerationStructureBuildSizesInfoKHR& sizes)
+{
+    if(!g_pvk->CreateBuffer(sizes.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+                            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, &t.storage) ||
+       !g_pvk->CreateBuffer(sizes.buildScratchSize + 256, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                            VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, &t.scratch) ||
+       !g_pvk->CreateBuffer((VkDeviceSize)kMaxInstances * sizeof(VkAccelerationStructureInstanceKHR), kInputUsage,
+                            true, &t.instances))
+        return false;
+    t.scratchAddress = (BufferAddress(t.scratch) + 255) & ~(VkDeviceAddress)255;
+    t.instanceAddress = BufferAddress(t.instances);
+    VkAccelerationStructureCreateInfoKHR create = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
+    create.buffer = t.storage.buffer;
+    create.size = sizes.accelerationStructureSize;
+    create.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+    if(vkCreateAccelerationStructureKHR(g_pvk->device, &create, NULL, &t.as) != VK_SUCCESS)
+    {
+        t.as = VK_NULL_HANDLE;
+        return false;
+    }
+    return true;
+}
+
+static void DestroyTlas(Tlas& t)
+{
+    if(t.as)
+        vkDestroyAccelerationStructureKHR(g_pvk->device, t.as, NULL);
+    g_pvk->DestroyNow(t.storage);
+    g_pvk->DestroyNow(t.scratch);
+    g_pvk->DestroyNow(t.instances);
+    memset(&t, 0, sizeof(t));
+}
+
 static bool MakeScenes()
 {
     VkAccelerationStructureGeometryKHR geometry;
@@ -893,43 +1019,22 @@ static bool MakeScenes()
     VkAccelerationStructureBuildSizesInfoKHR sizes = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
     vkGetAccelerationStructureBuildSizesKHR(g_pvk->device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &build, &max,
                                             &sizes);
+    if(!g_pvk->CreateBuffer((VkDeviceSize)kMaxCasterIds * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, &s_casterTable) ||
+       !g_pvk->CreateBuffer((VkDeviceSize)kMaxMasks * kMaskSize * kMaskSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true,
+                            &s_masks) ||
+       !g_pvk->CreateBuffer((VkDeviceSize)kGeometryWords * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, &s_geometry) ||
+       !g_pvk->CreateBuffer(s_bake ? (VkDeviceSize)kMapLevels * kMapSize * kMapSize * 4 : 16,
+                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false, &s_mapBuffer))
+        return false;
+    s_geometryFreeCount = 0;
+    GeometryFree(0, kGeometryWords);
     for(int f = 0; f < pvkFrames; f++)
-    {
-        Scene& sc = s_scenes[f];
-        if(!g_pvk->CreateBuffer(sizes.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
-                                VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, &sc.storage) ||
-           !g_pvk->CreateBuffer(sizes.buildScratchSize + 256, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, &sc.scratch) ||
-           !g_pvk->CreateBuffer((VkDeviceSize)kMaxInstances * sizeof(VkAccelerationStructureInstanceKHR), kInputUsage,
-                                true, &sc.instances))
+        if(!MakeTlas(s_scenes[f].draws, sizes) || (s_bake && !MakeTlas(s_scenes[f].world, sizes)))
             return false;
-        if(f == 0 && (!g_pvk->CreateBuffer((VkDeviceSize)kMaxCasterIds * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true,
-                                           &s_casterTable) ||
-                      !g_pvk->CreateBuffer((VkDeviceSize)kMaxMasks * kMaskSize * kMaskSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                                           true, &s_masks) ||
-                      !g_pvk->CreateBuffer((VkDeviceSize)kGeometryWords * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true,
-                                           &s_geometry)))
-            return false;
-        if(f == 0)
-        {
-            s_geometryFreeCount = 0;
-            GeometryFree(0, kGeometryWords);
-        }
-        sc.scratchAddress = (BufferAddress(sc.scratch) + 255) & ~(VkDeviceAddress)255;
-        sc.instanceAddress = BufferAddress(sc.instances);
-        VkAccelerationStructureCreateInfoKHR create = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
-        create.buffer = sc.storage.buffer;
-        create.size = sizes.accelerationStructureSize;
-        create.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-        if(vkCreateAccelerationStructureKHR(g_pvk->device, &create, NULL, &sc.as) != VK_SUCCESS)
-        {
-            sc.as = VK_NULL_HANDLE;
-            return false;
-        }
-    }
     return true;
 }
 
+// the draws' scene
 VkAccelerationStructureKHR pvkSunScene()
 {
     if(!pvkSunReady() || s_scenesFailed)
@@ -944,7 +1049,14 @@ VkAccelerationStructureKHR pvkSunScene()
             return VK_NULL_HANDLE;
         }
     }
-    return s_scenes[g_pvk->FrameSerial() % pvkFrames].as;
+    return s_scenes[g_pvk->FrameSerial() % pvkFrames].draws.as;
+}
+
+VkAccelerationStructureKHR pvkSunWorldScene()
+{
+    VkAccelerationStructureKHR draws = pvkSunScene();
+    const Tlas& world = s_scenes[g_pvk->FrameSerial() % pvkFrames].world;
+    return draws && world.as ? world.as : draws;
 }
 
 static void FillInstance(VkAccelerationStructureInstanceKHR& out, const Instance& in)
@@ -957,6 +1069,450 @@ static void FillInstance(VkAccelerationStructureInstanceKHR& out, const Instance
     out.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR |
                 (b.alpha ? 0 : VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR);
     out.accelerationStructureReference = s_blas[in.id].address;
+}
+
+//-----------------------------------------------------------------------------
+// The baked map (s_bake): the world's shadow as the sun sees it
+//-----------------------------------------------------------------------------
+// kMapLevels levels of kMapSize x kMapSize texels on the plane facing the sun (u along s_basis[0], v along
+// s_basis[1], the shaders' disc axes), each level's texel twice the last's, centred on the camera and moved in steps.
+// Toroidal: texel (x, y) is stored at (x & (kMapSize - 1), y & (kMapSize - 1)), so a move bakes only the strips that
+// came in. A texel holds the height towards the sun (dot(p, sun)) of the first surface its ray from the sun meets in
+// the world's scene (static pre-lit instances, -1e30: none); draws compare their own height with it (glshaders.cpp).
+// Baked in the upload command buffer, a budget of texels a frame: first the strips (until a level's are done its
+// valid window is what was baked before), then the tiles (kMapTile texels square) under the footprints of casters
+// that came, went or changed. Each mark has a ticket; a caster drawn this frame stays in the draws' scene until no
+// tile marked by then is left.
+
+struct MapRect
+{
+    int x0, y0, x1, y1;         // texel indices, x1 and y1 past the end
+};
+
+static const int kMapTile = 64;
+static const int kMapTiles = kMapSize / kMapTile;   // across a level
+
+struct MapLevel
+{
+    MapRect window, valid;
+    MapRect strips[4];
+    int stripCount;
+    bool placed;
+    // tiles to bake again, toroidal as the texels: the tile (x, y) a slot was marked for
+    int tile[kMapTiles * kMapTiles][2];
+    bool dirty[kMapTiles * kMapTiles];
+};
+
+static MapLevel s_map[kMapLevels];
+static float s_basis[2][3];
+static unsigned s_dirtyTiles;
+static unsigned s_ticket, s_bakedTicket;
+static VkDescriptorSetLayout s_bakeSetLayout;
+static VkPipelineLayout s_bakeLayout;
+static VkPipeline s_bakePipeline;
+static bool s_bakeFailed;
+static unsigned s_bakedTexels;
+
+static const char* const kBakeSource =
+    "#version 460\n"
+    "#extension GL_EXT_ray_query : require\n"
+    "// the sun's baked map (vksun.cpp): a ray from above along each texel, the height of the first surface it meets\n"
+    "layout(local_size_x = 8, local_size_y = 8) in;\n"
+    "layout(binding = 0) uniform accelerationStructureEXT world;\n"
+    "layout(std430, binding = 1) readonly buffer SunCasters { uvec4 sunCaster[]; };\n"
+    "layout(std430, binding = 2) readonly buffer SunMasks { uint sunMask[]; };\n"
+    "layout(std430, binding = 3) readonly buffer SunGeometry { uint sunGeometry[]; };\n"
+    "layout(std430, binding = 4) writeonly buffer SunMap { float sunMap[]; };\n"
+    "layout(push_constant) uniform Bake\n"
+    "{\n"
+    "    ivec4 rect;         // first texel, texels across and down\n"
+    "    ivec2 level;        // level, texels across a level\n"
+    "    vec2 texel;         // texel (m), the rays' start height\n"
+    "    vec4 u, v;          // the plane's axes\n"
+    "    vec4 sun;           // towards the sun; w: the rays' length\n"
+    "} bake;\n"
+    "vec2 SunUV(uint base, uint vertex)\n"
+    "{\n"
+    "    return vec2(uintBitsToFloat(sunGeometry[base + vertex * 2u]), uintBitsToFloat(sunGeometry[base + vertex * 2u + 1u]));\n"
+    "}\n"
+    "// as glshaders.cpp's: a candidate hit on an alpha-tested caster counts where its alpha test passes\n"
+    "bool SunOpaque(int caster, int primitive, vec2 b)\n"
+    "{\n"
+    "    uvec4 c = sunCaster[caster];\n"
+    "    uint t = c.y + uint(primitive) * 3u;\n"
+    "    vec2 uv = SunUV(c.x, sunGeometry[t]) * (1.0 - b.x - b.y) + SunUV(c.x, sunGeometry[t + 1u]) * b.x +\n"
+    "              SunUV(c.x, sunGeometry[t + 2u]) * b.y;\n"
+    "    uvec2 texel = uvec2(ivec2(floor(fract(uv) * 64.0)) & 63);\n"
+    "    uint i = (c.z & 0xffffu) * 4096u + texel.y * 64u + texel.x;\n"
+    "    float alpha = float((sunMask[i >> 2] >> ((i & 3u) * 8u)) & 255u) / 255.0;\n"
+    "    float ref = uintBitsToFloat(c.w);\n"
+    "    return (c.z >> 16) == 4u ? alpha > ref : alpha >= ref;\n"
+    "}\n"
+    "void main()\n"
+    "{\n"
+    "    uvec2 g = gl_GlobalInvocationID.xy;\n"
+    "    if(g.x >= uint(bake.rect.z) || g.y >= uint(bake.rect.w))\n"
+    "        return;\n"
+    "    ivec2 i = bake.rect.xy + ivec2(g);\n"
+    "    vec2 p = (vec2(i) + 0.5) * bake.texel.x;\n"
+    "    vec3 origin = bake.u.xyz * p.x + bake.v.xyz * p.y + bake.sun.xyz * bake.texel.y;\n"
+    "    rayQueryEXT q;\n"
+    "    rayQueryInitializeEXT(q, world, gl_RayFlagsNoneEXT, 0xff, origin, 0.0, -bake.sun.xyz, bake.sun.w);\n"
+    "    while(rayQueryProceedEXT(q))\n"
+    "    {\n"
+    "        if(SunOpaque(rayQueryGetIntersectionInstanceCustomIndexEXT(q, false),\n"
+    "                     rayQueryGetIntersectionPrimitiveIndexEXT(q, false),\n"
+    "                     rayQueryGetIntersectionBarycentricsEXT(q, false)))\n"
+    "            rayQueryConfirmIntersectionEXT(q);\n"
+    "    }\n"
+    "    float h = rayQueryGetIntersectionTypeEXT(q, true) == gl_RayQueryCommittedIntersectionNoneEXT ? -1e30 :\n"
+    "              bake.texel.y - rayQueryGetIntersectionTEXT(q, true);\n"
+    "    int n = bake.level.y;\n"
+    "    sunMap[(bake.level.x * n + (i.y & (n - 1))) * n + (i.x & (n - 1))] = h;\n"
+    "}\n";
+
+struct BakePush
+{
+    int rect[4];
+    int level[2];
+    float texel[2];
+    float u[4], v[4], sun[4];
+};
+
+static bool MakeBake()
+{
+    unsigned* words = NULL;
+    size_t count = 0;
+    char* log = NULL;
+    bool ok = shar_spirv_compile("sun bake", 2, kBakeSource, &words, &count, &log) != 0;
+    if(log)
+        fprintf(stderr, "PDDI: %s\n", log);
+    VkShaderModule module = ok ? pvkCreateShaderModule(words, count) : VK_NULL_HANDLE;
+    shar_spirv_free(words);
+    shar_spirv_free(log);
+    if(!module)
+        return false;
+    VkDescriptorSetLayoutBinding bindings[5];
+    memset(bindings, 0, sizeof(bindings));
+    for(int i = 0; i < 5; i++)
+    {
+        bindings[i].binding = i;
+        bindings[i].descriptorType = i == 0 ? VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        bindings[i].descriptorCount = 1;
+        bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+    }
+    VkDescriptorSetLayoutCreateInfo set = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+    set.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+    set.bindingCount = 5;
+    set.pBindings = bindings;
+    VkPushConstantRange range = { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(BakePush) };
+    VkPipelineLayoutCreateInfo pl = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    pl.setLayoutCount = 1;
+    pl.pSetLayouts = &s_bakeSetLayout;
+    pl.pushConstantRangeCount = 1;
+    pl.pPushConstantRanges = &range;
+    VkComputePipelineCreateInfo info = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+    info.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    info.stage.module = module;
+    info.stage.pName = "main";
+    ok = vkCreateDescriptorSetLayout(g_pvk->device, &set, NULL, &s_bakeSetLayout) == VK_SUCCESS &&
+         vkCreatePipelineLayout(g_pvk->device, &pl, NULL, &s_bakeLayout) == VK_SUCCESS;
+    info.layout = s_bakeLayout;
+    ok = ok && vkCreateComputePipelines(g_pvk->device, VK_NULL_HANDLE, 1, &info, NULL, &s_bakePipeline) == VK_SUCCESS;
+    vkDestroyShaderModule(g_pvk->device, module, NULL);
+    return ok;
+}
+
+static bool BakeReady()
+{
+    if(!s_bakePipeline && !s_bakeFailed)
+    {
+        s_bakeFailed = !MakeBake();
+        if(s_bakeFailed)
+            fprintf(stderr, "PDDI: cannot make the sun's bake: every shadow ray traced per pixel\n");
+    }
+    return s_bakePipeline != VK_NULL_HANDLE;
+}
+
+static bool Baking()
+{
+    return s_bake && !s_bakeFailed;
+}
+
+static bool RectEmpty(const MapRect& r)
+{
+    return r.x0 >= r.x1 || r.y0 >= r.y1;
+}
+
+static MapRect Intersect(const MapRect& a, const MapRect& b)
+{
+    MapRect r = { a.x0 > b.x0 ? a.x0 : b.x0, a.y0 > b.y0 ? a.y0 : b.y0, a.x1 < b.x1 ? a.x1 : b.x1, a.y1 < b.y1 ? a.y1 : b.y1 };
+    if(RectEmpty(r))
+        memset(&r, 0, sizeof(r));
+    return r;
+}
+
+static float MapTexel(int level)
+{
+    return s_mapTexel * (float)(1 << level);
+}
+
+// the sun moved (or a level started): everything again
+static void MapReset()
+{
+    const float* d = s_direction;
+    float up[3] = { 0.0f, 1.0f, 0.0f };
+    if(fabsf(d[1]) >= 0.99f)
+    {
+        up[0] = 1.0f;
+        up[1] = 0.0f;
+    }
+    float* t = s_basis[0];
+    float* b = s_basis[1];
+    t[0] = up[1] * d[2] - up[2] * d[1];
+    t[1] = up[2] * d[0] - up[0] * d[2];
+    t[2] = up[0] * d[1] - up[1] * d[0];
+    Normalise(t);
+    b[0] = d[1] * t[2] - d[2] * t[1];
+    b[1] = d[2] * t[0] - d[0] * t[2];
+    b[2] = d[0] * t[1] - d[1] * t[0];
+    memset(s_map, 0, sizeof(s_map));
+    s_dirtyTiles = 0;
+    s_bakedTicket = s_ticket;
+    s_version++;
+}
+
+// a caster's footprint to bake again (it came, went or changed): the tiles under it that are baked; its ticket
+static unsigned MarkDirty(const Instance& in)
+{
+    float u = in.centre[0] * s_basis[0][0] + in.centre[1] * s_basis[0][1] + in.centre[2] * s_basis[0][2];
+    float v = in.centre[0] * s_basis[1][0] + in.centre[1] * s_basis[1][1] + in.centre[2] * s_basis[1][2];
+    for(int l = 0; l < kMapLevels; l++)
+    {
+        MapLevel& m = s_map[l];
+        float texel = MapTexel(l);
+        MapRect f = { (int)floorf((u - in.radius) / texel) - 1, (int)floorf((v - in.radius) / texel) - 1,
+                      (int)ceilf((u + in.radius) / texel) + 1, (int)ceilf((v + in.radius) / texel) + 1 };
+        f = Intersect(f, m.valid);      // (the strips not baked yet will see it)
+        if(RectEmpty(f))
+            continue;
+        for(int ty = f.y0 >> 6; ty <= (f.y1 - 1) >> 6; ty++)
+            for(int tx = f.x0 >> 6; tx <= (f.x1 - 1) >> 6; tx++)
+            {
+                int slot = (ty & (kMapTiles - 1)) * kMapTiles + (tx & (kMapTiles - 1));
+                if(m.dirty[slot] && m.tile[slot][0] == tx && m.tile[slot][1] == ty)
+                    continue;
+                s_dirtyTiles += !m.dirty[slot];
+                m.dirty[slot] = true;
+                m.tile[slot][0] = tx;
+                m.tile[slot][1] = ty;
+            }
+    }
+    return ++s_ticket;
+}
+
+// each level's window round the camera, moved when it is an eighth of the way off; what came in is to bake
+static void MapPlace()
+{
+    const float* e = s_eyeToWorld;
+    float u = e[12] * s_basis[0][0] + e[13] * s_basis[0][1] + e[14] * s_basis[0][2];
+    float v = e[12] * s_basis[1][0] + e[13] * s_basis[1][1] + e[14] * s_basis[1][2];
+    for(int l = 0; l < kMapLevels; l++)
+    {
+        MapLevel& m = s_map[l];
+        int x = (int)floorf(u / MapTexel(l)) - kMapSize / 2;
+        int y = (int)floorf(v / MapTexel(l)) - kMapSize / 2;
+        if(m.placed && abs(x - m.window.x0) <= kMapSize / 8 && abs(y - m.window.y0) <= kMapSize / 8)
+            continue;
+        MapRect w = { x, y, x + kMapSize, y + kMapSize };
+        if(m.placed)
+            m.valid = Intersect(m.valid, w);
+        m.window = w;
+        m.placed = true;
+        m.stripCount = 0;
+        const MapRect& o = m.valid;
+        if(RectEmpty(o))
+            m.strips[m.stripCount++] = w;
+        else
+        {
+            MapRect below = { w.x0, w.y0, w.x1, o.y0 }, above = { w.x0, o.y1, w.x1, w.y1 };
+            MapRect left = { w.x0, o.y0, o.x0, o.y1 }, right = { o.x1, o.y0, w.x1, o.y1 };
+            const MapRect* parts[4] = { &below, &above, &left, &right };
+            for(int i = 0; i < 4; i++)
+                if(!RectEmpty(*parts[i]))
+                    m.strips[m.stripCount++] = *parts[i];
+        }
+        s_version++;
+    }
+}
+
+static bool BakeWork()
+{
+    for(int l = 0; l < kMapLevels; l++)
+        if(s_map[l].stripCount)
+            return true;
+    return s_dirtyTiles != 0;
+}
+
+// rows from the top of r, up to the budget's texels (at least one row); they come off r. Texels baked.
+static unsigned BakeRows(VkCommandBuffer cmd, int level, MapRect& r, unsigned budget, float top)
+{
+    int across = r.x1 - r.x0;
+    int rows = (int)(budget / (unsigned)across);
+    rows = rows < 1 ? 1 : rows > r.y1 - r.y0 ? r.y1 - r.y0 : rows;
+    BakePush pc;
+    pc.rect[0] = r.x0;
+    pc.rect[1] = r.y0;
+    pc.rect[2] = across;
+    pc.rect[3] = rows;
+    pc.level[0] = level;
+    pc.level[1] = kMapSize;
+    pc.texel[0] = MapTexel(level);
+    pc.texel[1] = top;
+    for(int k = 0; k < 3; k++)
+    {
+        pc.u[k] = s_basis[0][k];
+        pc.v[k] = s_basis[1][k];
+        pc.sun[k] = s_direction[k];
+    }
+    pc.u[3] = pc.v[3] = 0.0f;
+    pc.sun[3] = 4000.0f;
+    vkCmdPushConstants(cmd, s_bakeLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+    vkCmdDispatch(cmd, (unsigned)(across + 7) / 8, (unsigned)(rows + 7) / 8, 1);
+    r.y0 += rows;
+    s_bakedTexels += (unsigned)(across * rows);
+    return (unsigned)(across * rows);
+}
+
+static void Bake(VkCommandBuffer cmd, VkAccelerationStructureKHR world)
+{
+    VkDescriptorBufferInfo buffers[4];
+    if(!pvkSunBuffers(buffers))
+        return;
+    VkWriteDescriptorSetAccelerationStructureKHR sceneInfo = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
+    sceneInfo.accelerationStructureCount = 1;
+    sceneInfo.pAccelerationStructures = &world;
+    VkWriteDescriptorSet writes[5];
+    memset(writes, 0, sizeof(writes));
+    for(int i = 0; i < 5; i++)
+    {
+        writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[i].dstBinding = i;
+        writes[i].descriptorCount = 1;
+        writes[i].descriptorType = i == 0 ? VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        if(i == 0)
+            writes[i].pNext = &sceneInfo;
+        else
+            writes[i].pBufferInfo = &buffers[i - 1];
+    }
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, s_bakePipeline);
+    vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, s_bakeLayout, 0, 5, writes);
+
+    // the rays start well above the camera
+    const float* e = s_eyeToWorld;
+    float top = e[12] * s_direction[0] + e[13] * s_direction[1] + e[14] * s_direction[2] + 2000.0f;
+    unsigned budget = s_bakeBudget;
+    for(int l = 0; l < kMapLevels; l++)
+    {
+        MapLevel& m = s_map[l];
+        while(budget && m.stripCount)
+        {
+            MapRect& r = m.strips[m.stripCount - 1];
+            unsigned done = BakeRows(cmd, l, r, budget, top);
+            budget -= done < budget ? done : budget;
+            if(RectEmpty(r))
+                m.stripCount--;
+        }
+        if(m.placed && m.stripCount == 0 && memcmp(&m.valid, &m.window, sizeof(MapRect)) != 0)
+        {
+            m.valid = m.window;
+            s_version++;
+        }
+    }
+    // dirty tiles in the window, runs of them along a row baked together
+    for(int l = 0; l < kMapLevels && budget && s_dirtyTiles; l++)
+    {
+        MapLevel& m = s_map[l];
+        for(int slot = 0; slot < kMapTiles * kMapTiles; slot++)
+        {
+            if(!m.dirty[slot])
+                continue;
+            int tx = m.tile[slot][0], ty = m.tile[slot][1];
+            MapRect t = { tx << 6, ty << 6, (tx + 1) << 6, (ty + 1) << 6 };
+            if(!RectEmpty(Intersect(t, m.window)))
+            {
+                if(!budget)
+                    continue;
+                int next = tx + 1;
+                for(;;)
+                {
+                    int s2 = (ty & (kMapTiles - 1)) * kMapTiles + (next & (kMapTiles - 1));
+                    if(next - tx >= kMapTiles || !m.dirty[s2] || m.tile[s2][0] != next || m.tile[s2][1] != ty)
+                        break;
+                    m.dirty[s2] = false;
+                    s_dirtyTiles--;
+                    next++;
+                }
+                t.x1 = next << 6;
+                t = Intersect(t, m.window);
+                while(!RectEmpty(t))
+                {
+                    unsigned done = BakeRows(cmd, l, t, kMapTile * (t.x1 - t.x0), top);
+                    budget -= done < budget ? done : budget;
+                }
+            }
+            m.dirty[slot] = false;
+            s_dirtyTiles--;
+        }
+    }
+    if(!s_dirtyTiles)
+        s_bakedTicket = s_ticket;
+}
+
+// a baked caster that should be drawn (near, in view): not drawn for kMissingFrames, it has gone (knocked down)
+static bool InView(const Instance& in)
+{
+    if(!s_viewProjectionSet)
+        return false;
+    const float* e = s_eyeToWorld;
+    float d[3] = { in.centre[0] - e[12], in.centre[1] - e[13], in.centre[2] - e[14] };
+    float x = d[0] * e[0] + d[1] * e[1] + d[2] * e[2];
+    float y = d[0] * e[4] + d[1] * e[5] + d[2] * e[6];
+    float depth = -(d[0] * e[8] + d[1] * e[9] + d[2] * e[10]);     // GL eye space looks down -z
+    if(depth < in.radius + 1.0f || depth > kMissingRange)
+        return false;
+    float px = s_viewProjection[0], py = s_viewProjection[5];
+    return (fabsf(x) + in.radius) * px < depth && (fabsf(y) + in.radius) * py < depth;
+}
+
+void pvkSunMap(float* windows, float* info)
+{
+    bool on = Baking() && s_bakePipeline;
+    for(int l = 0; l < kMapLevels; l++)
+    {
+        const MapRect& r = s_map[l].valid;
+        windows[l * 4] = on ? (float)r.x0 : 0.0f;
+        windows[l * 4 + 1] = on ? (float)r.y0 : 0.0f;
+        windows[l * 4 + 2] = on ? (float)r.x1 : 0.0f;
+        windows[l * 4 + 3] = on ? (float)r.y1 : 0.0f;
+    }
+    info[0] = s_mapTexel;
+    info[1] = (float)kMapSize;
+    info[2] = on ? 1.0f : 0.0f;
+    info[3] = 0.0f;
+}
+
+static void BuildTlas(VkCommandBuffer cmd, Tlas& t, unsigned count)
+{
+    VkAccelerationStructureGeometryKHR geometry;
+    VkAccelerationStructureBuildGeometryInfoKHR build;
+    TopLevelGeometry(geometry, build, t.instanceAddress);
+    build.dstAccelerationStructure = t.as;
+    build.scratchData.deviceAddress = t.scratchAddress;
+    VkAccelerationStructureBuildRangeInfoKHR range = { count, 0, 0, 0 };
+    const VkAccelerationStructureBuildRangeInfoKHR* ranges = &range;
+    vkCmdBuildAccelerationStructuresKHR(cmd, 1, &build, &ranges);
 }
 
 void pvkSunEndFrame()
@@ -985,24 +1541,65 @@ void pvkSunEndFrame()
     VkAccelerationStructureKHR scene = pvkSunScene();
     unsigned now = SDL_GetTicks();
     bool on = pvkSunOn();
-    unsigned kept = 0, used = 0, current = 0;
-    VkAccelerationStructureInstanceKHR* out = scene ?
-        (VkAccelerationStructureInstanceKHR*)s_scenes[g_pvk->FrameSerial() % pvkFrames].instances.memory.mapped : NULL;
+    bool baking = scene && on && Baking() && BakeReady();
+    if(baking && !s_map[0].placed)
+        MapReset();
+    bool bake = baking && BakeWork();
+    unsigned kept = 0, used = 0, worldUsed = 0, current = 0;
+    Scene* sc = scene ? &s_scenes[g_pvk->FrameSerial() % pvkFrames] : NULL;
+    VkAccelerationStructureInstanceKHR* out = sc ? (VkAccelerationStructureInstanceKHR*)sc->draws.instances.memory.mapped : NULL;
+    VkAccelerationStructureInstanceKHR* worldOut = baking ?
+        (VkAccelerationStructureInstanceKHR*)sc->world.instances.memory.mapped : NULL;
     for(unsigned i = 0; i < s_instanceCount; i++)
     {
         Instance& in = s_instances[i];
         Blas& b = s_blas[in.id];
         bool thisFrame = in.lastFrame == s_frame;
-        bool keep = on && b.live && b.as && b.address &&
-                    (thisFrame || (in.keep && in.streak >= 3 && now - in.lastMs < kKeepMs));
-        if(!keep)
+        bool alive = on && b.live && b.as && b.address;
+        if(!baking)
+        {
+            in.world = false;
+            if(!alive || !(thisFrame || (in.keep && in.streak >= 3 && now - in.lastMs < kKeepMs)))
+                continue;
+            s_instances[kept++] = in;
+            if(out && used < (unsigned)kMaxInstances)
+            {
+                FillInstance(out[used++], in);
+                current += thisFrame;
+            }
             continue;
+        }
+        if(!alive)
+            continue;
+        // the static world goes in the map (not things rebuilt often: animated; not things only paused a moment)
+        if(!in.world && in.keep && thisFrame && in.streak >= kWorldStreak && b.builds <= 3)
+        {
+            in.world = true;
+            in.builds = b.builds;
+            in.ticket = MarkDirty(in);
+        }
+        else if(in.world && b.builds != in.builds)
+        {
+            in.world = b.builds <= 3;
+            in.builds = b.builds;
+            in.ticket = MarkDirty(in);
+        }
+        if(in.world && !thisFrame)
+            in.missing = InView(in) ? in.missing + 1 : 0;
+        if(!thisFrame && !(in.world && now - in.lastMs < kWorldKeepMs && in.missing < kMissingFrames))
+        {
+            if(in.world && in.missing >= kMissingFrames)
+                MarkDirty(in);      // gone from where it stood: its shadow too
+            continue;
+        }
         s_instances[kept++] = in;
-        if(out && used < (unsigned)kMaxInstances)
+        if(thisFrame && (!in.world || in.ticket > s_bakedTicket) && used < (unsigned)kMaxInstances)
         {
             FillInstance(out[used++], in);
-            current += thisFrame;
+            current++;
         }
+        if(in.world && worldOut && worldUsed < (unsigned)kMaxInstances)
+            FillInstance(worldOut[worldUsed++], in);
     }
     s_instanceCount = kept;
     RebuildHash();
@@ -1032,15 +1629,19 @@ void pvkSunEndFrame()
         {
             memcpy(s_direction, s_bestDirection, sizeof(s_direction));
             s_version++;
+            if(baking)
+            {
+                MapReset();
+                bake = false;   // the world's instances were filled for the old map: next frame
+            }
         }
     }
     s_bestLight = 0.0f;
 
-    if(scene)
+    if(sc)
     {
-        Scene& sc = s_scenes[g_pvk->FrameSerial() % pvkFrames];
         VkCommandBuffer cmd = g_pvk->UploadCmd();
-        // the bottom levels built this frame, before the top level reads them
+        // the bottom levels built this frame, before the top levels read them
         VkMemoryBarrier2 b = { VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
         b.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
         b.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
@@ -1050,16 +1651,25 @@ void pvkSunEndFrame()
         dep.memoryBarrierCount = 1;
         dep.pMemoryBarriers = &b;
         vkCmdPipelineBarrier2(cmd, &dep);
-        VkAccelerationStructureGeometryKHR geometry;
-        VkAccelerationStructureBuildGeometryInfoKHR build;
-        TopLevelGeometry(geometry, build, sc.instanceAddress);
-        build.dstAccelerationStructure = sc.as;
-        build.scratchData.deviceAddress = sc.scratchAddress;
-        VkAccelerationStructureBuildRangeInfoKHR range = { used, 0, 0, 0 };
-        const VkAccelerationStructureBuildRangeInfoKHR* ranges = &range;
-        vkCmdBuildAccelerationStructuresKHR(cmd, 1, &build, &ranges);
-        // (pvkCore::Present's barrier after the uploads makes it visible to the draws)
+        BuildTlas(cmd, sc->draws, used);
+        // the world's every frame (the draws trace it where the map cannot draw an edge; empty when not baking)
+        if(sc->world.as)
+            BuildTlas(cmd, sc->world, worldUsed);
+        if(bake)
+        {
+            // the world's scene built; the map's texels free of the draws of frames before (still running)
+            b.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+            b.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+            b.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+            b.dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+            vkCmdPipelineBarrier2(cmd, &dep);
+            Bake(cmd, sc->world.as);
+        }
+        // (pvkCore::Present's barrier after the uploads makes them visible to the draws)
     }
+    // where the next frames' map is (after this frame's bake: its draws were recorded with the windows before)
+    if(baking)
+        MapPlace();
 
     if(s_log)
     {
@@ -1068,12 +1678,14 @@ void pvkSunEndFrame()
         s_builds += s_buildsThisFrame;
         if(now - s_lastLog > 5000)
         {
-            fprintf(stderr, "PDDI sun: %s, direction %.2f %.2f %.2f, %u instances (%u this frame), %u structures, %u built, "
-                    "%u draws not in the view\n", on ? "on" : "off", s_direction[0], s_direction[1], s_direction[2], used,
-                    current, s_blasCount - s_freeCount, s_builds, s_notInView);
+            fprintf(stderr, "PDDI sun: %s, direction %.2f %.2f %.2f, %u instances drawn (%u this frame), %u baked, "
+                    "%u structures, %u built, %u draws not in the view, %u texels baked\n", on ? "on" : "off",
+                    s_direction[0], s_direction[1], s_direction[2], used, current, worldUsed,
+                    s_blasCount - s_freeCount, s_builds, s_notInView, s_bakedTexels);
             s_notInView = 0;
             s_lastLog = now;
             s_builds = 0;
+            s_bakedTexels = 0;
         }
     }
     s_buildsThisFrame = 0;
@@ -1103,15 +1715,23 @@ void pvkSunShutdown()
     s_freeCount = 0;
     for(int f = 0; f < pvkFrames; f++)
     {
-        Scene& sc = s_scenes[f];
-        if(sc.as)
-            vkDestroyAccelerationStructureKHR(g_pvk->device, sc.as, NULL);
-        g_pvk->DestroyNow(sc.storage);
-        g_pvk->DestroyNow(sc.scratch);
-        g_pvk->DestroyNow(sc.instances);
-        memset(&sc, 0, sizeof(sc));
+        DestroyTlas(s_scenes[f].draws);
+        DestroyTlas(s_scenes[f].world);
     }
     s_scenesMade = false;
+    g_pvk->DestroyNow(s_mapBuffer);
+    if(s_bakePipeline)
+        vkDestroyPipeline(g_pvk->device, s_bakePipeline, NULL);
+    if(s_bakeLayout)
+        vkDestroyPipelineLayout(g_pvk->device, s_bakeLayout, NULL);
+    if(s_bakeSetLayout)
+        vkDestroyDescriptorSetLayout(g_pvk->device, s_bakeSetLayout, NULL);
+    s_bakePipeline = VK_NULL_HANDLE;
+    s_bakeLayout = VK_NULL_HANDLE;
+    s_bakeSetLayout = VK_NULL_HANDLE;
+    s_bakeFailed = false;
+    memset(s_map, 0, sizeof(s_map));
+    s_dirtyTiles = 0;
     s_instanceCount = 0;
     s_hashSize = 0;
     free(s_hash);

@@ -10,6 +10,8 @@
 // buildings still cast; lit ones (cars, characters) only cast where they are drawn. Alpha-tested casters (foliage,
 // fences) are not opaque to the ray: it reads their UVs and triangles (the geometry buffer, offsets in the caster
 // table) and a 64x64 copy of their texture's alpha (the masks) and goes through where the alpha test would discard.
+// Baked (default): the static world's shadow is baked into a map round the camera as seen from the sun (pvkSunMap),
+// and the draws' rays only meet what it does not hold (cars, characters, moving things).
 // Fragments of perspective, depth-writing, unblended draws trace one ray towards the sun (glshaders.cpp, PVK_SUN):
 // pre-lit draws are scaled between a shadow and a sunlit level by n.l and the ray, lit ones (cars, characters) only
 // darkened when the ray is blocked. Normals: smooth ones made from the positions (vkcon.cpp), the polygon's own at
@@ -59,15 +61,25 @@ void pvkSunForget(unsigned id);     // the prim buffer is gone (any thread)
 void pvkSunDrawing(const char* material, const char* file);
 void pvkSunForgetTexture(pvkTexture* texture);  // any thread
 
-// the alpha-tested casters' table, the masks and their geometry (storage buffers for the programs, bindings 6-8)
+// the alpha-tested casters' table, the masks and their geometry, the baked map (storage buffers for the programs,
+// bindings 6-9)
 bool pvkSunBuffers(VkDescriptorBufferInfo* buffers);
+// the baked map (SHAR_SUN_BAKE, on by default): the static world's shadow, as heights towards the sun of the first
+// surface on each texel of planes facing it round the camera (vksun.cpp). windows: per level, the texels baked (x0,
+// y0, x1, y1, ends past); info: level 0's texel (m), texels across a level, 1 when the map is used (0: every shadow
+// ray traced per pixel through the whole scene)
+void pvkSunMap(float* windows, float* info);
 
-// the scene the frame's draws trace (built by pvkSunEndFrame, before them)
+// the scene the frame's draws trace (built by pvkSunEndFrame, before them): with the map, only what is not in it
+// (cars, characters, moving things, static ones not baked yet)
 VkAccelerationStructureKHR pvkSunScene();
+// with the map, the static world (traced where the map cannot draw an edge); else the draws' scene
+VkAccelerationStructureKHR pvkSunWorldScene();
 void pvkSunEndFrame();
 void pvkSunShutdown();
 
 // smooth normals for a prim buffer without them: per vertex, the area-weighted sum of the faces at its position
+// that are within a crease angle of its own
 void pvkSunSmoothNormals(const float* positions, unsigned vertexCount, const unsigned short* indices, unsigned count,
                          bool strip, float* normals);
 

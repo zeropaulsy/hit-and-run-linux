@@ -15,7 +15,8 @@
 #include <string.h>
 
 static const int kSamplerBindings = 4;     // bindings 1..4: the most samplers a program declares
-static const int kSunBinding = 5;          // the sun's scene (PVK_SUN programs), then its caster table, masks, geometry
+static const int kSunBinding = 5;          // the sun's scene (PVK_SUN programs), then its caster table, masks, geometry,
+                                            // baked map, then (10) the static world's scene
 
 static void Identity(float* m)
 {
@@ -352,7 +353,7 @@ bool pvkPipeline::Init()
             return false;
     }
 
-    VkDescriptorSetLayoutBinding bindings[5 + kSamplerBindings];
+    VkDescriptorSetLayoutBinding bindings[7 + kSamplerBindings];
     memset(bindings, 0, sizeof(bindings));
     bindings[0].binding = 0;
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -370,12 +371,15 @@ bool pvkPipeline::Init()
     set.bindingCount = 1 + kSamplerBindings;
     if(pvkSunReady())
     {
-        bindings[set.bindingCount].binding = kSunBinding;
-        bindings[set.bindingCount].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-        bindings[set.bindingCount].descriptorCount = 1;
-        bindings[set.bindingCount].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        set.bindingCount++;
-        for(int i = 1; i <= 3; i++)
+        for(int i = 0; i < 2; i++)
+        {
+            bindings[set.bindingCount].binding = i == 0 ? kSunBinding : kSunBinding + 5;
+            bindings[set.bindingCount].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+            bindings[set.bindingCount].descriptorCount = 1;
+            bindings[set.bindingCount].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            set.bindingCount++;
+        }
+        for(int i = 1; i <= 4; i++)
         {
             bindings[set.bindingCount].binding = kSunBinding + i;
             bindings[set.bindingCount].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -774,6 +778,10 @@ void pvkPipeline::UploadUniforms(Program& p)
         SetFloats(p, U_SUNDIRECTION, direction, 1, 3);
         SetFloats(p, U_SUNSOFT, soft, 1, 2);
         SetFloats(p, U_SUNRANGE, range, 1, 3);
+        float windows[16], info[4];
+        pvkSunMap(windows, info);
+        SetFloats(p, U_SUNMAP, windows, 4, 4);
+        SetFloats(p, U_SUNMAPINFO, info, 1, 4);
         p.sunVersion = pvkSunVersion();
     }
 
@@ -1174,6 +1182,7 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
     // the uniform block, copied to the ring when it changed (or the frame is new: the old copy's ring was reset)
     UploadUniforms(p);
     VkAccelerationStructureKHR sunScene = p.sun ? pvkSunScene() : VK_NULL_HANDLE;
+    VkAccelerationStructureKHR sunWorld = p.sun ? pvkSunWorldScene() : VK_NULL_HANDLE;
     if(p.sun && p.offset[U_SUN] >= 0)
     {
         float direction[3], levels[3], soft[2], range[3];
@@ -1197,16 +1206,17 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
     }
 
     bool push = descriptorsDirty || &p != boundProgram || p.blockBuffer != pushedBlock || p.blockOffset != pushedOffset ||
-                sunScene != pushedScene;
+                sunScene != pushedScene || sunWorld != pushedWorld;
     for(int i = 0; i < SAMPLER_COUNT && !push; i++)
         push = p.binding[i] >= 0 && (views[i] != pushedViews[i] || samplersUsed[i] != pushedSamplers[i]);
     if(push)
     {
         VkDescriptorBufferInfo blockInfo = { p.blockBuffer, p.blockOffset, (VkDeviceSize)p.blockSize };
         VkDescriptorImageInfo imageInfo[SAMPLER_COUNT];
-        VkWriteDescriptorSet writes[5 + SAMPLER_COUNT];
-        VkDescriptorBufferInfo sunBuffers[3];
+        VkWriteDescriptorSet writes[7 + SAMPLER_COUNT];
+        VkDescriptorBufferInfo sunBuffers[4];
         VkWriteDescriptorSetAccelerationStructureKHR sceneInfo = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
+        VkWriteDescriptorSetAccelerationStructureKHR worldInfo = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
         memset(writes, 0, sizeof(writes));
         int n = 0;
         writes[n].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1241,9 +1251,17 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
             writes[n].descriptorCount = 1;
             writes[n].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
             n++;
+            worldInfo.accelerationStructureCount = 1;
+            worldInfo.pAccelerationStructures = &sunWorld;
+            writes[n].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[n].pNext = &worldInfo;
+            writes[n].dstBinding = kSunBinding + 5;
+            writes[n].descriptorCount = 1;
+            writes[n].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+            n++;
             if(pvkSunBuffers(sunBuffers))
             {
-                for(int i = 0; i < 3; i++)
+                for(int i = 0; i < 4; i++)
                 {
                     sunBuffers[i].offset = 0;
                     writes[n].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1256,6 +1274,7 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
             }
         }
         pushedScene = sunScene;
+        pushedWorld = sunWorld;
         vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, n, writes);
         pushedBlock = p.blockBuffer;
         pushedOffset = p.blockOffset;
