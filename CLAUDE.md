@@ -2,7 +2,7 @@
 
 Port of the 2003 source to Linux (x86-64 default, 32-bit legacy), SDL2 + OpenGL 3.3 core (Vulkan 1.3 renderer in
 progress, `renderer=vulkan`). Original dump:
-`~/Documents/Decomp/hitnrun_source/game` (never modify). Base game plays end to end as far as tested (L7); retail PC
+`~/Documents/Decomp/hitnrun_source/game` (never modify). Base game plays end to end (all story missions, bonus missions, street races); retail PC
 data works; Mod Launcher mods partly. Missing: steering-wheel FFB. `README.md` user overview, `TODO.md` checklist, `DONE.md` completed checklist,
 `RUST.md` possible Rust/Bevy rewrite.
 
@@ -60,8 +60,8 @@ Linux is a PC platform: `RAD_WIN32` stays defined, `RAD_LINUX` marks OS differen
 - Boot movies only in release builds. Debug-build teardown asserts are the original's: ignore.
 
 ## Priorities
-1. Verify base game: the user plays (Claude doesn't script gameplay it can't see). L1-6 done, on L7. Riskiest: bonus
-   game with 2-4 pads, races, later levels, other languages.
+1. Verify base game: the user plays (Claude doesn't script gameplay it can't see). All missions and street races done
+   in long sessions. Left: bonus game with 2-4 pads, other languages.
 2. Memcheck coverage (Claude, unattended): every mission done; cutscenes, bonus game with player driving.
 3. Robustness: crashes/asserts from those runs, shutdown paths.
 4. Mods: remaining hacks (mods.md), tested with the user. 5. Packaging. 6. Wheel FFB. 7. Renderer follow-ups.

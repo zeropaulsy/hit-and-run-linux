@@ -6,7 +6,7 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 ## Done
 
 ### Verification (playing the game)
-- [x] **Full playthrough** of all seven levels: missions, bonus missions and cutscenes
+- [x] **Full playthrough** of all seven levels: missions, bonus missions, street races and cutscenes, in long sessions
 - [x] **Street races, wager races and time trials** in every level
 
 ### Platforms
