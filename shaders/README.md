@@ -10,6 +10,10 @@ within a second):
 
 Press **M** in the game to turn all of them off and on again (for comparing).
 
+With the Vulkan renderer either kind can also be written as a Vulkan shader and compiled to SPIR-V ahead of time:
+optional, for people who prefer writing for Vulkan (see [Vulkan shaders](#vulkan-shaders-spir-v-optional) at the
+end). GLSL works on both renderers and needs no compile step, so it stays the usual way.
+
 A shader that does not compile is reported on the console with its line numbers (in the log,
 `run/logs/last-session.log`, when started by play.sh) and the game carries on without it until it builds again.
 
@@ -100,34 +104,6 @@ stage always works at full size.
 | `bloom_bright.glsl`, `bloom_blur_h.glsl`, `bloom_blur_v.glsl`, `bloom_add.glsl` | scene | glow around bright things (four passes, in this order) |
 | `crt.glsl` | final | old TV: curved screen, scanlines, shadow mask |
 | `show_depth.glsl` | scene | shows the depth buffer (near black, far white) |
-
-### Vulkan passes (SPIR-V)
-
-With the Vulkan renderer (`renderer=vulkan`) a pass can also be a SPIR-V file (`post/name.spv` in `post.ini`) instead
-of GLSL: a shader written for Vulkan and compiled ahead of time, loaded as it is (the OpenGL renderer skips it). The
-game puts nothing in front of it, so it declares everything itself, exactly like this (names are free, the
-locations, bindings and block layout are not):
-
-```glsl
-#version 450
-layout(location = 0) in vec2 vUV;
-layout(location = 0) out vec4 fragColour;
-layout(set = 0, binding = 0, std140) uniform Post
-{
-    vec2 uResolution; float uTime; int uFrame; float uNear; float uFar; mat4 uProjection; mat4 uInverseProjection;
-};
-layout(set = 0, binding = 1) uniform sampler2D uScene;
-layout(set = 0, binding = 2) uniform sampler2D uOriginal;
-layout(set = 0, binding = 3) uniform sampler2D uDepth;          // copied only when the shader declares binding 3
-layout(set = 0, binding = 4) uniform sampler2D uMyImage;        // 4-7: the #pragma shar_texture images, in order
-```
-
-`LinearDepth` and `ViewPosition` are not provided (copy them from above). Pragmas are read from the source beside the
-`.spv` (same name, `.frag`) when there is one. Compile with the game's own compiler, no SDK needed:
-`python3 port/spirv.py post/name.frag` writes `post/name.spv` (any SPIR-V compiler works: `glslc`, `glslangValidator
--V`). The game reloads the `.spv` when it changes. Examples in `post/vulkan/` (source `.frag` and compiled `.spv`):
-`tonemap` (`tonemap.glsl` written for Vulkan, the same result) and `test` (colour fringes towards the edges, a cool
-haze over distant things).
 
 ### Making your own LUT
 
@@ -262,22 +238,86 @@ and `vColour` are the way to include the world's own shading.
 
 They cost nothing measurable on a current graphics card.
 
-## Vulkan material shaders (SPIR-V)
+# Vulkan shaders (SPIR-V, optional)
 
-With the Vulkan renderer a material shader can also be SPIR-V: `materials.ini` names a `.spv` file
-(`*chars/* = materials/vulkan/softlit.spv`); the OpenGL renderer skips it. It is a whole fragment shader in Vulkan
-GLSL that starts like this and defines `ShadeMaterial()` as above:
+For people who would rather write a shader for Vulkan than in the game's GLSL: standard Vulkan GLSL (`#version 450`,
+explicit `layout(...)` declarations), compiled ahead of time to a SPIR-V file (`.spv`) that the game loads as it is.
+Both kinds work this way: post-processing passes and material shaders.
+
+- **Vulkan renderer only** (`renderer=vulkan` in Options > Graphics, or `SHAR_RENDERER=vulkan`). The OpenGL renderer
+  skips `.spv` files (one line in the log) and carries on with the rest.
+- **Nothing is lost by using GLSL instead**: the Vulkan renderer runs `.glsl` files too, compiling them itself, and
+  the results are the same. Use SPIR-V if you want to write the Vulkan way, use your own SPIR-V tools, or ship
+  compiled shaders.
+
+## How it works
+
+1. Write the shader as a `.frag` file (examples: `post/vulkan/`, `materials/vulkan/`).
+2. Compile it: `python3 port/spirv.py post/vulkan/name.frag` writes `post/vulkan/name.spv` beside it. This uses the
+   game's own compiler (`libshar_glslang.so` from the build), so no Vulkan SDK is needed, and it expands
+   `#include "file"` (relative to the source). Other compilers work too (`glslc`, `glslangValidator -V`), as long as
+   they can find the include and keep the names (no stripping).
+3. Name the `.spv` in `post.ini` or `materials.ini`, as you would a `.glsl` file.
+
+The game reloads a `.spv` when it changes, so recompiling while the game runs shows the result within a second.
+Errors are reported in the log like GLSL ones, and the game carries on without the shader. `#pragma` lines
+(`shar_texture`, `shar_original`, `shar_scale`, `shar_cull`) are read from the `.frag` beside the `.spv` (same name),
+not from the SPIR-V; without that file there are none.
+
+## Post-processing passes
+
+The game puts nothing in front of a SPIR-V pass, so it declares everything itself, exactly like this (names are
+free; the locations, bindings and block layout are fixed):
 
 ```glsl
 #version 450
-#include "shar_material.glsl"       // materials/vulkan/: everything listed under "Writing one", and main()
+layout(location = 0) in vec2 vUV;
+layout(location = 0) out vec4 fragColour;
+layout(set = 0, binding = 0, std140) uniform Post
+{
+    vec2 uResolution; float uTime; int uFrame; float uNear; float uFar; mat4 uProjection; mat4 uInverseProjection;
+};
+layout(set = 0, binding = 1) uniform sampler2D uScene;
+layout(set = 0, binding = 2) uniform sampler2D uOriginal;
+layout(set = 0, binding = 3) uniform sampler2D uDepth;          // copied only when the shader declares binding 3
+layout(set = 0, binding = 4) uniform sampler2D uMyImage;        // 4-7: the #pragma shar_texture images, in order
 ```
 
-`shar_material.glsl` declares the inputs, uniforms and samplers with the same names, the same helper functions
-(`StandardColour()`, `Lighting()`, ...), and a `main()` that applies fog and the alpha test to what `ShadeMaterial()`
-returns. The game fits the compiled file to its own program by name: an input gets the location the game gives that
-name, a uniform block member that uniform's offset, `uTexture` / `uReflection` their bindings. So names matter (an
-unknown one is reported and the material drawn as usual), the numbers in the declarations do not, and the SPIR-V
-must keep its names (no `--strip`). Fragment stage only: no `MaterialVertex`. `#pragma shar_cull` goes in the `.frag`
-beside the `.spv`, read from there. Compile: `python3 port/spirv.py materials/vulkan/name.frag` (it expands the
-`#include`). Example: `materials/vulkan/softlit.frag` / `.spv`, `softlit.glsl` written for Vulkan (the same look).
+Leave out what you do not use. Everything means what it does for GLSL passes ([Writing a pass](#writing-a-pass));
+`LinearDepth()` and `ViewPosition()` are not provided (copy them from there).
+
+Examples (`post/vulkan/`): `tonemap` (`tonemap.glsl` written for Vulkan, the same result: use one or the other) and
+`test` (colour fringes towards the screen's edges, a cool haze over distant things).
+
+## Material shaders
+
+A SPIR-V material shader is a whole fragment shader. `materials/vulkan/shar_material.glsl` supplies the game's side,
+so a material starts like this and then defines `vec4 ShadeMaterial()`, as a GLSL one does:
+
+```glsl
+#version 450
+#include "shar_material.glsl"
+
+vec4 ShadeMaterial()
+{
+    return StandardColour();
+}
+```
+
+The include declares everything listed under [Writing one](#writing-one), with the same names and meaning
+(`vColour`, `vNormal`, `uLit`, `uLightColour`, `uTexture`, ...), the same functions (`StandardColour()`,
+`BaseTexture()`, `LightVector()`, `Lighting()`), and a `main()` that applies fog and the alpha test to what
+`ShadeMaterial()` returns. Copy it next to your shader (or include it by path).
+
+The game fits the compiled file to its own program by name: each input gets the location the game gives that name,
+each uniform block member that uniform's offset, `uTexture` and `uReflection` their bindings. So:
+
+- **Names matter, numbers do not**: an input, uniform or sampler the game does not have is reported in the log and
+  the material is drawn as usual. The locations, bindings and member order in the declarations are placeholders.
+- **Keep the names in the SPIR-V**: a stripped file (`spirv-opt --strip-debug`) has none to match.
+- **Fragment stage only**: `MaterialVertex()` (moving vertices) needs a GLSL shader.
+
+Mods can ship `.spv` material shaders in their `Shaders/` folder too, with the `.frag` beside them for pragmas.
+
+Example (`materials/vulkan/`): `softlit` (`softlit.glsl` written for Vulkan, the same look):
+`*chars/* = materials/vulkan/softlit.spv` in `materials.ini`.
