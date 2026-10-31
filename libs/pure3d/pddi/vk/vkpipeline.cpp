@@ -287,7 +287,7 @@ void pvkPipeline::ReleaseCustomPrograms()
     {
         if(pipelines[i].pipeline && (int)(pipelines[i].key & 63) >= PGL_PROGRAM_COUNT)
         {
-            g_pvk->Retire(pipelines[i].pipeline);
+            g_pvk->RetirePipeline(pipelines[i].pipeline);
             pipelines[i].pipeline = VK_NULL_HANDLE;
             pipelines[i].key = 0;
             pipelineCount--;
@@ -733,7 +733,7 @@ VkSampler pvkPipeline::GetSampler(int filter, int uv, bool mipmapped)
     {
         // the setting changed (options menu): new samplers; the old ones go once the frames using them are done
         for(int i = 0; i < samplerCount; i++)
-            g_pvk->Retire(samplers[i].sampler);
+            g_pvk->RetireSampler(samplers[i].sampler);
         samplerCount = 0;
         whiteSampler = VK_NULL_HANDLE;
         descriptorsDirty = true;

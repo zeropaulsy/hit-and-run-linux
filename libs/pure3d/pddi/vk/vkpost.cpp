@@ -160,7 +160,7 @@ static char* ReadFile(const char* path)
 static void ReleaseProgram(Program& p)
 {
     if(p.pipeline)
-        g_pvk->Retire(p.pipeline);
+        g_pvk->RetirePipeline(p.pipeline);
     if(p.vertex)
         vkDestroyShaderModule(g_pvk->device, p.vertex, NULL);
     if(p.fragment)

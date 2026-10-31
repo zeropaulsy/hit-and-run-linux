@@ -659,7 +659,7 @@ void pvkCore::Retire(pvkImage& i)
     memset(&i, 0, sizeof(i));
 }
 
-void pvkCore::Retire(VkPipeline pipeline)
+void pvkCore::RetirePipeline(VkPipeline pipeline)
 {
     if(!pipeline)
         return;
@@ -671,7 +671,7 @@ void pvkCore::Retire(VkPipeline pipeline)
     PushRetired(r);
 }
 
-void pvkCore::Retire(VkSampler sampler)
+void pvkCore::RetireSampler(VkSampler sampler)
 {
     if(!sampler)
         return;

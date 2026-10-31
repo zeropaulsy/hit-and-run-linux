@@ -92,8 +92,8 @@ public:
     // destroyed once the GPU is past the frame being recorded (any thread)
     void Retire(pvkBuffer& b);
     void Retire(pvkImage& i);
-    void Retire(VkPipeline pipeline);
-    void Retire(VkSampler sampler);
+    void RetirePipeline(VkPipeline pipeline);     // named: on 32-bit every non-dispatchable handle is a uint64_t
+    void RetireSampler(VkSampler sampler);
 
     // the frame being recorded (render thread)
     VkCommandBuffer Cmd();
