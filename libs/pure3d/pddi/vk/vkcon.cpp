@@ -604,6 +604,7 @@ void pvkContext::DrawPrimBuffer(pddiShader* mat, pddiPrimBuffer* buffer)
     pddiBaseShader* material = (pddiBaseShader*)mat;
     ADD_STAT(PDDI_STAT_MATERIAL_OPS, !material->IsCurrent());
     int passes = material->GetPasses();
+    pvkSunDrawing(((pvkMat*)material)->MaterialName(), ((pvkMat*)material)->FileName());
     for(int i = 0; i < passes; i++)
     {
         material->SetMaterial(i);

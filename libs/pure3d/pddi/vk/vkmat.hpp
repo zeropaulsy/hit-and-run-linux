@@ -100,6 +100,8 @@ public:
     // (both set by p3d's shader loader)
     void SetTypeName(const char* name);
     void SetMaterialName(const char* name, const char* file);
+    const char* MaterialName() const { return materialName ? materialName : "-"; }
+    const char* FileName() const { return fileName ? fileName : "-"; }
 
 protected:
     // the pipeline material and GL state for a draw pass (the standard part; shader kinds add theirs and set it)

@@ -74,7 +74,9 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 ## Sun prototype (branch `vulkan-sun`, `vksun.cpp`)
 - `SHAR_SUN=1` (device made with ray queries + buffer device address), F9 toggles. Off/unsupported: programs and
   layout as before. `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_ELEVATION=deg`
-  (every level), `SHAR_SUN_LOG=1`.
+  (every level), `SHAR_SUN_SOFT=deg` (sun disc radius, default 2; 0 = hard), `SHAR_SUN_RAYS` (default 6),
+  `SHAR_SUN_LOG=1` (2: every caster named as built: id, material, file, size), `SHAR_SUN_DEBUG=1` (one ray;
+  shadowed pixels coloured by the blocker's id: red = low byte, green = high, blue 255).
 - Sun height per level: `kLevelElevation` (vksun.cpp; L1 68 deg = midday), the game light's compass direction kept;
   level from `GameplayManager::SetLevelIndex` (`pvkSunSetLevel`). The game's own key light is ~30 deg.
 - Receivers: depth-writing, blend none or alpha (characters fade near the camera: always alpha-blended). Lit draws
@@ -87,6 +89,9 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   in flight, built at Present before the upload barrier. Casters > 1500 m (sky) skipped, and those drawn at the
   camera (a 19 m ring moved with it: ring shadow round the player). Buffers rebuilt every frame (CPU-skinned
   characters: Lock each frame) rebuild their BLAS (fast-build) within 96 builds a frame, old shape meanwhile.
+  Also skipped: casters > 8 m keeping the same offset from a moving camera, and draws whose projection is not the
+  one set with the camera (`pvkSunInView`). A ring shadow that followed the player (user report) went away with
+  these; neither check was seen to catch anything, cause unconfirmed: SHAR_SUN_DEBUG names it if it returns.
 - Alpha-tested casters (foliage): non-opaque BLAS; custom index = row in the caster table (binding 6: UV/triangle
   offsets, mask | compare << 16, ref); 64x64 alpha masks from the texture's CPU copy (`pvkTexture::AlphaMask`,
   binding 7); UVs + triangles in a shared first-fit buffer (binding 8). Shader confirms candidates passing the test.

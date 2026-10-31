@@ -26,8 +26,18 @@ static float s_eyeToWorld[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1
 static unsigned s_version = 1;
 static float s_direction[3] = { 0.36f, 0.80f, 0.48f };
 static bool s_fixedDirection = false;
-static float s_levels[3] = { 0.62f, 1.25f, 0.65f };
+static float s_levels[3] = { 0.68f, 1.22f, 0.7f };
+static float s_softDegrees = 2.0f;      // the sun disc's radius: wider than the real sun's (0.27) for visible penumbrae
+static float s_rays = 6.0f;
+static const float* s_projectionSource;
+static float s_viewProjection[16];
+static bool s_viewProjectionSet = false;
+static unsigned s_notInView;
 static bool s_log = false;
+static int s_logLevel = 0;
+static int s_debug = 0;            // SHAR_SUN_DEBUG=1: shadowed pixels show the caster's id (red low, green high byte)
+static const char* s_drawingMaterial = "-";
+static const char* s_drawingFile = "-";
 
 // the sun's height per level, degrees (0: the game's light as it is). The game's key light is low (about 30 degrees),
 // fine for its own shading but long shadows: level 1 is a midday sun, from the same compass direction.
@@ -72,8 +82,14 @@ bool pvkSunWanted()
             s_fixedDirection = true;
         }
         s_elevation = EnvFloat("SHAR_SUN_ELEVATION", -1.0f);
+        s_softDegrees = EnvFloat("SHAR_SUN_SOFT", s_softDegrees);
+        s_rays = EnvFloat("SHAR_SUN_RAYS", s_rays);
+        s_rays = s_rays < 1.0f ? 1.0f : s_rays > 32.0f ? 32.0f : floorf(s_rays);
         const char* l = getenv("SHAR_SUN_LOG");
-        s_log = l && l[0] == '1';
+        s_logLevel = l ? atoi(l) : 0;
+        s_log = s_logLevel > 0;
+        const char* dbg = getenv("SHAR_SUN_DEBUG");
+        s_debug = dbg ? atoi(dbg) : 0;
     }
     return s_wanted > 0;
 }
@@ -119,8 +135,25 @@ void pvkSunToggle()
 }
 
 // GL eye space is p3d's camera space with z negated: eye -> world = diag(1, 1, -1, 1) * cameraToWorld
+void pvkSunSetProjectionSource(const float* projection)
+{
+    s_projectionSource = projection;
+}
+
+bool pvkSunInView(const float* projection)
+{
+    bool in = !s_viewProjectionSet || memcmp(projection, s_viewProjection, sizeof(s_viewProjection)) == 0;
+    s_notInView += !in;
+    return in;
+}
+
 void pvkSetViewMatrix(const float* cameraToWorld)
 {
+    if(s_projectionSource)
+    {
+        memcpy(s_viewProjection, s_projectionSource, sizeof(s_viewProjection));
+        s_viewProjectionSet = true;
+    }
     float m[16];
     memcpy(m, cameraToWorld, sizeof(m));
     m[8] = -m[8];
@@ -143,10 +176,14 @@ unsigned pvkSunVersion()
     return s_version;
 }
 
-void pvkSunParameters(float* direction, float* levels)
+void pvkSunParameters(float* direction, float* levels, float* soft)
 {
     memcpy(direction, s_direction, sizeof(s_direction));
     memcpy(levels, s_levels, sizeof(s_levels));
+    soft[0] = s_softDegrees > 0.0f ? tanf(s_softDegrees * 3.14159265f / 180.0f) : 0.0f;
+    soft[1] = s_softDegrees > 0.0f ? s_rays : 1.0f;
+    if(s_debug)
+        soft[1] = -1.0f;        // the shader's debug view: one ray, the blocker's id as the colour
 }
 
 void pvkSunNoteLight(const float* eye, const float* colour)
@@ -282,6 +319,12 @@ struct Blas
     VkAccelerationStructureKHR as;
     pvkBuffer storage;
     bool alpha;                 // alpha-tested: UVs and triangles in the geometry buffer
+    float size;                 // bounding box diagonal
+    // attached to the camera (sky pieces, a ring round it): its offset from the camera unchanged while it moves
+    float offset[3], camera[3];
+    unsigned offsetFrame;
+    int attachedFrames;
+    bool attached;
     unsigned geometry, geometryWords;
     VkDeviceAddress address;
     unsigned version;
@@ -481,7 +524,8 @@ static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float*
         return false;
     }
     float d[3] = { hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2] };
-    b.huge = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]) > kHugeSize;
+    b.size = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    b.huge = b.size > kHugeSize;
 
     // the input in host-visible memory, read by the build straight from there
     pvkBuffer input;
@@ -575,6 +619,12 @@ static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float*
     b.address = vkGetAccelerationStructureDeviceAddressKHR(g_pvk->device, &ai);
     s_buildsThisFrame++;
     return true;
+}
+
+void pvkSunDrawing(const char* material, const char* file)
+{
+    s_drawingMaterial = material;
+    s_drawingFile = file;
 }
 
 void pvkSunForget(unsigned id)
@@ -683,6 +733,9 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
                 return;         // no mask: it would cast as a solid card
             if(!BuildBlas(b, *id, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare, alphaRef))
                 return;
+            if(s_logLevel >= 2 && b.builds == 1)
+                fprintf(stderr, "PDDI sun: caster %u = %s (%s), %.1f m, %u vertices, %u indices, %s\n", *id,
+                        s_drawingMaterial, s_drawingFile, b.size, vertexCount, count, keep ? "world" : "lit");
         }
     }
     if(!b.as || b.huge)
@@ -694,9 +747,32 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
     for(int r = 0; r < 4; r++)
         for(int c = 0; c < 4; c++)
             w[r * 4 + c] = mv[r * 4] * e[c] + mv[r * 4 + 1] * e[4 + c] + mv[r * 4 + 2] * e[8 + c] + mv[r * 4 + 3] * e[12 + c];
-    // drawn at the camera (a ring around it, moved with it each frame): not scenery
-    float dx = w[12] - e[12], dy = w[13] - e[13], dz = w[14] - e[14];
-    if(dx * dx + dy * dy + dz * dz < 0.25f)
+    // drawn at the camera, or kept at the same offset from it while it moves (a 19 m ring round it cast a ring
+    // shadow that followed the player): not scenery. Only big things: a closely followed player is not caught.
+    float offset[3] = { w[12] - e[12], w[13] - e[13], w[14] - e[14] };
+    if(offset[0] * offset[0] + offset[1] * offset[1] + offset[2] * offset[2] < 0.25f)
+        return;
+    if(b.size > 8.0f && b.offsetFrame != s_frame)
+    {
+        float moved = fabsf(e[12] - b.camera[0]) + fabsf(e[13] - b.camera[1]) + fabsf(e[14] - b.camera[2]);
+        float drift = fabsf(offset[0] - b.offset[0]) + fabsf(offset[1] - b.offset[1]) + fabsf(offset[2] - b.offset[2]);
+        if(b.offsetFrame + 1 == s_frame && moved > 0.02f)
+        {
+            b.attachedFrames = drift < 0.002f ? b.attachedFrames + 1 : 0;
+            if(b.attachedFrames >= 3 && !b.attached)
+            {
+                b.attached = true;
+                if(s_log)
+                    fprintf(stderr, "PDDI sun: caster %u (%.1f m) moves with the camera: not casting\n", *id, b.size);
+            }
+        }
+        memcpy(b.offset, offset, sizeof(offset));
+        b.camera[0] = e[12];
+        b.camera[1] = e[13];
+        b.camera[2] = e[14];
+        b.offsetFrame = s_frame;
+    }
+    if(b.attached)
         return;
     Instance in;
     memset(&in, 0, sizeof(in));
@@ -853,7 +929,7 @@ static void FillInstance(VkAccelerationStructureInstanceKHR& out, const Instance
 {
     memcpy(out.transform.matrix, in.transform, sizeof(out.transform.matrix));
     const Blas& b = s_blas[in.id];
-    out.instanceCustomIndex = b.alpha ? in.id : 0;      // the caster table's row
+    out.instanceCustomIndex = in.id;    // the caster table's row (alpha-tested), SHAR_SUN_DEBUG's colour
     out.mask = in.keep ? 0x01 : 0x02;     // the world; lit things (cars), which lit draws' rays skip
     out.instanceShaderBindingTableRecordOffset = 0;
     out.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR |
@@ -968,9 +1044,10 @@ void pvkSunEndFrame()
         s_builds += s_buildsThisFrame;
         if(now - s_lastLog > 5000)
         {
-            fprintf(stderr, "PDDI sun: %s, direction %.2f %.2f %.2f, %u instances (%u this frame), %u structures, %u built\n",
-                    on ? "on" : "off", s_direction[0], s_direction[1], s_direction[2], used, current,
-                    s_blasCount - s_freeCount, s_builds);
+            fprintf(stderr, "PDDI sun: %s, direction %.2f %.2f %.2f, %u instances (%u this frame), %u structures, %u built, "
+                    "%u draws not in the view\n", on ? "on" : "off", s_direction[0], s_direction[1], s_direction[2], used,
+                    current, s_blasCount - s_freeCount, s_builds, s_notInView);
+            s_notInView = 0;
             s_lastLog = now;
             s_builds = 0;
         }

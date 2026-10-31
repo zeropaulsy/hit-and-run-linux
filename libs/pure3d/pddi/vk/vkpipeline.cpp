@@ -338,6 +338,7 @@ bool pvkPipeline::Init()
     if(ready)
         return true;
     pvkSunScene();      // made now: without it the programs are built without the sun
+    pvkSunSetProjectionSource(projection);
     for(int i = 0; i < PGL_PROGRAM_COUNT; i++)
     {
         if(!BuildProgram(programs[i], pglProgramSources[i].name, pglProgramSources[i].header, pglFragmentMain, false,
@@ -761,10 +762,11 @@ void pvkPipeline::UploadUniforms(Program& p)
 
     if(p.sun && p.sunVersion != pvkSunVersion())
     {
-        float direction[3], levels[3];
-        pvkSunParameters(direction, levels);
+        float direction[3], levels[3], soft[2];
+        pvkSunParameters(direction, levels, soft);
         SetFloats(p, U_EYETOWORLD, pvkSunEyeToWorld(), 1, 16);
         SetFloats(p, U_SUNDIRECTION, direction, 1, 3);
+        SetFloats(p, U_SUNSOFT, soft, 1, 2);
         p.sunVersion = pvkSunVersion();
     }
 
@@ -964,7 +966,7 @@ VkSampler pvkPipeline::GetSampler(int filter, int uv, bool mipmapped)
         whiteSampler = VK_NULL_HANDLE;
         descriptorsDirty = true;
     }
-    samplerAnisotropy = anisotropy;
+    samplerAnisotropy = setting;
 
     unsigned key = (filter & 7) | ((uv & 3) << 3) | ((mipmapped ? 1 : 0) << 5);
     for(int i = 0; i < samplerCount; i++)
@@ -1167,8 +1169,8 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
     VkAccelerationStructureKHR sunScene = p.sun ? pvkSunScene() : VK_NULL_HANDLE;
     if(p.sun && p.offset[U_SUN] >= 0)
     {
-        float direction[3], levels[3];
-        pvkSunParameters(direction, levels);
+        float direction[3], levels[3], soft[2];
+        pvkSunParameters(direction, levels, soft);
         float sun[4] = { 0.0f, levels[0], levels[1], levels[2] };
         if(sunScene && SunReceiver())
             sun[0] = material.lit ? 2.0f : 1.0f;
@@ -1263,7 +1265,7 @@ bool pvkPipeline::SunReceiver() const
 {
     return pvkSunOn() && projection[15] == 0.0f && state.depthTest && state.depthWrite &&
            (state.blend == PDDI_BLEND_NONE || state.blend == PDDI_BLEND_ALPHA) &&
-           material.program != PGL_PROGRAM_REFRACTION;
+           material.program != PGL_PROGRAM_REFRACTION && pvkSunInView(projection);
 }
 
 bool pvkPipeline::SunCaster() const

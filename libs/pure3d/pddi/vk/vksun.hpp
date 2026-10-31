@@ -29,11 +29,16 @@ void pvkSunToggle();
 
 // p3d's camera (row vectors, translation in row 3)
 void pvkSetViewMatrix(const float* cameraToWorld);
+// the pipeline's projection, read when the camera is set: draws with another projection (the HUD's 3D radar, drawn
+// with the world's camera matrix still loaded) are not in the world (pvkSunInView)
+void pvkSunSetProjectionSource(const float* projection);
+bool pvkSunInView(const float* projection);
 // GL eye space -> world (row vectors), and a counter that changes with it or with the sun's settings
 const float* pvkSunEyeToWorld();
 unsigned pvkSunVersion();
-// towards the sun, world space; levels: shadow, sunlit (pre-lit draws), shadow (lit draws)
-void pvkSunParameters(float* direction, float* levels);
+// towards the sun, world space; levels: shadow, sunlit (pre-lit draws), shadow (lit draws); soft: tangent of the
+// sun disc's radius (penumbra), rays per pixel
+void pvkSunParameters(float* direction, float* levels, float* soft);
 
 // the level being played (RenderEnums::LevelEnum: 0 = level 1), for its sun's height
 void pvkSunSetLevel(int level);
@@ -49,6 +54,8 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
                      const unsigned short* indices, unsigned count, bool strip, const float* modelView, bool keep,
                      pvkTexture* alphaTexture, int alphaCompare, float alphaRef);
 void pvkSunForget(unsigned id);     // the prim buffer is gone (any thread)
+// the material of the prim buffer about to be drawn (SHAR_SUN_LOG=2 names each caster as it is built)
+void pvkSunDrawing(const char* material, const char* file);
 void pvkSunForgetTexture(pvkTexture* texture);  // any thread
 
 // the alpha-tested casters' table, the masks and their geometry (storage buffers for the programs, bindings 6-8)
