@@ -77,8 +77,11 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   (every level), `SHAR_SUN_SOFT=deg` (sun disc radius, default 2; 0 = hard), `SHAR_SUN_RAYS` (default 6),
   `SHAR_SUN_LOG=1` (2: every caster named as built: id, material, file, size), `SHAR_SUN_DEBUG=1` (one ray;
   shadowed pixels coloured by the blocker's id: red = low byte, green = high, blue 255).
-- Sun height per level: `kLevelElevation` (vksun.cpp; L1 68 deg = midday), the game light's compass direction kept;
-  level from `GameplayManager::SetLevelIndex` (`pvkSunSetLevel`). The game's own key light is ~30 deg.
+- Compass direction: the sky's painted sun = the level's lens flare (`LensFlareDSG::SetCompositeDrawable`, its
+  visibility mesh's joint, camera-relative -> `pvkSunSetSkyDirection`; the PC never draws the flare). No flare: the
+  game's key light. L1 sky sun 0.557,0.245,0.794 (in front of the Simpsons' house, 14 deg up); the key light is ~85
+  deg round from it (behind the house), ~30 deg up. Height per level: `kLevelElevation` (L1 35 deg; 0 = as is);
+  level from `GameplayManager::SetLevelIndex` (`pvkSunSetLevel`). `SHAR_SUN_LOG=1` prints the sky's sun.
 - Receivers: depth-writing, blend none or alpha (characters fade near the camera: always alpha-blended). Lit draws
   trace from every surface with ray mask 0x01 (world only; lit instances are 0x02): no self-shadow on top of the
   game's own shading.
@@ -150,5 +153,5 @@ What each setting does:
 
 Tips:
 - Press F9 to flip the sun off and on in the same spot. That's the easiest way to judge any of these.
-- On L1, SHAR_SUN_ELEVATION=30 gives the long, low-sun shadows from before. Midday shadows are short and mostly under things, which makes softness harder to see.
+- On L1 the sun comes from where it is painted in the sky, in front of the Simpsons' house, at 35 degrees. SHAR_SUN_ELEVATION=14 puts it exactly where the sky shows it (long shadows); 68 is a midday sun (short shadows, mostly under things, softness harder to see).
 - Good spots to look: the lamp posts and trees along the street, and Homer walking in and out of the house's shadow.

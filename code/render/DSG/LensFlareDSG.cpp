@@ -16,6 +16,7 @@
 //========================================
 #include <render/DSG/LensFlareDSG.h>
 #include <p3d/anim/compositedrawable.hpp>
+#include <p3d/anim/pose.hpp>
 #include <p3d/billboardobject.hpp>
 #include <p3d/utility.hpp>
 #include <pddi/pddiext.hpp>
@@ -23,6 +24,10 @@
 // DEBUG stuff
 #include <worldsim/avatarmanager.h>
 #include <worldsim/character/character.h>
+
+#ifdef RAD_LINUX
+void pvkSunSetSkyDirection( const float* direction );   // pddi/vk/vksun.cpp: where the sky's sun is (NULL: none)
+#endif
 
 #ifndef TRUE
 #define TRUE 1
@@ -125,6 +130,9 @@ LensFlareDSG::~LensFlareDSG()
    {
 		mpCompDraw->Release();
    }
+#ifdef RAD_LINUX
+   pvkSunSetSkyDirection( NULL );
+#endif
 
 }
 // Checks to see if this flare is visible to the camera
@@ -209,6 +217,15 @@ void LensFlareDSG::SetCompositeDrawable( tCompositeDrawable* ipCompDraw )
                 // Turn off visibility for this thing
                 propElem->SetVisibility( false );
                 propElem->SetLockVisibility( true );
+#ifdef RAD_LINUX
+                // the flare sits on the sky's painted sun, relative to the camera: the shadow sun's direction
+                // (the PC never draws the flare, and its bounding sphere spans the glare quads)
+                tPose* pose = mpCompDraw->GetPose();
+                pose->Evaluate();
+                const rmt::Vector& sun = pose->GetJoint( propElem->GetPoseIndex() )->worldMatrix.Row( 3 );
+                float direction[3] = { sun.x, sun.y, sun.z };
+                pvkSunSetSkyDirection( direction );
+#endif
                 break;
             }
         }

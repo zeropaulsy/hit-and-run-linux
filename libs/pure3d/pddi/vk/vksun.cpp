@@ -40,11 +40,15 @@ static int s_debug = 0;            // SHAR_SUN_DEBUG=1: shadowed pixels show the
 static const char* s_drawingMaterial = "-";
 static const char* s_drawingFile = "-";
 
-// the sun's height per level, degrees (0: the game's light as it is). The game's key light is low (about 30 degrees),
-// fine for its own shading but long shadows: level 1 is a midday sun, from the same compass direction.
-static const float kLevelElevation[] = { 68.0f };
+// the sun's height per level, degrees (0: as it is). The sky's sun (lens flare) is low (L1 14 degrees): long shadows.
+static const float kLevelElevation[] = { 35.0f };
 static int s_level = -1;
 static float s_elevation = -1.0f;      // SHAR_SUN_ELEVATION: every level
+
+// the sky's painted sun (the level's lens flare, LensFlareDSG): the compass direction when there is one, else the
+// game's key light (L1: ~85 degrees round from the sky's sun, behind the Simpsons' house)
+static bool s_sky = false;
+static float s_skyDirection[3];
 
 // the frame's strongest directional light (world space)
 static float s_bestLight = 0.0f;
@@ -104,7 +108,19 @@ void pvkSunSetLevel(int level)
     s_level = level;
 }
 
-// the game's light raised (or lowered) to the level's height, the compass direction kept
+void pvkSunSetSkyDirection(const float* direction)
+{
+    s_sky = direction && direction[1] > 0.0f;
+    if(!s_sky)
+        return;
+    memcpy(s_skyDirection, direction, sizeof(s_skyDirection));
+    Normalise(s_skyDirection);
+    if(pvkSunWanted() && s_log)
+        fprintf(stderr, "PDDI sun: sky's sun %.3f %.3f %.3f (%.1f degrees up)\n", s_skyDirection[0], s_skyDirection[1],
+                s_skyDirection[2], asinf(s_skyDirection[1]) * 180.0f / 3.14159265f);
+}
+
+// the sun raised (or lowered) to the level's height, the compass direction kept
 static void Elevate(float* d)
 {
     pvkSunWanted();
@@ -1004,9 +1020,11 @@ void pvkSunEndFrame()
     }
     free(dead);
 
-    // the sun: the frame's strongest directional light
-    if(!s_fixedDirection && s_bestLight > 0.0f)
+    // the sun: the sky's, else the frame's strongest directional light
+    if(!s_fixedDirection && (s_sky || s_bestLight > 0.0f))
     {
+        if(s_sky)
+            memcpy(s_bestDirection, s_skyDirection, sizeof(s_bestDirection));
         Elevate(s_bestDirection);
         float d = fabsf(s_bestDirection[0] - s_direction[0]) + fabsf(s_bestDirection[1] - s_direction[1]) +
                   fabsf(s_bestDirection[2] - s_direction[2]);
