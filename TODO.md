@@ -63,7 +63,7 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
 ### Renderer extras
 - [ ] Anti-aliasing entry in the display menu
 - [ ] Sun lighting on the world (needs shadow maps; prototyped and dropped)
-- [ ] **Vulkan renderer** (branch `vulcan`, first version 2026-10-28: front end, L1, post shaders match GL; to do:
+- [ ] **Vulkan renderer** (branch `vulkan`, first version 2026-10-28: front end, L1, post shaders match GL; to do:
   long play-tests incl. mods/HoverCarRefraction, pipeline cache on disk, other GPUs/Mesa): a third pddi beside GL, GL kept as fallback. Reuses the GL
   pipeline's CPU state tracking and GLSL (compiled to SPIR-V with glslang); new work is pipeline objects/cache,
   memory and frame sync, swapchain, texture Lock/readbacks. For Android, macOS (MoltenVK), low-power devices,
