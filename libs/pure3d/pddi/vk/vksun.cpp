@@ -34,12 +34,12 @@ static unsigned s_version = 1;
 static float s_direction[3] = { 0.36f, 0.80f, 0.48f };
 static bool s_fixedDirection = false;
 static float s_levels[3] = { 0.68f, 1.22f, 0.7f };
-static float s_softDegrees = 2.0f;      // the sun disc's radius: wider than the real sun's (0.27) for visible penumbrae
-static float s_rays = 6.0f;
-static float s_range[3] = { 40.0f, 250.0f, 150.0f };   // full rays to (one at twice it), no shadow past, ray length
+static float s_softDegrees = 0.3f;      // the sun disc's radius: about the real sun's (0.27)
+static float s_rays = 8.0f;
+static float s_range[3] = { 80.0f, 320.0f, 150.0f };   // full rays to (one at twice it), no shadow past, ray length
 static int s_bake = 1;                  // SHAR_SUN_BAKE=0: every shadow ray traced per pixel
 static float s_mapTexel = 0.04f;        // SHAR_SUN_TEXEL: the baked map's level 0 texel (m); each level doubles it
-static unsigned s_bakeBudget = 1u << 20;    // SHAR_SUN_BAKE_BUDGET: texels baked a frame
+static unsigned s_bakeBudget = 4000000;    // SHAR_SUN_BAKE_BUDGET: texels baked a frame
 static const float* s_projectionSource;
 static float s_viewProjection[16];
 static bool s_viewProjectionSet = false;
@@ -86,7 +86,7 @@ bool pvkSunWanted()
     if(s_wanted < 0)
     {
         const char* e = getenv("SHAR_SUN");
-        s_wanted = e && e[0] && e[0] != '0';
+        s_wanted = !e || e[0] != '0';      // on unless SHAR_SUN=0 (needs ray queries)
         s_levels[0] = EnvFloat("SHAR_SUN_SHADOW", s_levels[0]);
         s_levels[1] = EnvFloat("SHAR_SUN_LIGHT", s_levels[1]);
         s_levels[2] = EnvFloat("SHAR_SUN_LIT_SHADOW", s_levels[2]);

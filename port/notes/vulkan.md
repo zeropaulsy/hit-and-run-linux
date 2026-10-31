@@ -72,9 +72,9 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 
 
 ## Sun prototype (branch `vulkan-sun`, `vksun.cpp`)
-- `SHAR_SUN=1` (device made with ray queries + buffer device address), F9 toggles. Off/unsupported: programs and
+- On by default (`SHAR_SUN=0` off; device made with ray queries + buffer device address), F9 toggles. Off/unsupported: programs and
   layout as before. `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_ELEVATION=deg`
-  (every level), `SHAR_SUN_SOFT=deg` (sun disc radius, default 2; 0 = hard), `SHAR_SUN_RAYS` (default 6),
+  (every level), `SHAR_SUN_SOFT=deg` (sun disc radius, default 0.3; 0 = hard), `SHAR_SUN_RAYS` (default 8),
   `SHAR_SUN_LOG=1` (2: every caster named as built: id, material, file, size), `SHAR_SUN_DEBUG=1` (one ray;
   shadowed pixels coloured by the blocker's id: red = low byte, green = high, blue 255).
 - Compass direction: the sky's painted sun = the level's lens flare (`LensFlareDSG::SetCompositeDrawable`, its
@@ -110,8 +110,8 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   of a 2x2 quad traces every 4th spiral ray, sums shared by `subgroupQuadSwap*` (outside branches: helpers trace
   too); 1 ray = per pixel. Tried and dropped: 4 probes shared by the quad, early-out when they agree: faint
   penumbrae read fully lit for whole quads = regular bright dots. Fallback path (no quads): 3 probes (centre + 2
-  rim) per pixel, early-out when they agree. Rays fall from full at `SHAR_SUN_NEAR` (40 m) to 1 at twice it; shadow
-  fades out 0.8-1x `SHAR_SUN_FAR` (250 m, 0 = never); rays `SHAR_SUN_REACH` (150 m) long. Defaults 40 -> 12 ms,
+  rim) per pixel, early-out when they agree. Rays fall from full at `SHAR_SUN_NEAR` (80 m) to 1 at twice it; shadow
+  fades out 0.8-1x `SHAR_SUN_FAR` (320 m, 0 = never); rays `SHAR_SUN_REACH` (150 m) long. Defaults 40 -> 12 ms,
   SOFT=4 RAYS=12 79 -> 22 ms, all-penumbra low sun 75 -> 18 ms.
 - Baked map (`SHAR_SUN_BAKE`, on; `=0` = every ray per pixel through the whole scene, the comparison): the static
   world's shadow as heights towards the sun (`dot(p, sun)`) of the first surface per texel, on 4 levels of 2048^2
@@ -119,12 +119,12 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   doubling. One float storage buffer (binding 9, 64 MB), toroidal (`& 2047`), windows round the camera moved when an
   eighth off (`MapPlace`: the strips that came in are baked; `valid` = what draws may read, shrunk before the move).
   Baked by a compute shader (`kBakeSource`, `shar_spirv_compile` stage 2): a ray down along -sun per texel through
-  the world's TLAS (alpha-tested casters as the draws'), budget `SHAR_SUN_BAKE_BUDGET` texels/frame (1M), in the
+  the world's TLAS (alpha-tested casters as the draws'), budget `SHAR_SUN_BAKE_BUDGET` texels/frame (4M), in the
   upload cmd after the TLAS builds. Two TLAS per frame: draws' (lit, moving, not-yet-baked) and world's (built only
   in frames that bake). World = pre-lit, same transform `kWorldStreak` (30) frames, structure built <= 3 times;
   kept 10 min unseen, dropped when in view < 60 m and not drawn 30 frames (knocked down). Came/went/rebuilt: the
   64x64 tiles under its bounding sphere are dirty (`MarkDirty`, only where `valid`); a caster stays in the draws'
-  TLAS until no dirty tile is left (ticket). Load: one full rebake (12.5M texels); standing: ~0.
+  TLAS until no dirty tile is left (ticket). Load: one full rebake (12.5M texels, ~4 frames); standing: ~0.
 - Map sampling (`SunMapShade`, glshaders.cpp): finest level whose valid window holds p with a margin of the widest
   penumbra; p pushed a texel along the face. Receiver-plane bias: every tap compares with the face's plane where it
   lands (`slope`, per texel; without it sloped ground counted itself as blockers). 9-tap blocker search (disc of a
@@ -135,34 +135,43 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 - Cost baked (same view, 2560x1600 8x): sun off ~1.5 ms, baked ~5.6 ms (before refine 3.6), SOFT=0.3 RAYS=16
   ~10 ms (RAYS=8 6.5: rays at every crisp edge), all rays ~18 ms. Texel size barely changes the cost. Truncated: outer penumbrae of blockers > 40 m up (search disc); things gone out of view keep their
   shadow until they are looked at (or 10 min).
-- Gaps: the game's blob shadow is still drawn under characters, custom material shaders get no sun,
-  additive-blended foliage never casts.
+- Blob shadows off while `pvkSunOn()` (F9 brings them back): characters/cars (`CharacterRenderable::DisplayShadow`,
+  `GeometryVehicle::DisplayShadow`; not in the bonus game, its coloured blobs mark players), props/trees/lamps
+  (`DisplaySimpleShadow` of StaticPhysDSG, StatePropDSG, InstStatEntityDSG), the large trees' decals painted into the
+  world meshes (materials named *tree*shad*: `treeshadow_m`, `deadtree_shadow_m`, ...; `pvkMat::BakedTreeShadow`,
+  skipped in `pvkContext::DrawPrimBuffer`). Kept: shadow-flagged world geometry
+  (`StaticEntityDSG` IS_SHADOW: a few ~100 m chunks, rarely drawn).
+- Gaps: custom material shaders get no sun, additive-blended foliage never casts.
 
 ## Sun Defaults
-The defaults are SHAR_SUN_SOFT=2, SHAR_SUN_RAYS=6 and SHAR_SUN_SHADOW=0.68. These presets are good for comparing:
+The sun is on by default (SHAR_SUN=0 turns it off). The defaults are SHAR_SUN_SOFT=0.3, SHAR_SUN_RAYS=8,
+SHAR_SUN_NEAR=80, SHAR_SUN_FAR=320, SHAR_SUN_BAKE_BUDGET=4000000 and SHAR_SUN_SHADOW=0.68. These presets are good for comparing:
 
-Defaults:
-- SHAR_SUN=1 port/play.sh --data DIR
+Defaults (crisp, like a real sun):
+- port/play.sh --data DIR
 
-Crisp, like a real sun (cheapest):
-- SHAR_SUN=1 SHAR_SUN_SOFT=0.3 SHAR_SUN_RAYS=2 port/play.sh --data DIR
+Cheapest:
+- SHAR_SUN_RAYS=2 SHAR_SUN_NEAR=40 SHAR_SUN_FAR=250 port/play.sh --data DIR
+
+The previous soft defaults:
+- SHAR_SUN_SOFT=2 SHAR_SUN_RAYS=6 SHAR_SUN_NEAR=40 SHAR_SUN_FAR=250 port/play.sh --data DIR
 
 Very soft (needs more rays or the edges look grainy):
-- SHAR_SUN=1 SHAR_SUN_SOFT=4 SHAR_SUN_RAYS=12 port/play.sh --data DIR
+- SHAR_SUN_SOFT=4 SHAR_SUN_RAYS=12 port/play.sh --data DIR
 
 Faint shadows, closer to the original look:
-- SHAR_SUN=1 SHAR_SUN_SHADOW=0.8 SHAR_SUN_LIT_SHADOW=0.82 port/play.sh --data DIR
+- SHAR_SUN_SHADOW=0.8 SHAR_SUN_LIT_SHADOW=0.82 port/play.sh --data DIR
 
 Exaggerated, to judge the shapes:
-- SHAR_SUN=1 SHAR_SUN_SOFT=0 SHAR_SUN_SHADOW=0.3 SHAR_SUN_LIT_SHADOW=0.4 port/play.sh --data DIR
+- SHAR_SUN_SOFT=0 SHAR_SUN_SHADOW=0.3 SHAR_SUN_LIT_SHADOW=0.4 port/play.sh --data DIR
 
 What each setting does:
 - SHAR_SUN_SOFT: how blurred the edges are, in degrees.
-  - 0 gives hard edges. 0.3 is about what the real sun gives. 2 is the default, and 4 or more gets very soft.
+  - 0 gives hard edges. 0.3 is the default, about what the real sun gives. 2 is soft, and 4 or more gets very soft.
   - The blur grows with distance from the caster, so the bottom of a pole stays sharp and the top's shadow goes fuzzy.
 - SHAR_SUN_RAYS: how smooth those blurred edges look.
   - Few rays give a speckled edge, more give a smooth one.
-  - A rough guide is at least 3 rays per degree of softness, so 6 for the default and 12 for 4°.
+  - A rough guide is at least 3 rays per degree of softness, so 6 for 2° and 12 for 4°; 8 is the default.
   - Ignored when SOFT=0. Maximum 32.
   - Each 2x2 block of pixels shares its rays, so the cost per pixel is about a quarter of this. 12 is fine on your RTX 5060.
 - SHAR_SUN_SHADOW: how bright the world is in shade.
@@ -170,8 +179,8 @@ What each setting does:
 - SHAR_SUN_LIT_SHADOW: the same for characters and cars, default 0.7.
   - Keep it near SHAR_SUN_SHADOW, or Homer will look brighter or darker than the ground he's standing on.
 - SHAR_SUN_LIGHT: how bright sunlit ground gets, default 1.22. Lower it toward 1.0 if sunlit areas look washed out.
-- SHAR_SUN_NEAR: rays are at full count up to this distance (default 40 m), dropping to 1 at twice it.
-- SHAR_SUN_FAR: shadows fade out towards this distance and no rays are traced past it (default 250 m, 0 = never).
+- SHAR_SUN_NEAR: rays are at full count up to this distance (default 80 m), dropping to 1 at twice it.
+- SHAR_SUN_FAR: shadows fade out towards this distance and no rays are traced past it (default 320 m, 0 = never).
 - SHAR_SUN_REACH: how far a ray looks for a caster (default 150 m). Raise it if tall buildings lose far shadows at a low sun.
 - SHAR_SUN_QUAD=0: turns off the 2x2 ray sharing (for comparing; slower).
 - SHAR_SUN_BAKE=0: traces every shadow per pixel, as before the baked map (for comparing; about 5x slower).

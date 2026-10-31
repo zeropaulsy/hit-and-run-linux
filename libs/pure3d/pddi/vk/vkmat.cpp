@@ -98,6 +98,7 @@ pvkMat::pvkMat(pvkContext* c, int prog)
     typeName[0] = 0;
     materialName = NULL;
     fileName = NULL;
+    bakedTreeShadow = false;
     customSlots[0] = -1;
     customPasses = 1;
     customGeneration = 0;
@@ -492,6 +493,7 @@ void pvkMat::SetMaterialName(const char* name, const char* file)
     free(fileName);
     materialName = name ? strdup(name) : NULL;
     fileName = file ? strdup(file) : NULL;
+    bakedTreeShadow = name && strcasestr(name, "tree") && strcasestr(name, "shad");
     if(fileName)
     {
         for(char* c = fileName; *c; c++)        // "art\chars\homer_m.p3d" -> "art/chars/homer_m.p3d"

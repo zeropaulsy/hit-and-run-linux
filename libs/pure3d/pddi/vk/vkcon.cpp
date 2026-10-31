@@ -602,6 +602,8 @@ void pvkContext::DrawPrimBuffer(pddiShader* mat, pddiPrimBuffer* buffer)
     if(!mat)
         mat = defaultShader;
     pddiBaseShader* material = (pddiBaseShader*)mat;
+    if(((pvkMat*)material)->BakedTreeShadow() && pvkSunOn())
+        return;     // the sun casts the tree's shadow
     ADD_STAT(PDDI_STAT_MATERIAL_OPS, !material->IsCurrent());
     int passes = material->GetPasses();
     pvkSunDrawing(((pvkMat*)material)->MaterialName(), ((pvkMat*)material)->FileName());

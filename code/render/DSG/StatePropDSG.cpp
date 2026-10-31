@@ -826,9 +826,19 @@ StatePropDSG::CastsShadow()
     return retVal;
 }
 
+#ifdef RAD_LINUX
+bool pvkSunOn();    // pddi/vk/vksun.cpp: the sun's shadows are drawn (Vulkan unless SHAR_SUN=0, F9)
+#endif
+
 void 
 StatePropDSG::DisplaySimpleShadow()
 {
+#ifdef RAD_LINUX
+    if( pvkSunOn() )
+    {
+        return; // Linux port: the sun's shadows replace the blob
+    }
+#endif
     BEGIN_PROFILE("DisplaySimpleShadow")
     p3d::pddi->SetZWrite(false);
     if ( mpShadowMatrix != NULL )

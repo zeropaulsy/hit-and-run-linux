@@ -202,6 +202,10 @@ int CharacterRenderable::CastsShadow()
     return 1;
 }
 
+#ifdef RAD_LINUX
+bool pvkSunOn();    // pddi/vk/vksun.cpp: the sun's shadows are drawn (Vulkan unless SHAR_SUN=0, F9)
+#endif
+
 /*
 ==============================================================================
 CharacterRenderable::DisplayShadow
@@ -216,6 +220,12 @@ Return:         void
 */
 void CharacterRenderable::DisplayShadow( tPose* pose, const BlobShadowParams* BlobParams )
 {
+#ifdef RAD_LINUX
+    if( BlobParams && pvkSunOn() && ::GetGameplayManager()->GetGameType() != GameplayManager::GT_SUPERSPRINT )
+    {
+        return; // Linux port: the sun's shadows replace the blob
+    }
+#endif
 	if( BlobParams )
 	{
         BEGIN_PROFILE("Char Blobby Shadow");
