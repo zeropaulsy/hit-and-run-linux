@@ -14,6 +14,7 @@
 static const int kMaxInstances = 16384;
 static const unsigned kKeepMs = 10000;          // a static instance out of view stays this long
 static const float kHugeSize = 1500.0f;         // a caster bigger than this (sky dome) never casts
+static const unsigned kMaxBuildsPerFrame = 96;
 static const unsigned kMaxCasterIds = 65536;    // alpha-tested casters need an id below this (the table's size)
 static const int kMaskSize = 64;                // texels across an alpha mask
 static const int kMaxMasks = 1024;
@@ -532,7 +533,8 @@ static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float*
 
     VkAccelerationStructureBuildGeometryInfoKHR build = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
     build.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    build.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+    build.flags = b.builds > 3 ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR :     // rebuilt often
+                                 VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
     build.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
     build.geometryCount = 1;
     build.pGeometries = &geometry;
@@ -664,17 +666,24 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
     Blas& b = s_blas[*id];
     if(!b.live || b.version != version)
     {
-        if(b.builds > 3)        // rebuilt every few frames (animated, skinned): not worth it
-            return;
-        ReleaseBlas(b);
-        b.live = true;
-        b.version = version;
-        b.builds++;
-        int slot = alphaTexture ? MaskSlot(alphaTexture) : -1;
-        if(alphaTexture && slot < 0)
-            return;             // no mask: it would cast as a solid card
-        if(!BuildBlas(b, *id, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare, alphaRef))
-            return;
+        // rebuilt every frame (skinned characters, animated things): a budget per frame, the old shape meanwhile
+        if(s_buildsThisFrame >= kMaxBuildsPerFrame && b.builds > 3)
+        {
+            if(!b.as)
+                return;
+        }
+        else
+        {
+            ReleaseBlas(b);
+            b.live = true;
+            b.version = version;
+            b.builds++;
+            int slot = alphaTexture ? MaskSlot(alphaTexture) : -1;
+            if(alphaTexture && slot < 0)
+                return;         // no mask: it would cast as a solid card
+            if(!BuildBlas(b, *id, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare, alphaRef))
+                return;
+        }
     }
     if(!b.as || b.huge)
         return;
@@ -685,6 +694,10 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
     for(int r = 0; r < 4; r++)
         for(int c = 0; c < 4; c++)
             w[r * 4 + c] = mv[r * 4] * e[c] + mv[r * 4 + 1] * e[4 + c] + mv[r * 4 + 2] * e[8 + c] + mv[r * 4 + 3] * e[12 + c];
+    // drawn at the camera (a ring around it, moved with it each frame): not scenery
+    float dx = w[12] - e[12], dy = w[13] - e[13], dz = w[14] - e[14];
+    if(dx * dx + dy * dy + dz * dz < 0.25f)
+        return;
     Instance in;
     memset(&in, 0, sizeof(in));
     in.id = *id;
