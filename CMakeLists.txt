@@ -673,6 +673,7 @@ add_library(pddigl STATIC
   libs/pure3d/pddi/vk/vkdisplay.cpp
   libs/pure3d/pddi/vk/vkdev.cpp
   libs/pure3d/pddi/vk/vkpost.cpp
+  libs/pure3d/pddi/vk/vksun.cpp
 )
 target_include_directories(pddigl PRIVATE libs libs/radmath libs/pure3d libs/pure3d/lib/libpng libs/pure3d/lib/zlib port/third_party/glslang)
 if(SHAR_RAD_DEBUG)

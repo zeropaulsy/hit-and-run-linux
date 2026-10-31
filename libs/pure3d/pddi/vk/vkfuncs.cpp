@@ -15,6 +15,7 @@ namespace pvkfn
     PVK_INSTANCE_FUNCS(PVK_DEFINE)
     PVK_DEBUG_FUNCS(PVK_DEFINE)
     PVK_DEVICE_FUNCS(PVK_DEFINE)
+    PVK_RT_FUNCS(PVK_DEFINE)
 #undef PVK_DEFINE
     PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = NULL;
 }
@@ -59,6 +60,15 @@ bool pvkLoadDevice(VkDevice device)
 #define PVK_LOAD(name) name = (PFN_##name)vkGetDeviceProcAddr(device, #name); \
     if(!name) { fprintf(stderr, "PDDI: Vulkan device lacks %s\n", #name); ok = false; }
     PVK_DEVICE_FUNCS(PVK_LOAD)
+#undef PVK_LOAD
+    return ok;
+}
+
+bool pvkLoadRayQuery(VkDevice device)
+{
+    bool ok = true;
+#define PVK_LOAD(name) name = (PFN_##name)vkGetDeviceProcAddr(device, #name); if(!name) ok = false;
+    PVK_RT_FUNCS(PVK_LOAD)
 #undef PVK_LOAD
     return ok;
 }

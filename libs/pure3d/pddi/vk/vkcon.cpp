@@ -4,6 +4,7 @@
 //=============================================================================
 
 #include <pddi/vk/vkcon.hpp>
+#include <pddi/vk/vksun.hpp>
 #include <pddi/vk/vkdev.hpp>
 #include <pddi/vk/vkdisplay.hpp>
 #include <pddi/vk/vkmat.hpp>
@@ -419,6 +420,9 @@ pvkPrimBuffer::pvkPrimBuffer(pvkContext* c, pddiPrimType type, unsigned vertexFo
     mem += nIndex * 2;
     memset(&buffer, 0, sizeof(buffer));
     normalOffset = uvOffset = colourOffset = indexOffset = 0;
+    sunNormalOffset = 0;
+    sunNormals = false;
+    sunId = sunVersion = 0;
     changed = true;
     mem /= 1024.0f;
     context->ADD_STAT(PDDI_STAT_BUFFERED_COUNT, 1);
@@ -435,6 +439,7 @@ pvkPrimBuffer::~pvkPrimBuffer()
     delete [] colourBase;
     if(g_pvk)
         g_pvk->Retire(buffer);
+    pvkSunForget(sunId);
     context->ADD_STAT(PDDI_STAT_BUFFERED_COUNT, -1);
     context->ADD_STAT(PDDI_STAT_BUFFERED_ALLOC, -mem);
 }
@@ -512,7 +517,10 @@ bool pvkPrimBuffer::Upload(void)
     uvOffset = normalOffset + (normal ? n * 12 : 0);
     colourOffset = uvOffset + (uv ? n * 8 : 0);
     indexOffset = (colourOffset + (colour ? n * 4 : 0) + 3) & ~(VkDeviceSize)3;
-    VkDeviceSize size = indexOffset + (indices ? indexCount * 2 : 0);
+    sunNormalOffset = (indexOffset + (indices ? indexCount * 2 : 0) + 3) & ~(VkDeviceSize)3;
+    sunNormals = !normal && pvkSunReady() && (primType == PDDI_PRIM_TRIANGLES || primType == PDDI_PRIM_TRISTRIP);
+    sunVersion++;
+    VkDeviceSize size = sunNormals ? sunNormalOffset + n * 12 : sunNormalOffset;
     if(size == 0)
         return false;
     if(!g_pvk->CreateBuffer(size, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
@@ -539,6 +547,9 @@ bool pvkPrimBuffer::Upload(void)
         memcpy(dst + colourOffset, colourBase, n * 4);
     if(indices)
         memcpy(dst + indexOffset, indices, indexCount * 2);
+    if(sunNormals)
+        pvkSunSmoothNormals(coordBase, n, indices, indices ? indexUsed : total, primType == PDDI_PRIM_TRISTRIP,
+                            (float*)(dst + sunNormalOffset));
     VkBufferCopy copy = { offset, 0, size };
     vkCmdCopyBuffer(g_pvk->UploadCmd(), staging, buffer.buffer, 1, &copy);
     pvkPipeline* pipeline = context->GetPipeline();
@@ -556,14 +567,16 @@ void pvkPrimBuffer::Display(void)
                              : ((useSize && useSize < total) ? useSize : total);
     if(count == 0)
         return;
-    unsigned missing = (normal ? 0 : 1u << PVK_ATTRIB_NORMAL) | (colour ? 0 : 1u << PVK_ATTRIB_COLOUR) |
-                       (uv ? 0 : 1u << PVK_ATTRIB_UV);
     pvkPipeline* pipeline = context->GetPipeline();
+    // the sun's normals only where the game's shading cannot see them: unlit, no reflection
+    bool sunNormal = sunNormals && !pipeline->GetMaterial().lit && pipeline->GetMaterial().program == PGL_PROGRAM_SIMPLE;
+    unsigned missing = (normal || sunNormal ? 0 : 1u << PVK_ATTRIB_NORMAL) | (colour ? 0 : 1u << PVK_ATTRIB_COLOUR) |
+                       (uv ? 0 : 1u << PVK_ATTRIB_UV);
     VkCommandBuffer cmd = pipeline->Prepare(s_primTypes[primType], missing);
     if(!cmd)
         return;
     VkBuffer buffers[PVK_ATTRIB_COUNT] = { buffer.buffer, buffer.buffer, buffer.buffer, buffer.buffer };
-    VkDeviceSize offsets[PVK_ATTRIB_COUNT] = { 0, normalOffset, colourOffset, uvOffset };
+    VkDeviceSize offsets[PVK_ATTRIB_COUNT] = { 0, sunNormal ? sunNormalOffset : normalOffset, colourOffset, uvOffset };
     VkDeviceSize strides[PVK_ATTRIB_COUNT] = { 12, 12, 4, 8 };
     pipeline->BindCurrent(cmd, missing, buffers, offsets, strides);
     vkCmdBindVertexBuffers2(cmd, 0, PVK_ATTRIB_COUNT, buffers, offsets, NULL, strides);
@@ -574,6 +587,9 @@ void pvkPrimBuffer::Display(void)
     }
     else
         vkCmdDraw(cmd, count, 1, 0, 0);
+    if((primType == PDDI_PRIM_TRIANGLES || primType == PDDI_PRIM_TRISTRIP) && pipeline->SunCaster())
+        pvkSunAddCaster(&sunId, sunVersion * 65536u + count, coordBase, allocated, indices, count,
+                        primType == PDDI_PRIM_TRISTRIP, pipeline->GetModelView());
 }
 
 void pvkContext::DrawPrimBuffer(pddiShader* mat, pddiPrimBuffer* buffer)

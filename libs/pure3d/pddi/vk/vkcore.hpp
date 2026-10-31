@@ -79,6 +79,7 @@ public:
     bool fillModeNonSolid;
     VkFormat depthFormat;       // D24S8, else D32S8
     VkSampleCountFlags sampleCounts;    // usable for colour and depth targets
+    bool rayQuery;              // acceleration structures + ray queries + buffer device addresses (SHAR_SUN)
 
     // memory: suballocated from large blocks (thread safe)
     bool Allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags flags, bool linear, pvkMemory* out);
@@ -94,6 +95,7 @@ public:
     void Retire(pvkImage& i);
     void RetirePipeline(VkPipeline pipeline);     // named: on 32-bit every non-dispatchable handle is a uint64_t
     void RetireSampler(VkSampler sampler);
+    void RetireAccel(VkAccelerationStructureKHR accel);
 
     // the frame being recorded (render thread)
     VkCommandBuffer Cmd();
@@ -213,11 +215,12 @@ private:
     struct Retired
     {
         unsigned long long serial;
-        int kind;                   // 0 buffer, 1 image, 2 pipeline, 3 sampler
+        int kind;                   // 0 buffer, 1 image, 2 pipeline, 3 sampler, 4 acceleration structure
         pvkBuffer buffer;
         pvkImage image;
         VkPipeline pipeline;
         VkSampler sampler;
+        VkAccelerationStructureKHR accel;
     };
     Retired* retired;
     int retiredCount, retiredCapacity;

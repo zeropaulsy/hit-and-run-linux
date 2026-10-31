@@ -29,6 +29,7 @@
 static const char ApplicationName[] = "The Simpsons: Hit & Run";
 static const Win32Platform::Resolution StartingResolution = Win32Platform::Res_800x600;   // as win32platform.cpp
 void pglToggleUserShaders();     // pddi/gl/glcustom.cpp: the M key
+void pvkSunToggle();             // pddi/vk/vksun.cpp: F9 (SHAR_SUN=1 on Vulkan)
 static bool s_swallowLeftUp = false;      // a click that only re-showed the front-end cursor (see PumpEvents)
 
 // Intel Ice Lake (Gen11) with Mesa: the GPU hangs within a minute or two of gameplay ("Resetting rcs0 for preemption
@@ -545,6 +546,11 @@ bool Win32Platform::PumpEvents()
             if( e.key.keysym.scancode == SDL_SCANCODE_M && !e.key.repeat )
             {
                 pglToggleUserShaders();
+            }
+            // the sun prototype (pddi/vk/vksun.hpp): F9 turns it off and on
+            if( e.key.keysym.scancode == SDL_SCANCODE_F9 && !e.key.repeat )
+            {
+                pvkSunToggle();
             }
             break;
 

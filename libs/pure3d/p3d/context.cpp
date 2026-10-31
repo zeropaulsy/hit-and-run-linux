@@ -14,6 +14,10 @@
 
 #include <radmemorymonitor.hpp>
 
+#ifdef RAD_LINUX
+void pvkSetViewMatrix(const float* cameraToWorld);  // pddi/vk/vksun.cpp: the sun's world space
+#endif
+
 //  class to trap momory allocations from PDDI and pass them on to the radcore memormy manager
 class RadcoreMemAdapt : public pddiExtMemRegistration::CallBack
 {
@@ -207,6 +211,9 @@ void tContext::LoadViewMatrix(const rmt::Matrix &matrix, const rmt::Matrix &inve
 {
     CVM = matrix;
     CVMI = inverseMatrix;
+#ifdef RAD_LINUX
+    pvkSetViewMatrix(&CVMI.m[0][0]);
+#endif
     stack->Load(CVM);
 }
 

@@ -70,3 +70,17 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   pglFragmentPrelude (REFLECTION, CUSTOM) + FinishFragment as main: keep in step with glshaders.cpp.
 - 32-bit: non-dispatchable handles are all uint64_t (no overloads on handle type).
 
+
+## Sun prototype (branch `vulkan-sun`, `vksun.cpp`)
+- `SHAR_SUN=1` (device made with ray queries + buffer device address), F9 toggles. Off/unsupported: programs and
+  layout as before. `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_LOG=1`.
+- World space from p3d `tContext::LoadViewMatrix` (`pvkSetViewMatrix`); sun = strongest directional light the
+  pipeline set (eye -> world). Opaque, depth-writing, perspective draws: prim buffer -> BLAS (CPU copy, built in the
+  upload cmd), draw -> TLAS instance; same transform 3 frames running = static, kept 10 s out of view. TLAS per
+  frame in flight, built at Present before the upload barrier. Casters > 1500 m (sky) and buffers rebuilt > 3 times
+  skipped; alpha-tested ones never cast.
+- Shaders: built-ins get `#version 460` + GL_EXT_ray_query + PVK_SUN (SPIR-V 1.4 target switched on in
+  shar_glslang by the header); binding 5 = TLAS. Normals: smooth ones made at upload for buffers without (bound
+  for unlit simple-program draws only), polygon normal at creases (< 0.7).
+- Gaps: characters not darkened in shadow, alpha-tested foliage neither casts nor is clear, custom material shaders
+  get no sun.

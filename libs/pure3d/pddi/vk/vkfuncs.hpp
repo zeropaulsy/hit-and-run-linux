@@ -22,6 +22,12 @@
     X(vkGetPhysicalDeviceSurfaceCapabilitiesKHR) X(vkGetPhysicalDeviceSurfaceFormatsKHR) \
     X(vkGetPhysicalDeviceSurfacePresentModesKHR) X(vkDestroySurfaceKHR) X(vkCreateDevice) X(vkGetDeviceProcAddr)
 
+// optional: ray queries (vksun.cpp), only with SHAR_SUN on a device that has them
+#define PVK_RT_FUNCS(X) \
+    X(vkGetBufferDeviceAddress) X(vkCreateAccelerationStructureKHR) X(vkDestroyAccelerationStructureKHR) \
+    X(vkGetAccelerationStructureBuildSizesKHR) X(vkCmdBuildAccelerationStructuresKHR) \
+    X(vkGetAccelerationStructureDeviceAddressKHR)
+
 #define PVK_DEBUG_FUNCS(X) \
     X(vkCreateDebugUtilsMessengerEXT) X(vkDestroyDebugUtilsMessengerEXT)
 
@@ -63,6 +69,7 @@ namespace pvkfn
     PVK_INSTANCE_FUNCS(PVK_DECLARE)
     PVK_DEBUG_FUNCS(PVK_DECLARE)
     PVK_DEVICE_FUNCS(PVK_DECLARE)
+    PVK_RT_FUNCS(PVK_DECLARE)
 #undef PVK_DECLARE
     extern PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
 }
@@ -73,5 +80,6 @@ bool pvkLoadGlobal();
 // after vkCreateInstance / vkCreateDevice; false when a required entry point is missing (named on stderr)
 bool pvkLoadInstance(VkInstance instance);
 bool pvkLoadDevice(VkDevice device);
+bool pvkLoadRayQuery(VkDevice device);     // PVK_RT_FUNCS; false when one is missing
 
 #endif

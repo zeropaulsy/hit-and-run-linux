@@ -123,6 +123,12 @@ public:
     void CaptureScreen();       // refraction: the frame so far, sampled as uScreen
     void Invalidate() { boundSerial = 0; }      // after other code bound its own pipelines and descriptors
 
+    // the sun (vksun.hpp): this draw is shaded by it / casts its shadows
+    bool SunReceiver() const;
+    bool SunCaster() const;
+    const Material& GetMaterial() const { return material; }
+    const float* GetModelView() const { return modelView; }
+
     void FrameStats();
     void FrameEnd();
     struct Stats { unsigned frames, draws, streamDraws, pipelines, uniformCopies, uploads; double cpuMs; } stats;
@@ -148,6 +154,8 @@ private:
         unsigned uploaded[GROUP_COUNT];
         unsigned timeFrame;
         int cull;
+        bool sun;                   // built with the sun's code (PVK_SUN)
+        unsigned sunVersion;
     };
 
     void Changed(int group) { version[group]++; }
@@ -202,6 +210,7 @@ private:
     VkDeviceSize pushedOffset;
     VkImageView pushedViews[SAMPLER_COUNT];
     VkSampler pushedSamplers[SAMPLER_COUNT];
+    VkAccelerationStructureKHR pushedScene;
 
     pvkTexture* texture;
     pvkTexture* reflection;

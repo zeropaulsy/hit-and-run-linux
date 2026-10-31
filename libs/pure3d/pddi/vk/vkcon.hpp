@@ -129,6 +129,10 @@ protected:
 
     pvkBuffer buffer;
     VkDeviceSize normalOffset, uvOffset, colourOffset, indexOffset;
+    // the sun (vksun.hpp): smooth normals made for a buffer without them (after the indices), its scene id
+    VkDeviceSize sunNormalOffset;
+    bool sunNormals;
+    unsigned sunId, sunVersion;
     volatile bool changed;
     float mem;
 };

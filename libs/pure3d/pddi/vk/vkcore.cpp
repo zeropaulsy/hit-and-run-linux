@@ -3,6 +3,7 @@
 //=============================================================================
 
 #include <pddi/vk/vkcore.hpp>
+#include <pddi/vk/vksun.hpp>
 
 #include <SDL2/SDL_vulkan.h>
 #include <shar_glslang.h>
@@ -229,9 +230,39 @@ bool pvkCore::CreateDevice()
         return false;
     }
 
+    // ray queries for the sun's shadows (vksun.cpp): only asked for with SHAR_SUN
+    rayQuery = false;
+    VkPhysicalDeviceVulkan12Features f12 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR fas = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+    VkPhysicalDeviceRayQueryFeaturesKHR frq = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR };
+    if(pvkSunWanted() && HasExtension(physical, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME) &&
+       HasExtension(physical, VK_KHR_RAY_QUERY_EXTENSION_NAME) &&
+       HasExtension(physical, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME))
+    {
+        f12.pNext = &fas;
+        fas.pNext = &frq;
+        query.pNext = &f12;
+        vkGetPhysicalDeviceFeatures2(physical, &query);
+        rayQuery = f12.bufferDeviceAddress && fas.accelerationStructure && frq.rayQuery;
+    }
+    if(pvkSunWanted() && !rayQuery)
+        fprintf(stderr, "PDDI: %s has no ray queries: no sun shadows\n", properties.deviceName);
+
     VkPhysicalDeviceVulkan13Features enable13 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
     enable13.dynamicRendering = VK_TRUE;
     enable13.synchronization2 = VK_TRUE;
+    VkPhysicalDeviceVulkan12Features enable12 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
+    VkPhysicalDeviceAccelerationStructureFeaturesKHR enableAs = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+    VkPhysicalDeviceRayQueryFeaturesKHR enableRq = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR };
+    if(rayQuery)
+    {
+        enable12.bufferDeviceAddress = VK_TRUE;
+        enableAs.accelerationStructure = VK_TRUE;
+        enableRq.rayQuery = VK_TRUE;
+        enable13.pNext = &enable12;
+        enable12.pNext = &enableAs;
+        enableAs.pNext = &enableRq;
+    }
     VkPhysicalDeviceFeatures2 features = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
     features.pNext = &enable13;
     features.features.textureCompressionBC = bcTextures;
@@ -243,12 +274,14 @@ bool pvkCore::CreateDevice()
     q.queueFamilyIndex = queueFamily;
     q.queueCount = 1;
     q.pQueuePriorities = &priority;
-    const char* extensions[2] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME };
+    const char* extensions[5] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
+                                  VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
+                                  VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME };
     VkDeviceCreateInfo info = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
     info.pNext = &features;
     info.queueCreateInfoCount = 1;
     info.pQueueCreateInfos = &q;
-    info.enabledExtensionCount = 2;
+    info.enabledExtensionCount = rayQuery ? 5 : 2;
     info.ppEnabledExtensionNames = extensions;
     VkResult r = vkCreateDevice(physical, &info, NULL, &device);
     if(r != VK_SUCCESS)
@@ -258,6 +291,8 @@ bool pvkCore::CreateDevice()
     }
     if(!pvkLoadDevice(device))
         return false;
+    if(rayQuery && !pvkLoadRayQuery(device))
+        rayQuery = false;
     vkGetDeviceQueue(device, queueFamily, 0, &queue);
 
     // depth/stencil as the GL window's (24/8) where the device has it (not AMD), else 32-bit float depth
@@ -340,6 +375,7 @@ void pvkCore::Shutdown()
         return;
     }
     vkDeviceWaitIdle(device);
+    pvkSunShutdown();
     FlushRetired(~0ull);
     DestroyTargets();
     DestroySwapchain();
@@ -400,6 +436,10 @@ bool pvkCore::Allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags fl
     if(req.size >= kDedicatedSize)
     {
         VkMemoryAllocateInfo info = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+        VkMemoryAllocateFlagsInfo addressFlags = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO };
+        addressFlags.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+        if(rayQuery && linear)
+            info.pNext = &addressFlags;
         info.allocationSize = req.size;
         info.memoryTypeIndex = type;
         if(vkAllocateMemory(device, &info, NULL, &out->memory) != VK_SUCCESS)
@@ -452,6 +492,10 @@ bool pvkCore::Allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags fl
             break;
         // no room: a new block
         VkMemoryAllocateInfo info = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+        VkMemoryAllocateFlagsInfo addressFlags = { VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO };
+        addressFlags.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;     // buffers' blocks: ray query inputs
+        if(rayQuery && linear)
+            info.pNext = &addressFlags;
         info.allocationSize = kBlockSize;
         info.memoryTypeIndex = type;
         VkDeviceMemory memory;
@@ -671,6 +715,18 @@ void pvkCore::RetirePipeline(VkPipeline pipeline)
     PushRetired(r);
 }
 
+void pvkCore::RetireAccel(VkAccelerationStructureKHR accel)
+{
+    if(!accel)
+        return;
+    Retired r;
+    memset(&r, 0, sizeof(r));
+    r.serial = serial + 1;
+    r.kind = 4;
+    r.accel = accel;
+    PushRetired(r);
+}
+
 void pvkCore::RetireSampler(VkSampler sampler)
 {
     if(!sampler)
@@ -701,6 +757,8 @@ void pvkCore::FlushRetired(unsigned long long completed)
             DestroyNow(r.image);
         else if(r.kind == 2)
             vkDestroyPipeline(device, r.pipeline, NULL);
+        else if(r.kind == 4)
+            vkDestroyAccelerationStructureKHR(device, r.accel, NULL);
         else
             vkDestroySampler(device, r.sampler, NULL);
     }
@@ -1396,6 +1454,7 @@ void pvkCore::Present(float gamma, SDL_Window* window)
         SwapchainBarrier(cmd, swapchainImages[image], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 
+    pvkSunEndFrame();       // the sun's scene for this frame's draws, built in the upload command buffer
     if(uploadsRecorded)
     {
         VkMemoryBarrier2 b = { VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };

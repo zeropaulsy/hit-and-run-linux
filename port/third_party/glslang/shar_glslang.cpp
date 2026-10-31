@@ -64,8 +64,10 @@ SHAR_EXPORT int shar_glsl_compile(const char* name, const char* header, const ch
             shader.setStrings(sources[s], counts[s]);
             shader.setEnvInput(glslang::EShSourceGlsl, s == 0 ? EShLangVertex : EShLangFragment,
                                glslang::EShClientVulkan, 100);
-            shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_0);
-            shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
+            // ray queries (the Vulkan renderer's sun, GL_EXT_ray_query in the header) need SPIR-V 1.4
+            bool rayQuery = (header && strstr(header, "GL_EXT_ray_query")) || (fh && strstr(fh, "GL_EXT_ray_query"));
+            shader.setEnvClient(glslang::EShClientVulkan, rayQuery ? glslang::EShTargetVulkan_1_2 : glslang::EShTargetVulkan_1_0);
+            shader.setEnvTarget(glslang::EShTargetSpv, rayQuery ? glslang::EShTargetSpv_1_4 : glslang::EShTargetSpv_1_0);
             shader.setEnvInputVulkanRulesRelaxed();
             shader.setGlobalUniformSet(0);
             shader.setGlobalUniformBinding(0);

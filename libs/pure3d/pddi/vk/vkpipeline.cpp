@@ -4,6 +4,7 @@
 
 #include <pddi/vk/vkpipeline.hpp>
 #include <pddi/vk/vktex.hpp>
+#include <pddi/vk/vksun.hpp>
 #include <pddi/gl/glcustom.hpp>
 
 #include <pddi/pdditype.hpp>
@@ -14,6 +15,7 @@
 #include <string.h>
 
 static const int kSamplerBindings = 4;     // bindings 1..4: the most samplers a program declares
+static const int kSunBinding = 5;          // the sun's scene (PVK_SUN programs)
 
 static void Identity(float* m)
 {
@@ -227,12 +229,17 @@ bool pvkPipeline::BuildProgram(Program& p, const char* name, const char* header,
                                   vertexBody ? "\n" : "", pglVertexMain, NULL };
     const char* fragmentParts[] = { pglFragmentPrelude, custom ? "#line 1\n" : "", fragmentBody,
                                     custom ? pglCustomFragmentMain : "", NULL };
-    const char* headerParts[] = { header, "#define PVK 1\n", NULL };
+    // the built-in programs with the sun (vksun.hpp): GLSL 4.60 for ray queries, the same source otherwise
+    static const char* const kVersion330 = "#version 330 core\n";
+    static const char* const kSunHeader = "#version 460 core\n#extension GL_EXT_ray_query : require\n#define PVK_SUN 1\n";
+    bool sun = !custom && pvkSunReady() && strncmp(header, kVersion330, strlen(kVersion330)) == 0;
+    const char* headerParts[] = { sun ? kSunHeader : header, sun ? header + strlen(kVersion330) : "",
+                                  "#define PVK 1\n", NULL };
     const char* fragmentHeaderParts[] = { fragmentHeader ? fragmentHeader : header, "#define PVK 1\n", NULL };
     char* vertex = Join(vertexParts);
     char* fragment = Join(fragmentParts);
     char* vh = Join(headerParts);
-    char* fh = Join(fragmentHeaderParts);
+    char* fh = Join(sun ? headerParts : fragmentHeaderParts);
     shar_glsl_program compiled;
     bool ok = vertex && fragment && vh && fh && shar_glsl_compile(name, vh, vertex, fh, fragment, &compiled);
     free(vertex);
@@ -311,6 +318,7 @@ bool pvkPipeline::BuildProgram(Program& p, const char* name, const char* header,
     for(int g = 0; g < GROUP_COUNT; g++)
         p.uploaded[g] = version[g] - 1;
     p.timeFrame = frameCount - 1;
+    p.sun = sun;
     p.built = true;
     return true;
 }
@@ -329,6 +337,7 @@ bool pvkPipeline::Init()
 {
     if(ready)
         return true;
+    pvkSunScene();      // made now: without it the programs are built without the sun
     for(int i = 0; i < PGL_PROGRAM_COUNT; i++)
     {
         if(!BuildProgram(programs[i], pglProgramSources[i].name, pglProgramSources[i].header, pglFragmentMain, false,
@@ -336,7 +345,7 @@ bool pvkPipeline::Init()
             return false;
     }
 
-    VkDescriptorSetLayoutBinding bindings[1 + kSamplerBindings];
+    VkDescriptorSetLayoutBinding bindings[2 + kSamplerBindings];
     memset(bindings, 0, sizeof(bindings));
     bindings[0].binding = 0;
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -352,6 +361,14 @@ bool pvkPipeline::Init()
     VkDescriptorSetLayoutCreateInfo set = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
     set.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
     set.bindingCount = 1 + kSamplerBindings;
+    if(pvkSunReady())
+    {
+        bindings[set.bindingCount].binding = kSunBinding;
+        bindings[set.bindingCount].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+        bindings[set.bindingCount].descriptorCount = 1;
+        bindings[set.bindingCount].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        set.bindingCount++;
+    }
     set.pBindings = bindings;
     if(vkCreateDescriptorSetLayout(g_pvk->device, &set, NULL, &setLayout) != VK_SUCCESS)
         return false;
@@ -562,6 +579,8 @@ void pvkPipeline::SetLight(int i, bool enabled, const float* p, const float* col
     l.atten[2] = attenC;
     l.range = range;
     Changed(GROUP_LIGHTS);
+    if(enabled && p[3] == 0.0f && pvkSunReady())
+        pvkSunNoteLight(l.position, colour);
 }
 
 void pvkPipeline::SetAmbient(const float* colour)
@@ -730,6 +749,15 @@ void pvkPipeline::UploadUniforms(Program& p)
         SetFloats(p, U_REFRACTINDEX, &material.refractIndex, 1, 1);
         SetFloats(p, U_REFRACTBLEND, &material.refractBlend, 1, 1);
         p.uploaded[GROUP_MATERIAL] = version[GROUP_MATERIAL];
+    }
+
+    if(p.sun && p.sunVersion != pvkSunVersion())
+    {
+        float direction[3], levels[3];
+        pvkSunParameters(direction, levels);
+        SetFloats(p, U_EYETOWORLD, pvkSunEyeToWorld(), 1, 16);
+        SetFloats(p, U_SUNDIRECTION, direction, 1, 3);
+        p.sunVersion = pvkSunVersion();
     }
 
     if(p.timeFrame != frameCount)
@@ -1119,6 +1147,17 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
 
     // the uniform block, copied to the ring when it changed (or the frame is new: the old copy's ring was reset)
     UploadUniforms(p);
+    VkAccelerationStructureKHR sunScene = p.sun ? pvkSunScene() : VK_NULL_HANDLE;
+    if(p.sun && p.offset[U_SUN] >= 0)
+    {
+        float direction[3], levels[3];
+        pvkSunParameters(direction, levels);
+        float sun[4] = { 0.0f, levels[0], levels[1], levels[2] };
+        if(sunScene && SunReceiver())
+            sun[0] = material.lit ? 2.0f : 1.0f;
+        if(memcmp(p.block + p.offset[U_SUN], sun, sizeof(sun)) != 0)
+            SetFloats(p, U_SUN, sun, 1, 4);
+    }
     if(p.blockChanged || p.blockSerial != g_pvk->FrameSerial())
     {
         VkDeviceSize align = g_pvk->properties.limits.minUniformBufferOffsetAlignment;
@@ -1131,14 +1170,16 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
         stats.uniformCopies++;
     }
 
-    bool push = descriptorsDirty || &p != boundProgram || p.blockBuffer != pushedBlock || p.blockOffset != pushedOffset;
+    bool push = descriptorsDirty || &p != boundProgram || p.blockBuffer != pushedBlock || p.blockOffset != pushedOffset ||
+                sunScene != pushedScene;
     for(int i = 0; i < SAMPLER_COUNT && !push; i++)
         push = p.binding[i] >= 0 && (views[i] != pushedViews[i] || samplersUsed[i] != pushedSamplers[i]);
     if(push)
     {
         VkDescriptorBufferInfo blockInfo = { p.blockBuffer, p.blockOffset, (VkDeviceSize)p.blockSize };
         VkDescriptorImageInfo imageInfo[SAMPLER_COUNT];
-        VkWriteDescriptorSet writes[1 + SAMPLER_COUNT];
+        VkWriteDescriptorSet writes[2 + SAMPLER_COUNT];
+        VkWriteDescriptorSetAccelerationStructureKHR sceneInfo = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
         memset(writes, 0, sizeof(writes));
         int n = 0;
         writes[n].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1163,6 +1204,18 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
             writes[n].pImageInfo = &imageInfo[i];
             n++;
         }
+        if(sunScene)
+        {
+            sceneInfo.accelerationStructureCount = 1;
+            sceneInfo.pAccelerationStructures = &sunScene;
+            writes[n].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[n].pNext = &sceneInfo;
+            writes[n].dstBinding = kSunBinding;
+            writes[n].descriptorCount = 1;
+            writes[n].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+            n++;
+        }
+        pushedScene = sunScene;
         vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, n, writes);
         pushedBlock = p.blockBuffer;
         pushedOffset = p.blockOffset;
@@ -1171,6 +1224,18 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
     }
     stats.draws++;
     return cmd;
+}
+
+// the sun (vksun.hpp): what it shades (3D, opaque, depth-writing: not the HUD, sky or particles) and what casts
+bool pvkPipeline::SunReceiver() const
+{
+    return pvkSunOn() && projection[15] == 0.0f && state.depthTest && state.depthWrite && !material.blended &&
+           state.blend == PDDI_BLEND_NONE && material.program != PGL_PROGRAM_REFRACTION;
+}
+
+bool pvkPipeline::SunCaster() const
+{
+    return SunReceiver() && (material.alphaCompare < 0 || material.alphaCompare == PDDI_COMPARE_ALWAYS);
 }
 
 VkCommandBuffer pvkPipeline::Prepare(int primType, unsigned missing)

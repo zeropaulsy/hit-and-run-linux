@@ -29,7 +29,8 @@ PDDI_GL = {
                 # the Vulkan renderer (renderer=vulkan; OpenGL stays the fallback): same library, same heap
                 "libs/pure3d/pddi/vk/vkfuncs.cpp", "libs/pure3d/pddi/vk/vkcore.cpp", "libs/pure3d/pddi/vk/vkpipeline.cpp",
                 "libs/pure3d/pddi/vk/vktex.cpp", "libs/pure3d/pddi/vk/vkcon.cpp", "libs/pure3d/pddi/vk/vkmat.cpp",
-                "libs/pure3d/pddi/vk/vkdisplay.cpp", "libs/pure3d/pddi/vk/vkdev.cpp", "libs/pure3d/pddi/vk/vkpost.cpp"],
+                "libs/pure3d/pddi/vk/vkdisplay.cpp", "libs/pure3d/pddi/vk/vkdev.cpp", "libs/pure3d/pddi/vk/vkpost.cpp",
+                "libs/pure3d/pddi/vk/vksun.cpp"],
     # libpng/zlib: images for post-processing passes (glpost.cpp)
     # glslang: GLSL -> SPIR-V for the Vulkan renderer (port/third_party/glslang/shar_glslang.h)
     "includes": ["libs", "libs/radmath", "libs/pure3d", "libs/pure3d/lib/libpng", "libs/pure3d/lib/zlib",
