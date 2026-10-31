@@ -14,7 +14,7 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 - Works (NVIDIA RTX 5060, Wayland, 64-bit; also builds 32-bit): legal screen, boot movies, front end, L1 in game,
   MSAA 2/4/8x with alpha-to-coverage, mipmaps/anisotropy, user post and material shaders (SSAO, tonemap, softlit),
   gamma, window resize/minimise, mod shader hacks wired (RefractionShaderSupport, HoverCarRefraction,
-  VideoTextureSupport). Validation and sync validation clean on boot and movies.
+  VideoTextureSupport). Validation and sync validation clean on boot, movies, front end, L1 (8x MSAA, post passes).
 - Movies match GL (MSAA target kept across the resolve, see Design; edge strip: `port/notes/platform.md`).
 - Not yet tested: long sessions, other levels/interiors/cutscenes/bonus game, mods in play (HoverCarRefraction,
   video textures), Mesa (AMD/Intel) drivers, X11, fullscreen switches, memcheck/ASan runs on the Vulkan path.
@@ -49,7 +49,9 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 - Offscreen targets keep contents (as GL's window), the MSAA one too across its resolve (storeOp STORE: movies
   draw without clearing; DONT_CARE gave garbage depth = dithered, ghosted movie on NVIDIA). GL y-up via negative
   viewport height (images top row first, same texels as GL); Present = gamma pass into swapchain. MSAA: resolve
-  via empty rendering instance with resolve attachments (depth/stencil SAMPLE_ZERO) at the scene post point. 2
+  via empty rendering instance with resolve attachments (depth/stencil SAMPLE_ZERO) at the scene post point;
+  resolves (depth too) write at COLOR_ATTACHMENT_OUTPUT, so a memory barrier follows (the GUI pass loads them with
+  no layout change: no Transition barrier). 2
   frames in flight; per-frame upload cmd buffer submitted first + global barrier; transient ring (verts, uniforms,
   staging).
 - Resources made on the render thread at first use (textures/prim buffers created on loader threads, CPU copies).
