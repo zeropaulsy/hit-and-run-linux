@@ -4,7 +4,7 @@
 
 #include <pddi/vk/vkdisplay.hpp>
 #include <pddi/vk/vkcon.hpp>
-#include <pddi/gl/glpost.hpp>
+#include <pddi/vk/vkpost.hpp>
 
 #include <SDL2/SDL_vulkan.h>
 #include <assert.h>
@@ -24,7 +24,7 @@ pvkDisplay::pvkDisplay()
     context = NULL;
     gammaR = gammaG = gammaB = 1.0f;
     window = NULL;
-    msaaRequested = 4;      // until the settings are read (Win32Platform's default too)
+    SetAntialiasing(4);     // until the settings are read (Win32Platform's default too)
     memset(&beginTime, 0, sizeof(beginTime));
 }
 
@@ -155,12 +155,14 @@ void pvkPostProcessScene()
         s_display->PostProcess(PGL_POST_SCENE);
 }
 
-// the scene stage: as the GL renderer, the GUI layer is drawn single-sampled after the multisampled scene is resolved.
-// The user's post-processing shaders do not run on Vulkan yet.
+// as the GL renderer: the multisampled scene is resolved (the GUI layer is drawn single-sampled), then the user's
+// post-processing passes run (vkpost.cpp)
 void pvkDisplay::PostProcess(int stage)
 {
-    if(g_pvk && stage == PGL_POST_SCENE)
-        g_pvk->ResolveTarget();
+    if(!g_pvk)
+        return;
+    g_pvk->ResolveTarget();
+    pvkPostRun(stage, &pipeline);
 }
 
 // SHAR_SHOT_EVERY=<seconds>: shot_<n>.png as the GL renderer's (gldisplay.cpp), read back a frame or two later
@@ -203,6 +205,7 @@ void pvkDisplay::SwapBuffers()
     s_display = this;
     if(!g_pvk)
         return;
+    PostProcess(PGL_POST_FINAL);
     MaybeScreenshot();
     g_pvk->Present(gammaR, window);
 

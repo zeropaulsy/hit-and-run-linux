@@ -120,6 +120,7 @@ public:
     void NewFrame(int width, int height);
     void SetTextureFiltering(bool mipmaps, float anisotropy);
     void CaptureScreen();       // refraction: the frame so far, sampled as uScreen
+    void Invalidate() { boundSerial = 0; }      // after other code bound its own pipelines and descriptors
 
     void FrameStats();
     void FrameEnd();

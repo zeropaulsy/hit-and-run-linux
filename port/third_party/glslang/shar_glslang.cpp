@@ -71,7 +71,8 @@ SHAR_EXPORT int shar_glsl_compile(const char* name, const char* header, const ch
             shader.setGlobalUniformBinding(0);
             shader.setAutoMapBindings(true);
             shader.setAutoMapLocations(true);
-            shader.setShiftSamplerBinding(1);   // binding 0 is the uniform block
+            shader.setShiftSamplerBinding(1);   // binding 0 is the uniform block (sampler2D counts as a texture)
+            shader.setShiftTextureBinding(1);
             ok = shader.parse(GetDefaultResources(), 330, false, messages);
             AppendLog(log, s == 0 ? "vertex:\n" : "fragment:\n", shader.getInfoLog());
         }
