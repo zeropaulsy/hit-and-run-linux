@@ -147,3 +147,55 @@ SHAR_EXPORT void shar_glsl_free(shar_glsl_program* result)
     free(result->log);
     memset(result, 0, sizeof(*result));
 }
+
+// standard Vulkan GLSL (#version 450, explicit set/binding/location): nothing relaxed, remapped or shifted
+SHAR_EXPORT int shar_spirv_compile(const char* name, int stage, const char* source, unsigned** words, size_t* count,
+                                   char** logOut)
+{
+    *words = NULL;
+    *count = 0;
+    *logOut = NULL;
+    std::lock_guard<std::mutex> lock(s_mutex);
+    if(!s_initialised)
+    {
+        glslang::InitializeProcess();
+        s_initialised = true;
+    }
+    const EShMessages messages = (EShMessages)(EShMsgSpvRules | EShMsgVulkanRules);
+    const EShLanguage language = stage == 0 ? EShLangVertex : EShLangFragment;
+    std::string log;
+    bool ok;
+    {
+        glslang::TShader shader(language);
+        shader.setStrings(&source, 1);
+        shader.setEnvInput(glslang::EShSourceGlsl, language, glslang::EShClientVulkan, 100);
+        shader.setEnvClient(glslang::EShClientVulkan, glslang::EShTargetVulkan_1_0);
+        shader.setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_0);
+        ok = shader.parse(GetDefaultResources(), 450, false, messages);
+        AppendLog(log, "", shader.getInfoLog());
+        glslang::TProgram program;
+        if(ok)
+        {
+            program.addShader(&shader);
+            ok = program.link(messages);
+            AppendLog(log, "link:\n", program.getInfoLog());
+        }
+        if(ok)
+        {
+            std::vector<unsigned> spirv;
+            glslang::SpvOptions options;
+            options.disableOptimizer = true;
+            glslang::GlslangToSpv(*program.getIntermediate(language), spirv, &options);
+            *words = CopyWords(spirv);
+            *count = spirv.size();
+        }
+    }
+    if(!log.empty())
+        *logOut = strdup((std::string(name ? name : "shader") + ":\n" + log).c_str());
+    return ok ? 1 : 0;
+}
+
+SHAR_EXPORT void shar_spirv_free(void* p)
+{
+    free(p);
+}

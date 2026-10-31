@@ -49,6 +49,12 @@ int shar_glsl_compile(const char* name, const char* header, const char* vertexSo
                       const char* fragmentSource, shar_glsl_program* result);
 void shar_glsl_free(shar_glsl_program* result);
 
+/* Standard Vulkan GLSL (no relaxed rules, no binding shifts) -> SPIR-V, for user shaders compiled ahead of time
+   (port/spirv.py). stage 0 vertex, 1 fragment. Returns 1 on success; *words / *log (either may be NULL) are freed
+   with shar_spirv_free. */
+int shar_spirv_compile(const char* name, int stage, const char* source, unsigned** words, size_t* count, char** log);
+void shar_spirv_free(void* p);
+
 #ifdef __cplusplus
 }
 #endif

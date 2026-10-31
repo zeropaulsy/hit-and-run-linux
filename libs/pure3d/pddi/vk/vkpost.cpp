@@ -8,6 +8,10 @@
 // each pass draws a screen triangle with vUV = 0,0 at the bottom left, so texture(), gl_FragCoord and ViewPosition()
 // agree with GL. The last pass draws back into the frame with a flipped viewport (its gl_FragCoord.y counts from the
 // top: only dither patterns notice).
+//
+// A pass named *.spv is SPIR-V written for Vulkan (shaders/README.md, Vulkan passes): loaded as it is, no header, a
+// fixed interface (s_spirvVertexSource's vUV, the block at binding 0 laid out as below, the samplers at bindings 1 up
+// in U_* order); its pragmas come from the source beside it (same name, .frag), when there is one.
 
 #include <pddi/vk/vkpost.hpp>
 #include <pddi/vk/vkpipeline.hpp>
@@ -61,6 +65,17 @@ static const char* s_passHeader =
     "}\n"
     "#line 1\n";
 
+// the screen triangle for SPIR-V passes: vUV at location 0
+static const char* s_spirvVertexSource =
+    "#version 450\n"
+    "layout(location = 0) out vec2 vUV;\n"
+    "void main()\n"
+    "{\n"
+    "    vec2 p = vec2(gl_VertexIndex == 1 ? 3.0 : -1.0, gl_VertexIndex == 2 ? 3.0 : -1.0);\n"
+    "    vUV = p * 0.5 + 0.5;\n"
+    "    gl_Position = vec4(p, 0.0, 1.0);\n"
+    "}\n";
+
 // the depth buffer, flipped into an R32F image for uDepth
 static const char* s_depthFragmentSource =
     "#version 420 core\n"
@@ -80,6 +95,8 @@ enum { U_SCENE, U_ORIGINAL, U_DEPTH, U_TEXTURE0 };      // samplers
 enum { P_RESOLUTION, P_TIME, P_FRAME, P_NEAR, P_FAR, P_PROJECTION, P_INVERSE, P_COUNT };    // block members
 static const char* s_blockNames[P_COUNT] = { "uResolution", "uTime", "uFrame", "uNear", "uFar", "uProjection",
                                              "uInverseProjection" };
+static const int s_spirvOffsets[P_COUNT] = { 0, 8, 12, 16, 20, 32, 96 };    // std140, as the block's declaration
+const int SPIRV_BLOCK_SIZE = 160;
 
 struct Image
 {
@@ -128,6 +145,7 @@ static Program s_depthProgram;
 static pvkImage s_original, s_pingPong[2], s_depth;     // bottom row first
 static VkImageView s_depthView;                         // the depth buffer's depth aspect, for sampling
 static VkImage s_depthViewImage;
+static VkShaderModule s_spirvVertex;                    // SPIR-V passes' vertex stage
 
 static time_t FileTime(const char* path)
 {
@@ -135,7 +153,8 @@ static time_t FileTime(const char* path)
     return stat(path, &st) == 0 ? st.st_mtime : 0;
 }
 
-static char* ReadFile(const char* path)
+// NUL-terminated; size (if given) gets the bytes read
+static char* ReadFile(const char* path, long* sizeOut = NULL)
 {
     FILE* f = fopen(path, "rb");
     if(!f)
@@ -148,6 +167,8 @@ static char* ReadFile(const char* path)
     {
         size = (long)fread(text, 1, size, f);
         text[size] = 0;
+        if(sizeOut)
+            *sizeOut = size;
     }
     fclose(f);
     return text;
@@ -270,6 +291,69 @@ static bool BuildProgram(Program& p, const char* name, const char* fragmentHeade
     if(ok)
         p.pipeline = CreatePipeline(p);
     if(!ok || !p.pipeline)
+    {
+        ReleaseProgram(p);
+        return false;
+    }
+    return true;
+}
+
+// a SPIR-V fragment stage (words: count of them): checked for what the fixed interface allows, bindings read from its
+// decorations
+static bool BuildSpirvProgram(Program& p, const char* name, const unsigned* words, size_t count)
+{
+    memset(&p, 0, sizeof(p));
+    if(!s_spirvVertex)
+        return false;
+    if(count < 5 || words[0] != 0x07230203)
+    {
+        fprintf(stderr, "PDDI: post-processing: %s is not SPIR-V\n", name);
+        return false;
+    }
+    bool fragmentMain = false;
+    for(int i = 0; i < SAMPLER_BINDINGS; i++)
+        p.binding[i] = -1;
+    for(size_t i = 5; i < count;)
+    {
+        unsigned op = words[i] & 0xffff, length = words[i] >> 16;
+        if(length == 0 || i + length > count)
+        {
+            fprintf(stderr, "PDDI: post-processing: %s: damaged SPIR-V\n", name);
+            return false;
+        }
+        if(op == 15 && length >= 4 && words[i + 1] == 4 && strcmp((const char*)&words[i + 3], "main") == 0)
+            fragmentMain = true;                            // OpEntryPoint Fragment ... "main"
+        if(op == 71 && length >= 4 && words[i + 2] == 34 && words[i + 3] != 0)
+        {
+            fprintf(stderr, "PDDI: post-processing: %s: only descriptor set 0\n", name);    // OpDecorate DescriptorSet
+            return false;
+        }
+        if(op == 71 && length >= 4 && words[i + 2] == 33)  // OpDecorate Binding
+        {
+            unsigned b = words[i + 3];
+            if(b > (unsigned)SAMPLER_BINDINGS)
+            {
+                fprintf(stderr, "PDDI: post-processing: %s: binding %u (0 block, 1-%d samplers)\n", name, b,
+                        SAMPLER_BINDINGS);
+                return false;
+            }
+            if(b > 0)
+                p.binding[b - 1] = b;
+        }
+        i += length;
+    }
+    if(!fragmentMain)
+    {
+        fprintf(stderr, "PDDI: post-processing: %s has no fragment entry point \"main\"\n", name);
+        return false;
+    }
+    p.blockSize = SPIRV_BLOCK_SIZE;
+    memcpy(p.offset, s_spirvOffsets, sizeof(p.offset));
+    p.fragment = pvkCreateShaderModule(words, count);
+    p.vertex = s_spirvVertex;
+    p.pipeline = p.fragment ? CreatePipeline(p) : VK_NULL_HANDLE;
+    p.vertex = VK_NULL_HANDLE;                          // shared, not the pass's to release
+    if(!p.pipeline)
     {
         ReleaseProgram(p);
         return false;
@@ -407,7 +491,23 @@ static void BuildPass(Pass& p)
     p.mtime = FileTime(path);
     ReleaseProgram(p.program);
     p.ok = false;
+    size_t length = strlen(p.file);
+    bool spirv = length > 4 && strcmp(p.file + length - 4, ".spv") == 0;
+    char* binary = NULL;
+    long binarySize = 0;
+    if(spirv)
+    {
+        binary = ReadFile(path, &binarySize);
+        if(!binary)
+        {
+            fprintf(stderr, "PDDI: post-processing: can't read %s\n", path);
+            return;
+        }
+        snprintf(path + strlen(path) - 4, 5, ".frag");     // the pragmas' source, if any
+    }
     char* source = ReadFile(path);
+    if(spirv && !source)
+        source = (char*)calloc(1, 1);
     if(!source)
     {
         fprintf(stderr, "PDDI: post-processing: can't read %s\n", path);
@@ -435,7 +535,14 @@ static void BuildPass(Pass& p)
         p.textureCount++;
     }
     snprintf(header + strlen(header), sizeof(header) - strlen(header), "#line 1\n");
-    p.ok = BuildProgram(p.program, path, header, source, p.textureName, p.textureCount);
+    if(spirv)
+    {
+        snprintf(path, sizeof(path), "%s/%s", s_folder, p.file);
+        p.ok = BuildSpirvProgram(p.program, path, (const unsigned*)binary, (size_t)binarySize / 4);
+        free(binary);
+    }
+    else
+        p.ok = BuildProgram(p.program, path, header, source, p.textureName, p.textureCount);
     p.usesDepth = p.ok && p.program.binding[U_DEPTH] >= 0;
     p.beginsEffect = strstr(source, "#pragma shar_original") != NULL;
     p.scale = 1.0f;
@@ -542,6 +649,11 @@ static bool Setup()
         return false;
     if(!BuildProgram(s_depthProgram, "post-processing depth copy", NULL, s_depthFragmentSource, NULL, 0))
         return false;
+    shar_glsl_program compiled;
+    if(shar_glsl_compile("post-processing SPIR-V vertex", NULL, s_spirvVertexSource, NULL,
+                         "#version 450\nvoid main()\n{\n}\n", &compiled))
+        s_spirvVertex = pvkCreateShaderModule(compiled.vertex, compiled.vertexWords);
+    shar_glsl_free(&compiled);
     return true;
 }
 

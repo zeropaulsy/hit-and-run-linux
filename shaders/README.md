@@ -101,6 +101,33 @@ stage always works at full size.
 | `crt.glsl` | final | old TV: curved screen, scanlines, shadow mask |
 | `show_depth.glsl` | scene | shows the depth buffer (near black, far white) |
 
+### Vulkan passes (SPIR-V)
+
+With the Vulkan renderer (`renderer=vulkan`) a pass can also be a SPIR-V file (`post/name.spv` in `post.ini`) instead
+of GLSL: a shader written for Vulkan and compiled ahead of time, loaded as it is (the OpenGL renderer skips it). The
+game puts nothing in front of it, so it declares everything itself, exactly like this (names are free, the
+locations, bindings and block layout are not):
+
+```glsl
+#version 450
+layout(location = 0) in vec2 vUV;
+layout(location = 0) out vec4 fragColour;
+layout(set = 0, binding = 0, std140) uniform Post
+{
+    vec2 uResolution; float uTime; int uFrame; float uNear; float uFar; mat4 uProjection; mat4 uInverseProjection;
+};
+layout(set = 0, binding = 1) uniform sampler2D uScene;
+layout(set = 0, binding = 2) uniform sampler2D uOriginal;
+layout(set = 0, binding = 3) uniform sampler2D uDepth;          // copied only when the shader declares binding 3
+layout(set = 0, binding = 4) uniform sampler2D uMyImage;        // 4-7: the #pragma shar_texture images, in order
+```
+
+`LinearDepth` and `ViewPosition` are not provided (copy them from above). Pragmas are read from the source beside the
+`.spv` (same name, `.frag`) when there is one. Compile with the game's own compiler, no SDK needed:
+`python3 port/spirv.py post/name.frag` writes `post/name.spv` (any SPIR-V compiler works: `glslc`, `glslangValidator
+-V`). The game reloads the `.spv` when it changes. Example: `vulkan_test.frag` / `.spv` (colour fringes towards the
+edges, a cool haze over distant things).
+
 ### Making your own LUT
 
 1. Take a screenshot of the game and paste `post/lut/neutral.png` (1024 x 32) onto it, anywhere.

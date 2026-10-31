@@ -59,5 +59,9 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   program/blend/colour mask/fill/a2c/samples/topology class; the rest is dynamic state.
 - Post (vkpost.cpp): pass images bottom-up like GL's (frame blitted in flipped, uDepth via flipped R32F copy, last
   pass draws with flipped viewport) so vUV/gl_FragCoord/ViewPosition match; show_depth identical to GL.
+- SPIR-V post passes (`*.spv` in post.ini, shaders/README.md): `BuildSpirvProgram` (vkpost.cpp) loads them as they
+  are with `s_spirvVertexSource` (vUV location 0), fixed block offsets (`s_spirvOffsets`, 160 bytes), sampler slots =
+  binding - 1 from the module's OpDecorate Binding; pragmas from the `.frag` beside it. glpost.cpp skips them.
+  `port/spirv.py` compiles via `shar_spirv_compile` (libshar_glslang: plain Vulkan rules, no relaxed/shifts).
 - 32-bit: non-dispatchable handles are all uint64_t (no overloads on handle type).
 
