@@ -1254,11 +1254,13 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
     return cmd;
 }
 
-// the sun (vksun.hpp): what it shades (3D, opaque, depth-writing: not the HUD, sky or particles) and what casts
+// the sun (vksun.hpp): what it shades (3D, depth-writing, opaque or alpha-blended as characters fading near the camera
+// are: not the HUD, sky, glows or particles) and what casts
 bool pvkPipeline::SunReceiver() const
 {
-    return pvkSunOn() && projection[15] == 0.0f && state.depthTest && state.depthWrite && !material.blended &&
-           state.blend == PDDI_BLEND_NONE && material.program != PGL_PROGRAM_REFRACTION;
+    return pvkSunOn() && projection[15] == 0.0f && state.depthTest && state.depthWrite &&
+           (state.blend == PDDI_BLEND_NONE || state.blend == PDDI_BLEND_ALPHA) &&
+           material.program != PGL_PROGRAM_REFRACTION;
 }
 
 bool pvkPipeline::SunCaster() const

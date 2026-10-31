@@ -12,10 +12,10 @@
 #include <string.h>
 
 static const int kMaxInstances = 16384;
-static const unsigned kKeepMs = 10000;      // a static instance out of view stays this long
-static const float kHugeSize = 1500.0f;     // a caster bigger than this (sky dome) never casts
+static const unsigned kKeepMs = 10000;          // a static instance out of view stays this long
+static const float kHugeSize = 1500.0f;         // a caster bigger than this (sky dome) never casts
 static const unsigned kMaxCasterIds = 65536;    // alpha-tested casters need an id below this (the table's size)
-static const int kMaskSize = 64;            // texels across an alpha mask
+static const int kMaskSize = 64;                // texels across an alpha mask
 static const int kMaxMasks = 1024;
 static const unsigned kGeometryWords = 8 * 1024 * 1024;  // alpha-tested casters' UVs and triangles (32 MB)
 
@@ -27,6 +27,12 @@ static float s_direction[3] = { 0.36f, 0.80f, 0.48f };
 static bool s_fixedDirection = false;
 static float s_levels[3] = { 0.62f, 1.25f, 0.65f };
 static bool s_log = false;
+
+// the sun's height per level, degrees (0: the game's light as it is). The game's key light is low (about 30 degrees),
+// fine for its own shading but long shadows: level 1 is a midday sun, from the same compass direction.
+static const float kLevelElevation[] = { 68.0f };
+static int s_level = -1;
+static float s_elevation = -1.0f;      // SHAR_SUN_ELEVATION: every level
 
 // the frame's strongest directional light (world space)
 static float s_bestLight = 0.0f;
@@ -64,10 +70,32 @@ bool pvkSunWanted()
             Normalise(s_direction);
             s_fixedDirection = true;
         }
+        s_elevation = EnvFloat("SHAR_SUN_ELEVATION", -1.0f);
         const char* l = getenv("SHAR_SUN_LOG");
         s_log = l && l[0] == '1';
     }
     return s_wanted > 0;
+}
+
+void pvkSunSetLevel(int level)
+{
+    s_level = level;
+}
+
+// the game's light raised (or lowered) to the level's height, the compass direction kept
+static void Elevate(float* d)
+{
+    pvkSunWanted();
+    float elevation = s_elevation >= 0.0f ? s_elevation :
+                      s_level >= 0 && s_level < (int)(sizeof(kLevelElevation) / sizeof(kLevelElevation[0])) ?
+                      kLevelElevation[s_level] : 0.0f;
+    float horizontal = sqrtf(d[0] * d[0] + d[2] * d[2]);
+    if(elevation <= 0.0f || horizontal < 1e-4f)
+        return;
+    float e = elevation * 3.14159265f / 180.0f;
+    d[0] = d[0] / horizontal * cosf(e);
+    d[2] = d[2] / horizontal * cosf(e);
+    d[1] = sinf(e);
 }
 
 bool pvkSunReady()
@@ -587,7 +615,7 @@ struct Instance
     unsigned lastFrame;
     unsigned streak;            // frames running seen with this transform
     unsigned lastMs;
-    bool keep;                  // may stay out of view (pre-lit world)
+    bool keep;                  // pre-lit world: may stay out of view, in lit draws' rays (mask)
 };
 
 static Instance* s_instances;
@@ -813,7 +841,7 @@ static void FillInstance(VkAccelerationStructureInstanceKHR& out, const Instance
     memcpy(out.transform.matrix, in.transform, sizeof(out.transform.matrix));
     const Blas& b = s_blas[in.id];
     out.instanceCustomIndex = b.alpha ? in.id : 0;      // the caster table's row
-    out.mask = 0xff;
+    out.mask = in.keep ? 0x01 : 0x02;     // the world; lit things (cars), which lit draws' rays skip
     out.instanceShaderBindingTableRecordOffset = 0;
     out.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR |
                 (b.alpha ? 0 : VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR);
@@ -884,6 +912,7 @@ void pvkSunEndFrame()
     // the sun: the frame's strongest directional light
     if(!s_fixedDirection && s_bestLight > 0.0f)
     {
+        Elevate(s_bestDirection);
         float d = fabsf(s_bestDirection[0] - s_direction[0]) + fabsf(s_bestDirection[1] - s_direction[1]) +
                   fabsf(s_bestDirection[2] - s_direction[2]);
         if(d > 1e-4f)

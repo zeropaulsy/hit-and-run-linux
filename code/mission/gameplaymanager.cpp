@@ -55,6 +55,9 @@
 #include <render/RenderManager/RenderManager.h>
 
 #include <worldsim/character/character.h>
+#ifdef RAD_LINUX
+void pvkSunSetLevel( int level );   // pddi/vk/vksun.cpp: the sun's height for the level
+#endif
 #include <worldsim/character/charactermanager.h>
 #include <worldsim/redbrick/vehicle.h>
 #include <worldsim/vehiclecentral.h>
@@ -331,6 +334,9 @@ void GameplayManager::SetLevelIndex(  RenderEnums::LevelEnum level  )
 #endif
 
     mLevelData.level = level;
+#ifdef RAD_LINUX
+    pvkSunSetLevel( (int)level );
+#endif
     
     GetRenderManager()->SetLoadData( RenderEnums::LevelSlot,
                                      level,

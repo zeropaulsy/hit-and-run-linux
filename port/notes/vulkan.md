@@ -73,7 +73,13 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 
 ## Sun prototype (branch `vulkan-sun`, `vksun.cpp`)
 - `SHAR_SUN=1` (device made with ray queries + buffer device address), F9 toggles. Off/unsupported: programs and
-  layout as before. `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_LOG=1`.
+  layout as before. `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_ELEVATION=deg`
+  (every level), `SHAR_SUN_LOG=1`.
+- Sun height per level: `kLevelElevation` (vksun.cpp; L1 68 deg = midday), the game light's compass direction kept;
+  level from `GameplayManager::SetLevelIndex` (`pvkSunSetLevel`). The game's own key light is ~30 deg.
+- Receivers: depth-writing, blend none or alpha (characters fade near the camera: always alpha-blended). Lit draws
+  trace from every surface with ray mask 0x01 (world only; lit instances are 0x02): no self-shadow on top of the
+  game's own shading.
 - World space from p3d `tContext::LoadViewMatrix` (`pvkSetViewMatrix`); sun = strongest directional light the
   pipeline set (eye -> world). Opaque, depth-writing, perspective draws: prim buffer -> BLAS (CPU copy, built in the
   upload cmd), draw -> TLAS instance. Unlit (pre-lit world) instances with the same transform 3 frames running stay
@@ -87,4 +93,5 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   EShReflectionSeparateBuffers (else an SSBO is taken as the uniform block: block too small, heap overrun).
   Normals: smooth ones made at upload for buffers without (bound for unlit simple-program draws only), polygon
   normal at creases (< 0.7).
-- Gaps: characters not darkened in shadow, custom material shaders get no sun, blended foliage never casts.
+- Gaps: characters cast no ray-traced shadow (skinned: rebuilt every frame), custom material shaders get no sun,
+  additive-blended foliage never casts.

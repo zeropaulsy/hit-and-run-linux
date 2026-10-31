@@ -35,6 +35,9 @@ unsigned pvkSunVersion();
 // towards the sun, world space; levels: shadow, sunlit (pre-lit draws), shadow (lit draws)
 void pvkSunParameters(float* direction, float* levels);
 
+// the level being played (RenderEnums::LevelEnum: 0 = level 1), for its sun's height
+void pvkSunSetLevel(int level);
+
 // a directional light the pipeline set (eye space, towards the light), for picking the sun
 void pvkSunNoteLight(const float* eyeDirection, const float* colour);
 
