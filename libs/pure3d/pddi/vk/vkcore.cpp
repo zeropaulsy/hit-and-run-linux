@@ -981,7 +981,8 @@ void pvkCore::EndRendering()
 }
 
 // a rendering instance with resolve attachments and nothing drawn: the multisampled colour averaged into the
-// scene's, depth and stencil from sample 0 (the GUI layer drawn afterwards may test against them, as in GL)
+// scene's, depth and stencil from sample 0 (the GUI layer drawn afterwards may test against them, as in GL).
+// The multisampled target is stored, not discarded: a frame that draws without clearing (movies) loads it.
 void pvkCore::ResolveTarget()
 {
     if(!msActive)
@@ -996,7 +997,7 @@ void pvkCore::ResolveTarget()
     colour.imageView = msTarget.colour.view;
     colour.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     colour.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-    colour.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colour.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colour.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
     colour.resolveImageView = scene.colour.view;
     colour.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -1004,7 +1005,7 @@ void pvkCore::ResolveTarget()
     depth.imageView = msTarget.depth.view;
     depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
     depth.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
-    depth.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     depth.resolveMode = VK_RESOLVE_MODE_SAMPLE_ZERO_BIT;
     depth.resolveImageView = scene.depth.view;
     depth.resolveImageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;

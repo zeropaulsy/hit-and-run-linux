@@ -89,10 +89,12 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
   `libshar_glslang.so` (port/third_party/glslang; relaxed rules: loose uniforms -> block at binding 0, std140
   reflection; float arrays stride 16). Samplers from binding 1: both sampler and texture shifts; a shader without
   loose uniforms must give explicit bindings.
-- Offscreen targets keep contents (as GL's window); GL y-up via negative viewport height (images top row first,
-  same texels as GL); Present = gamma pass into swapchain. MSAA: resolve via empty rendering instance with resolve
-  attachments (depth/stencil SAMPLE_ZERO) at the scene post point. 2 frames in flight; per-frame upload cmd buffer
-  submitted first + global barrier; transient ring (verts, uniforms, staging).
+- Offscreen targets keep contents (as GL's window), the MSAA one too across its resolve (storeOp STORE: movies
+  draw without clearing; DONT_CARE gave garbage depth = dithered, ghosted movie on NVIDIA). GL y-up via negative
+  viewport height (images top row first, same texels as GL); Present = gamma pass into swapchain. MSAA: resolve
+  via empty rendering instance with resolve attachments (depth/stencil SAMPLE_ZERO) at the scene post point. 2
+  frames in flight; per-frame upload cmd buffer submitted first + global barrier; transient ring (verts, uniforms,
+  staging).
 - Resources made on the render thread at first use (textures/prim buffers created on loader threads, CPU copies).
   Changed prim buffer / texture -> new GPU object, old one `Retire`d (serial-based; any thread). Pipelines keyed by
   program/blend/colour mask/fill/a2c/samples/topology class; the rest is dynamic state.
