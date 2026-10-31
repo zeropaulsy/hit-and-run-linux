@@ -232,8 +232,14 @@ bool pvkPipeline::BuildProgram(Program& p, const char* name, const char* header,
     // the built-in programs with the sun (vksun.hpp): GLSL 4.60 for ray queries, the same source otherwise
     static const char* const kVersion330 = "#version 330 core\n";
     static const char* const kSunHeader = "#version 460 core\n#extension GL_EXT_ray_query : require\n#define PVK_SUN 1\n";
+    // subgroup quads (pvkCore::quadFragment): the sun's probe rays shared by each 2x2 block of pixels
+    static const char* const kSunQuadHeader = "#version 460 core\n#extension GL_EXT_ray_query : require\n"
+                                              "#extension GL_KHR_shader_subgroup_basic : require\n"
+                                              "#extension GL_KHR_shader_subgroup_quad : require\n"
+                                              "#define PVK_SUN 1\n#define PVK_SUN_QUAD 1\n";
     bool sun = !custom && pvkSunReady() && strncmp(header, kVersion330, strlen(kVersion330)) == 0;
-    const char* headerParts[] = { sun ? kSunHeader : header, sun ? header + strlen(kVersion330) : "",
+    const char* headerParts[] = { sun ? (g_pvk->quadFragment ? kSunQuadHeader : kSunHeader) : header,
+                                  sun ? header + strlen(kVersion330) : "",
                                   "#define PVK 1\n", NULL };
     const char* fragmentHeaderParts[] = { fragmentHeader ? fragmentHeader : header, "#define PVK 1\n", NULL };
     char* vertex = Join(vertexParts);
@@ -762,11 +768,12 @@ void pvkPipeline::UploadUniforms(Program& p)
 
     if(p.sun && p.sunVersion != pvkSunVersion())
     {
-        float direction[3], levels[3], soft[2];
-        pvkSunParameters(direction, levels, soft);
+        float direction[3], levels[3], soft[2], range[3];
+        pvkSunParameters(direction, levels, soft, range);
         SetFloats(p, U_EYETOWORLD, pvkSunEyeToWorld(), 1, 16);
         SetFloats(p, U_SUNDIRECTION, direction, 1, 3);
         SetFloats(p, U_SUNSOFT, soft, 1, 2);
+        SetFloats(p, U_SUNRANGE, range, 1, 3);
         p.sunVersion = pvkSunVersion();
     }
 
@@ -1169,8 +1176,8 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
     VkAccelerationStructureKHR sunScene = p.sun ? pvkSunScene() : VK_NULL_HANDLE;
     if(p.sun && p.offset[U_SUN] >= 0)
     {
-        float direction[3], levels[3], soft[2];
-        pvkSunParameters(direction, levels, soft);
+        float direction[3], levels[3], soft[2], range[3];
+        pvkSunParameters(direction, levels, soft, range);
         float sun[4] = { 0.0f, levels[0], levels[1], levels[2] };
         if(sunScene && SunReceiver())
             sun[0] = material.lit ? 2.0f : 1.0f;

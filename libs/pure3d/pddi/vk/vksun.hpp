@@ -37,8 +37,9 @@ bool pvkSunInView(const float* projection);
 const float* pvkSunEyeToWorld();
 unsigned pvkSunVersion();
 // towards the sun, world space; levels: shadow, sunlit (pre-lit draws), shadow (lit draws); soft: tangent of the
-// sun disc's radius (penumbra), rays per pixel
-void pvkSunParameters(float* direction, float* levels, float* soft);
+// sun disc's radius (penumbra), rays per pixel; range: full rays to (one at twice it), no shadow past (0: everywhere),
+// ray length, metres
+void pvkSunParameters(float* direction, float* levels, float* soft, float* range);
 
 // the level being played (RenderEnums::LevelEnum: 0 = level 1), for its sun's height
 void pvkSunSetLevel(int level);

@@ -29,6 +29,7 @@ static bool s_fixedDirection = false;
 static float s_levels[3] = { 0.68f, 1.22f, 0.7f };
 static float s_softDegrees = 2.0f;      // the sun disc's radius: wider than the real sun's (0.27) for visible penumbrae
 static float s_rays = 6.0f;
+static float s_range[3] = { 40.0f, 250.0f, 150.0f };   // full rays to (one at twice it), no shadow past, ray length
 static const float* s_projectionSource;
 static float s_viewProjection[16];
 static bool s_viewProjectionSet = false;
@@ -85,6 +86,10 @@ bool pvkSunWanted()
         s_softDegrees = EnvFloat("SHAR_SUN_SOFT", s_softDegrees);
         s_rays = EnvFloat("SHAR_SUN_RAYS", s_rays);
         s_rays = s_rays < 1.0f ? 1.0f : s_rays > 32.0f ? 32.0f : floorf(s_rays);
+        s_range[0] = EnvFloat("SHAR_SUN_NEAR", s_range[0]);
+        s_range[1] = EnvFloat("SHAR_SUN_FAR", s_range[1]);
+        s_range[2] = EnvFloat("SHAR_SUN_REACH", s_range[2]);
+        s_range[2] = s_range[2] < 1.0f ? 1.0f : s_range[2];
         const char* l = getenv("SHAR_SUN_LOG");
         s_logLevel = l ? atoi(l) : 0;
         s_log = s_logLevel > 0;
@@ -176,8 +181,9 @@ unsigned pvkSunVersion()
     return s_version;
 }
 
-void pvkSunParameters(float* direction, float* levels, float* soft)
+void pvkSunParameters(float* direction, float* levels, float* soft, float* range)
 {
+    memcpy(range, s_range, sizeof(s_range));
     memcpy(direction, s_direction, sizeof(s_direction));
     memcpy(levels, s_levels, sizeof(s_levels));
     soft[0] = s_softDegrees > 0.0f ? tanf(s_softDegrees * 3.14159265f / 180.0f) : 0.0f;

@@ -80,6 +80,7 @@ public:
     VkFormat depthFormat;       // D24S8, else D32S8
     VkSampleCountFlags sampleCounts;    // usable for colour and depth targets
     bool rayQuery;              // acceleration structures + ray queries + buffer device addresses (SHAR_SUN)
+    bool quadFragment;          // subgroup quad operations in fragment shaders (the sun's shared probe rays)
 
     // memory: suballocated from large blocks (thread safe)
     bool Allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags flags, bool linear, pvkMemory* out);

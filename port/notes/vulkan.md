@@ -100,5 +100,55 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   EShReflectionSeparateBuffers (else an SSBO is taken as the uniform block: block too small, heap overrun).
   Normals: smooth ones made at upload for buffers without (bound for unlit simple-program draws only), polygon
   normal at creases (< 0.7).
+- Cost (RTX 5060, 2560x1600 8x MSAA, L1 start): ~7 ms per full-screen ray per pixel; overdraw (alpha test stops
+  early-z) multiplies it. Quad sharing (`pvkCore::quadFragment`, `PVK_SUN_QUAD`; `SHAR_SUN_QUAD=0` off): each pixel
+  of a 2x2 quad traces every 4th spiral ray, sums shared by `subgroupQuadSwap*` (outside branches: helpers trace
+  too); 1 ray = per pixel. Tried and dropped: 4 probes shared by the quad, early-out when they agree: faint
+  penumbrae read fully lit for whole quads = regular bright dots. Fallback path (no quads): 3 probes (centre + 2
+  rim) per pixel, early-out when they agree. Rays fall from full at `SHAR_SUN_NEAR` (40 m) to 1 at twice it; shadow
+  fades out 0.8-1x `SHAR_SUN_FAR` (250 m, 0 = never); rays `SHAR_SUN_REACH` (150 m) long. Defaults 40 -> 12 ms,
+  SOFT=4 RAYS=12 79 -> 22 ms, all-penumbra low sun 75 -> 18 ms.
 - Gaps: the game's blob shadow is still drawn under characters, custom material shaders get no sun,
   additive-blended foliage never casts.
+
+## Sun Defaults
+The defaults are SHAR_SUN_SOFT=2, SHAR_SUN_RAYS=6 and SHAR_SUN_SHADOW=0.68. These presets are good for comparing:
+
+Defaults:
+- SHAR_SUN=1 port/play.sh --data DIR
+
+Crisp, like a real sun (cheapest):
+- SHAR_SUN=1 SHAR_SUN_SOFT=0.3 SHAR_SUN_RAYS=2 port/play.sh --data DIR
+
+Very soft (needs more rays or the edges look grainy):
+- SHAR_SUN=1 SHAR_SUN_SOFT=4 SHAR_SUN_RAYS=12 port/play.sh --data DIR
+
+Faint shadows, closer to the original look:
+- SHAR_SUN=1 SHAR_SUN_SHADOW=0.8 SHAR_SUN_LIT_SHADOW=0.82 port/play.sh --data DIR
+
+Exaggerated, to judge the shapes:
+- SHAR_SUN=1 SHAR_SUN_SOFT=0 SHAR_SUN_SHADOW=0.3 SHAR_SUN_LIT_SHADOW=0.4 port/play.sh --data DIR
+
+What each setting does:
+- SHAR_SUN_SOFT: how blurred the edges are, in degrees.
+  - 0 gives hard edges. 0.3 is about what the real sun gives. 2 is the default, and 4 or more gets very soft.
+  - The blur grows with distance from the caster, so the bottom of a pole stays sharp and the top's shadow goes fuzzy.
+- SHAR_SUN_RAYS: how smooth those blurred edges look.
+  - Few rays give a speckled edge, more give a smooth one.
+  - A rough guide is at least 3 rays per degree of softness, so 6 for the default and 12 for 4°.
+  - Ignored when SOFT=0. Maximum 32.
+  - Each 2x2 block of pixels shares its rays, so the cost per pixel is about a quarter of this. 12 is fine on your RTX 5060.
+- SHAR_SUN_SHADOW: how bright the world is in shade.
+  - 1.0 means no shadow at all, 0.68 is the default, and 0.3 is very dark.
+- SHAR_SUN_LIT_SHADOW: the same for characters and cars, default 0.7.
+  - Keep it near SHAR_SUN_SHADOW, or Homer will look brighter or darker than the ground he's standing on.
+- SHAR_SUN_LIGHT: how bright sunlit ground gets, default 1.22. Lower it toward 1.0 if sunlit areas look washed out.
+- SHAR_SUN_NEAR: rays are at full count up to this distance (default 40 m), dropping to 1 at twice it.
+- SHAR_SUN_FAR: shadows fade out towards this distance and no rays are traced past it (default 250 m, 0 = never).
+- SHAR_SUN_REACH: how far a ray looks for a caster (default 150 m). Raise it if tall buildings lose far shadows at a low sun.
+- SHAR_SUN_QUAD=0: turns off the 2x2 ray sharing (for comparing; slower).
+
+Tips:
+- Press F9 to flip the sun off and on in the same spot. That's the easiest way to judge any of these.
+- On L1, SHAR_SUN_ELEVATION=30 gives the long, low-sun shadows from before. Midday shadows are short and mostly under things, which makes softness harder to see.
+- Good spots to look: the lamp posts and trees along the street, and Homer walking in and out of the house's shadow.

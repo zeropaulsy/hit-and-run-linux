@@ -245,6 +245,17 @@ bool pvkCore::CreateDevice()
         vkGetPhysicalDeviceFeatures2(physical, &query);
         rayQuery = f12.bufferDeviceAddress && fas.accelerationStructure && frq.rayQuery;
     }
+    quadFragment = false;
+    if(rayQuery)
+    {
+        VkPhysicalDeviceSubgroupProperties subgroup = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES };
+        VkPhysicalDeviceProperties2 p2 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+        p2.pNext = &subgroup;
+        vkGetPhysicalDeviceProperties2(physical, &p2);
+        const char* q = getenv("SHAR_SUN_QUAD");
+        quadFragment = (subgroup.supportedStages & VK_SHADER_STAGE_FRAGMENT_BIT) &&
+                       (subgroup.supportedOperations & VK_SUBGROUP_FEATURE_QUAD_BIT) && !(q && q[0] == '0');
+    }
     if(pvkSunWanted() && !rayQuery)
         fprintf(stderr, "PDDI: %s has no ray queries: no sun shadows\n", properties.deviceName);
 
