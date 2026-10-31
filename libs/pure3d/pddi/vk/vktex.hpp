@@ -45,6 +45,9 @@ public:
     // render thread: the image to sample, uploaded first when the pixels changed (NULL when it cannot be made)
     VkImageView Prepare(void);
     bool HasMipmaps(void) const { return image.mips > 1; }
+    // the sun (vksun.cpp): the first level's alpha point-sampled to size x size, rows in memory order (as the UVs
+    // sample them); false without pixels
+    bool AlphaMask(unsigned char* mask, int size);
 
 protected:
     int MipBytes(int mip);

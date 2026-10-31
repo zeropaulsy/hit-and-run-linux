@@ -76,11 +76,15 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   layout as before. `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_LOG=1`.
 - World space from p3d `tContext::LoadViewMatrix` (`pvkSetViewMatrix`); sun = strongest directional light the
   pipeline set (eye -> world). Opaque, depth-writing, perspective draws: prim buffer -> BLAS (CPU copy, built in the
-  upload cmd), draw -> TLAS instance; same transform 3 frames running = static, kept 10 s out of view. TLAS per
-  frame in flight, built at Present before the upload barrier. Casters > 1500 m (sky) and buffers rebuilt > 3 times
-  skipped; alpha-tested ones never cast.
+  upload cmd), draw -> TLAS instance. Unlit (pre-lit world) instances with the same transform 3 frames running stay
+  10 s out of view; lit ones (cars) only this frame (else parked cars at load left shadows behind). TLAS per frame
+  in flight, built at Present before the upload barrier. Casters > 1500 m (sky) and buffers rebuilt > 3 times skipped.
+- Alpha-tested casters (foliage): non-opaque BLAS; custom index = row in the caster table (binding 6: UV/triangle
+  offsets, mask | compare << 16, ref); 64x64 alpha masks from the texture's CPU copy (`pvkTexture::AlphaMask`,
+  binding 7); UVs + triangles in a shared first-fit buffer (binding 8). Shader confirms candidates passing the test.
 - Shaders: built-ins get `#version 460` + GL_EXT_ray_query + PVK_SUN (SPIR-V 1.4 target switched on in
-  shar_glslang by the header); binding 5 = TLAS. Normals: smooth ones made at upload for buffers without (bound
-  for unlit simple-program draws only), polygon normal at creases (< 0.7).
-- Gaps: characters not darkened in shadow, alpha-tested foliage neither casts nor is clear, custom material shaders
-  get no sun.
+  shar_glslang by the header); binding 5 = TLAS. Storage blocks: shar_glslang reflects with
+  EShReflectionSeparateBuffers (else an SSBO is taken as the uniform block: block too small, heap overrun).
+  Normals: smooth ones made at upload for buffers without (bound for unlit simple-program draws only), polygon
+  normal at creases (< 0.7).
+- Gaps: characters not darkened in shadow, custom material shaders get no sun, blended foliage never casts.

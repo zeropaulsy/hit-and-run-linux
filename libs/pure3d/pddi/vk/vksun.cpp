@@ -3,6 +3,7 @@
 //=============================================================================
 
 #include <pddi/vk/vksun.hpp>
+#include <pddi/vk/vktex.hpp>
 
 #include <math.h>
 #include <pthread.h>
@@ -13,6 +14,10 @@
 static const int kMaxInstances = 16384;
 static const unsigned kKeepMs = 10000;      // a static instance out of view stays this long
 static const float kHugeSize = 1500.0f;     // a caster bigger than this (sky dome) never casts
+static const unsigned kMaxCasterIds = 65536;    // alpha-tested casters need an id below this (the table's size)
+static const int kMaskSize = 64;            // texels across an alpha mask
+static const int kMaxMasks = 1024;
+static const unsigned kGeometryWords = 8 * 1024 * 1024;  // alpha-tested casters' UVs and triangles (32 MB)
 
 static int s_wanted = -1;
 static bool s_enabled = true;
@@ -247,6 +252,8 @@ struct Blas
 {
     VkAccelerationStructureKHR as;
     pvkBuffer storage;
+    bool alpha;                 // alpha-tested: UVs and triangles in the geometry buffer
+    unsigned geometry, geometryWords;
     VkDeviceAddress address;
     unsigned version;
     int builds;
@@ -270,10 +277,15 @@ static VkDeviceAddress BufferAddress(const pvkBuffer& b)
     return vkGetBufferDeviceAddress(g_pvk->device, &info);
 }
 
+static void GeometryFree(unsigned offset, unsigned words);
+
 static void ReleaseBlas(Blas& b)
 {
     g_pvk->RetireAccel(b.as);
     g_pvk->Retire(b.storage);
+    if(b.alpha)
+        GeometryFree(b.geometry, b.geometryWords);
+    b.alpha = false;
     b.as = VK_NULL_HANDLE;
     b.address = 0;
 }
@@ -293,9 +305,127 @@ static bool Scratch(VkDeviceSize size, VkDeviceAddress* address)
     return true;
 }
 
-static bool BuildBlas(Blas& b, const float* positions, unsigned vertexCount, const unsigned short* indices,
-                      unsigned count, bool strip)
+//-----------------------------------------------------------------------------
+// Alpha-tested casters: the table (a uvec4 per id: UV and triangle offsets in the geometry, mask | compare << 16,
+// alpha ref), the masks (64x64 alpha bytes per texture) and the geometry (first fit; a range freed while a frame in
+// flight reads it can only misplace a shadow for that frame)
+//-----------------------------------------------------------------------------
+
+static pvkBuffer s_casterTable, s_masks, s_geometry;
+struct Range { unsigned offset, words; };
+static Range* s_geometryFree;
+static unsigned s_geometryFreeCount, s_geometryFreeCapacity;
+
+static bool GeometryAlloc(unsigned words, unsigned* offset)
 {
+    for(unsigned i = 0; i < s_geometryFreeCount; i++)
+    {
+        Range& r = s_geometryFree[i];
+        if(r.words < words)
+            continue;
+        *offset = r.offset;
+        r.offset += words;
+        r.words -= words;
+        if(r.words == 0)
+        {
+            memmove(&s_geometryFree[i], &s_geometryFree[i + 1], (s_geometryFreeCount - i - 1) * sizeof(Range));
+            s_geometryFreeCount--;
+        }
+        return true;
+    }
+    return false;
+}
+
+static void GeometryFree(unsigned offset, unsigned words)
+{
+    // in offset order, merged with the neighbours it touches
+    unsigned i = 0;
+    while(i < s_geometryFreeCount && s_geometryFree[i].offset < offset)
+        i++;
+    bool before = i > 0 && s_geometryFree[i - 1].offset + s_geometryFree[i - 1].words == offset;
+    bool after = i < s_geometryFreeCount && offset + words == s_geometryFree[i].offset;
+    if(before && after)
+    {
+        s_geometryFree[i - 1].words += words + s_geometryFree[i].words;
+        memmove(&s_geometryFree[i], &s_geometryFree[i + 1], (s_geometryFreeCount - i - 1) * sizeof(Range));
+        s_geometryFreeCount--;
+    }
+    else if(before)
+        s_geometryFree[i - 1].words += words;
+    else if(after)
+    {
+        s_geometryFree[i].offset = offset;
+        s_geometryFree[i].words += words;
+    }
+    else
+    {
+        if(s_geometryFreeCount == s_geometryFreeCapacity)
+        {
+            s_geometryFreeCapacity = s_geometryFreeCapacity * 2 + 64;
+            s_geometryFree = (Range*)realloc(s_geometryFree, s_geometryFreeCapacity * sizeof(Range));
+        }
+        memmove(&s_geometryFree[i + 1], &s_geometryFree[i], (s_geometryFreeCount - i) * sizeof(Range));
+        s_geometryFree[i].offset = offset;
+        s_geometryFree[i].words = words;
+        s_geometryFreeCount++;
+    }
+}
+static pthread_mutex_t s_maskLock = PTHREAD_MUTEX_INITIALIZER;
+static pvkTexture* s_maskOwner[kMaxMasks];
+
+static int MaskSlot(pvkTexture* texture)
+{
+    if(!s_masks.memory.mapped)
+        return -1;
+    pthread_mutex_lock(&s_maskLock);
+    int slot = -1, empty = -1;
+    for(int i = 0; i < kMaxMasks && slot < 0; i++)
+    {
+        if(s_maskOwner[i] == texture)
+            slot = i;
+        else if(!s_maskOwner[i] && empty < 0)
+            empty = i;
+    }
+    if(slot < 0 && empty >= 0 &&
+       texture->AlphaMask(s_masks.memory.mapped + (size_t)empty * kMaskSize * kMaskSize, kMaskSize))
+    {
+        s_maskOwner[empty] = texture;
+        slot = empty;
+    }
+    pthread_mutex_unlock(&s_maskLock);
+    return slot;
+}
+
+void pvkSunForgetTexture(pvkTexture* texture)
+{
+    pthread_mutex_lock(&s_maskLock);
+    for(int i = 0; i < kMaxMasks; i++)
+        if(s_maskOwner[i] == texture)
+            s_maskOwner[i] = NULL;
+    pthread_mutex_unlock(&s_maskLock);
+}
+
+bool pvkSunBuffers(VkDescriptorBufferInfo* buffers)
+{
+    if(!s_casterTable.buffer || !s_masks.buffer || !s_geometry.buffer)
+        return false;
+    const pvkBuffer* b[3] = { &s_casterTable, &s_masks, &s_geometry };
+    for(int i = 0; i < 3; i++)
+    {
+        buffers[i].buffer = b[i]->buffer;
+        buffers[i].offset = 0;
+        buffers[i].range = b[i]->size;
+    }
+    return true;
+}
+
+// alphaSlot >= 0: alpha-tested (uvs, the mask and the test written to the table at id)
+static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float* uvs, unsigned vertexCount,
+                      const unsigned short* indices, unsigned count, bool strip, int alphaSlot, int alphaCompare,
+                      float alphaRef)
+{
+    bool alpha = alphaSlot >= 0 && uvs && id < kMaxCasterIds && s_casterTable.memory.mapped;
+    b.alpha = false;
     unsigned triangles;
     unsigned* list = Triangles(indices, count, strip, &triangles);
     float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
@@ -327,19 +457,42 @@ static bool BuildBlas(Blas& b, const float* positions, unsigned vertexCount, con
     // the input in host-visible memory, read by the build straight from there
     pvkBuffer input;
     VkDeviceSize vertexBytes = (VkDeviceSize)vertexCount * 12;
-    if(!g_pvk->CreateBuffer(vertexBytes + (VkDeviceSize)triangles * 12, kInputUsage, true, &input))
+    VkDeviceSize triangleBytes = (VkDeviceSize)triangles * 12;
+    if(!g_pvk->CreateBuffer(vertexBytes + triangleBytes, kInputUsage, true, &input))
     {
         free(list);
         return false;
     }
     memcpy(input.memory.mapped, positions, vertexBytes);
-    memcpy(input.memory.mapped + vertexBytes, list, (size_t)triangles * 12);
-    free(list);
+    memcpy(input.memory.mapped + vertexBytes, list, triangleBytes);
     VkDeviceAddress inputAddress = BufferAddress(input);
+    unsigned offset = 0, words = vertexCount * 2 + triangles * 3;
+    if(alpha && GeometryAlloc(words, &offset))
+    {
+        unsigned* g = (unsigned*)s_geometry.memory.mapped + offset;
+        memcpy(g, uvs, (size_t)vertexCount * 8);
+        memcpy(g + vertexCount * 2, list, triangleBytes);
+        unsigned* row = (unsigned*)s_casterTable.memory.mapped + id * 4;
+        row[0] = offset;
+        row[1] = offset + vertexCount * 2;
+        row[2] = (unsigned)alphaSlot | ((unsigned)alphaCompare << 16);
+        memcpy(&row[3], &alphaRef, 4);
+        b.geometry = offset;
+        b.geometryWords = words;
+        b.alpha = true;         // freed with the structure from here on
+    }
+    else if(alpha)
+    {
+        // no room: it would cast as solid cards
+        free(list);
+        g_pvk->Retire(input);
+        return false;
+    }
+    free(list);
 
     VkAccelerationStructureGeometryKHR geometry = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
     geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-    geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+    geometry.flags = alpha ? 0 : VK_GEOMETRY_OPAQUE_BIT_KHR;   // alpha-tested: the shaders decide
     VkAccelerationStructureGeometryTrianglesDataKHR& tri = geometry.geometry.triangles;
     tri.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
     tri.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
@@ -385,6 +538,7 @@ static bool BuildBlas(Blas& b, const float* positions, unsigned vertexCount, con
     const VkAccelerationStructureBuildRangeInfoKHR* ranges = &range;
     vkCmdBuildAccelerationStructuresKHR(g_pvk->UploadCmd(), 1, &build, &ranges);
     g_pvk->Retire(input);       // read by this frame's upload commands only
+    b.alpha = alpha;
 
     VkAccelerationStructureDeviceAddressInfoKHR ai = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
     ai.accelerationStructure = b.as;
@@ -433,6 +587,7 @@ struct Instance
     unsigned lastFrame;
     unsigned streak;            // frames running seen with this transform
     unsigned lastMs;
+    bool keep;                  // may stay out of view (pre-lit world)
 };
 
 static Instance* s_instances;
@@ -470,8 +625,9 @@ static void RebuildHash()
     }
 }
 
-void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, unsigned vertexCount,
-                     const unsigned short* indices, unsigned count, bool strip, const float* mv)
+void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, const float* uvs, unsigned vertexCount,
+                     const unsigned short* indices, unsigned count, bool strip, const float* mv, bool keep,
+                     pvkTexture* alphaTexture, int alphaCompare, float alphaRef)
 {
     if(!pvkSunOn() || vertexCount == 0)
         return;
@@ -486,7 +642,10 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, uns
         b.live = true;
         b.version = version;
         b.builds++;
-        if(!BuildBlas(b, positions, vertexCount, indices, count, strip))
+        int slot = alphaTexture ? MaskSlot(alphaTexture) : -1;
+        if(alphaTexture && slot < 0)
+            return;             // no mask: it would cast as a solid card
+        if(!BuildBlas(b, *id, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare, alphaRef))
             return;
     }
     if(!b.as || b.huge)
@@ -501,6 +660,7 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, uns
     Instance in;
     memset(&in, 0, sizeof(in));
     in.id = *id;
+    in.keep = keep;
     for(int row = 0; row < 3; row++)
     {
         for(int col = 0; col < 3; col++)
@@ -522,6 +682,7 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, uns
                 o.streak = o.lastFrame + 1 == s_frame ? o.streak + 1 : 1;
             o.lastFrame = s_frame;
             o.lastMs = SDL_GetTicks();
+            o.keep = keep;
             return;
         }
     }
@@ -603,6 +764,18 @@ static bool MakeScenes()
            !g_pvk->CreateBuffer((VkDeviceSize)kMaxInstances * sizeof(VkAccelerationStructureInstanceKHR), kInputUsage,
                                 true, &sc.instances))
             return false;
+        if(f == 0 && (!g_pvk->CreateBuffer((VkDeviceSize)kMaxCasterIds * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true,
+                                           &s_casterTable) ||
+                      !g_pvk->CreateBuffer((VkDeviceSize)kMaxMasks * kMaskSize * kMaskSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                                           true, &s_masks) ||
+                      !g_pvk->CreateBuffer((VkDeviceSize)kGeometryWords * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true,
+                                           &s_geometry)))
+            return false;
+        if(f == 0)
+        {
+            s_geometryFreeCount = 0;
+            GeometryFree(0, kGeometryWords);
+        }
         sc.scratchAddress = (BufferAddress(sc.scratch) + 255) & ~(VkDeviceAddress)255;
         sc.instanceAddress = BufferAddress(sc.instances);
         VkAccelerationStructureCreateInfoKHR create = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
@@ -638,10 +811,12 @@ VkAccelerationStructureKHR pvkSunScene()
 static void FillInstance(VkAccelerationStructureInstanceKHR& out, const Instance& in)
 {
     memcpy(out.transform.matrix, in.transform, sizeof(out.transform.matrix));
-    out.instanceCustomIndex = 0;
+    const Blas& b = s_blas[in.id];
+    out.instanceCustomIndex = b.alpha ? in.id : 0;      // the caster table's row
     out.mask = 0xff;
     out.instanceShaderBindingTableRecordOffset = 0;
-    out.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR | VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
+    out.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR |
+                (b.alpha ? 0 : VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR);
     out.accelerationStructureReference = s_blas[in.id].address;
 }
 
@@ -679,7 +854,8 @@ void pvkSunEndFrame()
         Instance& in = s_instances[i];
         Blas& b = s_blas[in.id];
         bool thisFrame = in.lastFrame == s_frame;
-        bool keep = on && b.live && b.as && b.address && (thisFrame || (in.streak >= 3 && now - in.lastMs < kKeepMs));
+        bool keep = on && b.live && b.as && b.address &&
+                    (thisFrame || (in.keep && in.streak >= 3 && now - in.lastMs < kKeepMs));
         if(!keep)
             continue;
         s_instances[kept++] = in;
@@ -771,6 +947,13 @@ void pvkSunShutdown()
             vkDestroyAccelerationStructureKHR(g_pvk->device, s_blas[i].as, NULL);
         g_pvk->DestroyNow(s_blas[i].storage);
     }
+    g_pvk->DestroyNow(s_casterTable);
+    g_pvk->DestroyNow(s_masks);
+    g_pvk->DestroyNow(s_geometry);
+    free(s_geometryFree);
+    s_geometryFree = NULL;
+    s_geometryFreeCount = s_geometryFreeCapacity = 0;
+    memset(s_maskOwner, 0, sizeof(s_maskOwner));
     free(s_blas);
     s_blas = NULL;
     s_blasCount = s_blasCapacity = 0;

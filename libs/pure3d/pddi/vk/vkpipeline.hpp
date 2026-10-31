@@ -126,6 +126,7 @@ public:
     // the sun (vksun.hpp): this draw is shaded by it / casts its shadows
     bool SunReceiver() const;
     bool SunCaster() const;
+    pvkTexture* SunAlphaTexture() const;
     const Material& GetMaterial() const { return material; }
     const float* GetModelView() const { return modelView; }
 

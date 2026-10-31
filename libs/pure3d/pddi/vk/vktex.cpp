@@ -4,6 +4,7 @@
 
 #include <pddi/vk/vktex.hpp>
 #include <pddi/vk/vkcon.hpp>
+#include <pddi/vk/vksun.hpp>
 
 #include <pddi/base/debug.hpp>
 #include <stdio.h>
@@ -48,6 +49,7 @@ pvkTexture::~pvkTexture()
     }
     if(g_pvk)
         g_pvk->Retire(image);
+    pvkSunForgetTexture(this);
 
     if(compressedFormat)
     {
@@ -191,6 +193,27 @@ int pvkTexture::GetPalette(pddiColour* palette)             { return 0; }
 
 // Uploads go into the frame's upload command buffer, which runs before its draws. The old image is retired, not
 // overwritten: frames in flight may still sample it (video textures change every frame).
+bool pvkTexture::AlphaMask(unsigned char* mask, int size)
+{
+    if(!bits || !bits[0] || xSize <= 0 || ySize <= 0)
+        return false;
+    const unsigned* pixels = (const unsigned*)bits[0];
+    unsigned* decoded = NULL;
+    if(compressedFormat)
+    {
+        decoded = (unsigned*)malloc((size_t)xSize * ySize * 4);
+        if(!decoded)
+            return false;
+        pglDecodeDXT((const unsigned char*)bits[0], xSize, ySize, compressedFormat, decoded);
+        pixels = decoded;
+    }
+    for(int y = 0; y < size; y++)
+        for(int x = 0; x < size; x++)
+            mask[y * size + x] = (unsigned char)(pixels[(y * ySize / size) * xSize + x * xSize / size] >> 24);
+    free(decoded);
+    return true;
+}
+
 VkImageView pvkTexture::Prepare(void)
 {
     if(!dirty && image.image)

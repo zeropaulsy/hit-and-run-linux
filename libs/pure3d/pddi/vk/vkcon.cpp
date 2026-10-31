@@ -587,9 +587,14 @@ void pvkPrimBuffer::Display(void)
     }
     else
         vkCmdDraw(cmd, count, 1, 0, 0);
+    // the sun's shadows: the pre-lit world stays in its scene out of view, lit things (cars) only where drawn
     if((primType == PDDI_PRIM_TRIANGLES || primType == PDDI_PRIM_TRISTRIP) && pipeline->SunCaster())
-        pvkSunAddCaster(&sunId, sunVersion * 65536u + count, coordBase, allocated, indices, count,
-                        primType == PDDI_PRIM_TRISTRIP, pipeline->GetModelView());
+    {
+        const pvkPipeline::Material& m = pipeline->GetMaterial();
+        pvkSunAddCaster(&sunId, sunVersion * 65536u + count, coordBase, uvBase, allocated, indices, count,
+                        primType == PDDI_PRIM_TRISTRIP, pipeline->GetModelView(), !m.lit, pipeline->SunAlphaTexture(),
+                        m.alphaCompare, m.alphaRef);
+    }
 }
 
 void pvkContext::DrawPrimBuffer(pddiShader* mat, pddiPrimBuffer* buffer)

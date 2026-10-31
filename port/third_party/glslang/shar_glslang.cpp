@@ -101,9 +101,12 @@ SHAR_EXPORT int shar_glsl_compile(const char* name, const char* header, const ch
             result->fragment = CopyWords(spirv);
             result->fragmentWords = spirv.size();
 
-            program.buildReflection(EShReflectionAllBlockVariables);
+            // storage blocks (the Vulkan renderer's sun) kept apart: the block is the loose uniforms' one (binding 0)
+            program.buildReflection(EShReflectionAllBlockVariables | EShReflectionSeparateBuffers);
             for(int b = 0; b < program.getNumUniformBlocks(); b++)
             {
+                if(program.getUniformBlockBinding(b) > 0)
+                    continue;
                 result->blockSize = program.getUniformBlockSize(b);
                 result->blockBinding = program.getUniformBlockBinding(b);
             }

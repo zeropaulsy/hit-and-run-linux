@@ -15,7 +15,7 @@
 #include <string.h>
 
 static const int kSamplerBindings = 4;     // bindings 1..4: the most samplers a program declares
-static const int kSunBinding = 5;          // the sun's scene (PVK_SUN programs)
+static const int kSunBinding = 5;          // the sun's scene (PVK_SUN programs), then its caster table, masks, geometry
 
 static void Identity(float* m)
 {
@@ -345,7 +345,7 @@ bool pvkPipeline::Init()
             return false;
     }
 
-    VkDescriptorSetLayoutBinding bindings[2 + kSamplerBindings];
+    VkDescriptorSetLayoutBinding bindings[5 + kSamplerBindings];
     memset(bindings, 0, sizeof(bindings));
     bindings[0].binding = 0;
     bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -368,6 +368,14 @@ bool pvkPipeline::Init()
         bindings[set.bindingCount].descriptorCount = 1;
         bindings[set.bindingCount].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         set.bindingCount++;
+        for(int i = 1; i <= 3; i++)
+        {
+            bindings[set.bindingCount].binding = kSunBinding + i;
+            bindings[set.bindingCount].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            bindings[set.bindingCount].descriptorCount = 1;
+            bindings[set.bindingCount].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+            set.bindingCount++;
+        }
     }
     set.pBindings = bindings;
     if(vkCreateDescriptorSetLayout(g_pvk->device, &set, NULL, &setLayout) != VK_SUCCESS)
@@ -924,8 +932,14 @@ VkPipeline pvkPipeline::GetPipeline(int programIndex, int topologyClass)
     info.pDynamicState = &dynamic;
     info.layout = layout;
     VkPipeline pipeline = VK_NULL_HANDLE;
-    if(vkCreateGraphicsPipelines(g_pvk->device, cache, 1, &info, NULL, &pipeline) != VK_SUCCESS)
+    VkResult created = vkCreateGraphicsPipelines(g_pvk->device, cache, 1, &info, NULL, &pipeline);
+    if(created != VK_SUCCESS)
+    {
+        static int s_reported = 0;
+        if(s_reported++ < 4)
+            fprintf(stderr, "PDDI: pipeline for program %d not made (%d)\n", programIndex, created);
         return VK_NULL_HANDLE;
+    }
     pipelines[h].key = key;
     pipelines[h].pipeline = pipeline;
     pipelineCount++;
@@ -1178,7 +1192,8 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
     {
         VkDescriptorBufferInfo blockInfo = { p.blockBuffer, p.blockOffset, (VkDeviceSize)p.blockSize };
         VkDescriptorImageInfo imageInfo[SAMPLER_COUNT];
-        VkWriteDescriptorSet writes[2 + SAMPLER_COUNT];
+        VkWriteDescriptorSet writes[5 + SAMPLER_COUNT];
+        VkDescriptorBufferInfo sunBuffers[3];
         VkWriteDescriptorSetAccelerationStructureKHR sceneInfo = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
         memset(writes, 0, sizeof(writes));
         int n = 0;
@@ -1214,6 +1229,19 @@ VkCommandBuffer pvkPipeline::Bind(int primType)
             writes[n].descriptorCount = 1;
             writes[n].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
             n++;
+            if(pvkSunBuffers(sunBuffers))
+            {
+                for(int i = 0; i < 3; i++)
+                {
+                    sunBuffers[i].offset = 0;
+                    writes[n].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                    writes[n].dstBinding = kSunBinding + 1 + i;
+                    writes[n].descriptorCount = 1;
+                    writes[n].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+                    writes[n].pBufferInfo = &sunBuffers[i];
+                    n++;
+                }
+            }
         }
         pushedScene = sunScene;
         vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, layout, 0, n, writes);
@@ -1235,7 +1263,15 @@ bool pvkPipeline::SunReceiver() const
 
 bool pvkPipeline::SunCaster() const
 {
-    return SunReceiver() && (material.alphaCompare < 0 || material.alphaCompare == PDDI_COMPARE_ALWAYS);
+    return SunReceiver() && (material.alphaCompare < 0 || material.alphaCompare == PDDI_COMPARE_ALWAYS ||
+                             SunAlphaTexture());
+}
+
+// alpha-tested (greater, greater or equal) with a texture: the ray reads its alpha
+pvkTexture* pvkPipeline::SunAlphaTexture() const
+{
+    bool tested = material.alphaCompare == PDDI_COMPARE_GREATER || material.alphaCompare == PDDI_COMPARE_GREATEREQUAL;
+    return tested && material.textured ? texture : NULL;
 }
 
 VkCommandBuffer pvkPipeline::Prepare(int primType, unsigned missing)
