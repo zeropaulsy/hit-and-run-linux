@@ -63,13 +63,8 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
 ### Renderer extras
 - [ ] Anti-aliasing entry in the display menu
 - [ ] Sun lighting on the world (needs shadow maps; prototyped and dropped)
-- [ ] **Vulkan renderer** (branch `vulkan`, first version 2026-10-28: front end, L1, post shaders match GL; to do:
-  long play-tests incl. mods/HoverCarRefraction, pipeline cache on disk, other GPUs/Mesa): a third pddi beside GL, GL kept as fallback. Reuses the GL
-  pipeline's CPU state tracking and GLSL (compiled to SPIR-V with glslang); new work is pipeline objects/cache,
-  memory and frame sync, swapchain, texture Lock/readbacks. For Android, macOS (MoltenVK), low-power devices,
-  loading threads without the shared GL context pool, ray-traced shadows, DLSS/FSR. Not for desktop speed.
-  Cheaper alternative to evaluate first: `pddidx8` on DXVK-native's D3D8 (loses the GL extras). Start after 64-bit
-  is the default, with the legal screen and front end compared to GL by screenshot
+- [ ] **Vulkan renderer** (branch `vulkan`): a third pddi beside GL, GL kept as default and fallback; status, goals
+  and next steps in `port/notes/vulkan.md`
 
 ### Other
 - [ ] **Steering-wheel force feedback**: springs and dampers; needs a wheel to test with

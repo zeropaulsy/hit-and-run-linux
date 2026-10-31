@@ -77,28 +77,5 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
 - `SHAR_GL_DEBUG=1`, `SHAR_GL_STATS=1` (draws/uploads, CPU/GPU ms per 5 s), `SHAR_MATERIAL_LOG=1`.
 - Sun lighting on world: dropped (pre-lit world has no normals; needs shadow maps).
 
-## Vulkan (`pddi/vk/`, ini `renderer=vulkan`, `SHAR_RENDERER=vulkan|opengl` overrides)
-- Choice made before the window exists (`WantVulkan` pre-reads simpsons.ini, linuxplatform_sdl.cpp): window gets
-  `SDL_WINDOW_VULKAN`, `pvkStart` inits; failure -> window remade for GL. p3d platform.cpp picks `pddiCreateVulkan` by
-  the window flag. libvulkan via `SDL_Vulkan_LoadLibrary` (no link dep); entry points in namespace `pvkfn`.
-- Needs 1.3 (dynamic rendering, sync2, extended dynamic state) + `VK_KHR_push_descriptor`. `SHAR_VK_DEBUG=1`
-  validation (vulkan-validationlayers), `SHAR_VK_DEVICE=n`.
-- Mirrors GL: vkcon/vkmat = glcon/glmat logic (vkmat generated from glmat), keep in step. Game's `pgl*` calls
-  dispatch on `pvkActive()` (gldisplay.cpp, glmat.cpp, glpipeline.cpp). glcustom shared via `pglCustomTarget`.
-- GLSL = glshaders.cpp with `#define PVK 1` (z remap, gl_PointSize, attrib locations, refraction y), compiled by
-  `libshar_glslang.so` (port/third_party/glslang; relaxed rules: loose uniforms -> block at binding 0, std140
-  reflection; float arrays stride 16). Samplers from binding 1: both sampler and texture shifts; a shader without
-  loose uniforms must give explicit bindings.
-- Offscreen targets keep contents (as GL's window), the MSAA one too across its resolve (storeOp STORE: movies
-  draw without clearing; DONT_CARE gave garbage depth = dithered, ghosted movie on NVIDIA). GL y-up via negative
-  viewport height (images top row first, same texels as GL); Present = gamma pass into swapchain. MSAA: resolve
-  via empty rendering instance with resolve attachments (depth/stencil SAMPLE_ZERO) at the scene post point. 2
-  frames in flight; per-frame upload cmd buffer submitted first + global barrier; transient ring (verts, uniforms,
-  staging).
-- Resources made on the render thread at first use (textures/prim buffers created on loader threads, CPU copies).
-  Changed prim buffer / texture -> new GPU object, old one `Retire`d (serial-based; any thread). Pipelines keyed by
-  program/blend/colour mask/fill/a2c/samples/topology class; the rest is dynamic state.
-- Post (vkpost.cpp): pass images bottom-up like GL's (frame blitted in flipped, uDepth via flipped R32F copy, last
-  pass draws with flipped viewport) so vUV/gl_FragCoord/ViewPosition match; show_depth identical to GL.
-- 32-bit: non-dispatchable handles are all uint64_t (no overloads on handle type).
-- Not yet: pipeline cache on disk, Screenshot(), GPU times in SHAR_GL_STATS (prints draws/pipelines only).
+## Vulkan
+See `vulkan.md`.

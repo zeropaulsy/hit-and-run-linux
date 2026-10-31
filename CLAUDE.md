@@ -10,7 +10,8 @@ data works; Mod Launcher mods partly. Missing: steering-wheel FFB. `README.md` u
 | file | covers |
 |---|---|
 | `port/notes/build.md` | tools, gen_cmake rules, allocator isolation, GCC/MSVC differences, radscript, 64-bit |
-| `port/notes/renderer.md` | GL pipeline, D3D8 parity fixes, textures, MSAA, user post/material shaders, aspect/resolutions, Vulkan |
+| `port/notes/renderer.md` | GL pipeline, D3D8 parity fixes, textures, MSAA, user post/material shaders, aspect/resolutions |
+| `port/notes/vulkan.md` | Vulkan renderer: status, goals, next steps, testing, design |
 | `port/notes/platform.md` | window/Wayland/GPU driver quirks, threads, frame timing/loading, input, audio, movies, files |
 | `port/notes/testing.md` | game option details, interior doors, memcheck recipes + coverage, shutdown/robustness |
 | `port/notes/mods.md` | mod loading, every implemented hack and where it's wired, test mods |
