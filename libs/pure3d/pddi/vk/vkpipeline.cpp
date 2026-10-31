@@ -949,10 +949,13 @@ VkPipeline pvkPipeline::GetPipeline(int programIndex, int topologyClass)
 
 VkSampler pvkPipeline::GetSampler(int filter, int uv, bool mipmapped)
 {
-    float anisotropy = mipmapped && g_pvk->anisotropy ? g_pglAnisotropy : 1.0f;
-    if(anisotropy > g_pvk->properties.limits.maxSamplerAnisotropy)
-        anisotropy = g_pvk->properties.limits.maxSamplerAnisotropy;
-    if(anisotropy != samplerAnisotropy && samplerCount)
+    // the setting decides when the cache is remade (not this sampler's: mipmapped and plain ones alternate, which
+    // remade every sampler on each switch, thousands a frame); only mipmapped samplers use it
+    float setting = g_pvk->anisotropy ? g_pglAnisotropy : 1.0f;
+    if(setting > g_pvk->properties.limits.maxSamplerAnisotropy)
+        setting = g_pvk->properties.limits.maxSamplerAnisotropy;
+    float anisotropy = mipmapped ? setting : 1.0f;
+    if(setting != samplerAnisotropy && samplerCount)
     {
         // the setting changed (options menu): new samplers; the old ones go once the frames using them are done
         for(int i = 0; i < samplerCount; i++)
