@@ -1,6 +1,7 @@
 # CLAUDE.md: The Simpsons Hit & Run, native Linux port
 
-Port of the 2003 source to Linux (x86-64 default, 32-bit legacy), SDL2 + OpenGL 3.3 core. Original dump:
+Port of the 2003 source to Linux (x86-64 default, 32-bit legacy), SDL2 + OpenGL 3.3 core (Vulkan 1.3 renderer in
+progress, `renderer=vulkan`). Original dump:
 `~/Documents/Decomp/hitnrun_source/game` (never modify). Base game plays end to end as far as tested (L7); retail PC
 data works; Mod Launcher mods partly. Missing: steering-wheel FFB. `README.md` user overview, `TODO.md` checklist, `DONE.md` completed checklist,
 `RUST.md` possible Rust/Bevy rewrite.
@@ -9,7 +10,7 @@ data works; Mod Launcher mods partly. Missing: steering-wheel FFB. `README.md` u
 | file | covers |
 |---|---|
 | `port/notes/build.md` | tools, gen_cmake rules, allocator isolation, GCC/MSVC differences, radscript, 64-bit |
-| `port/notes/renderer.md` | GL pipeline, D3D8 parity fixes, textures, MSAA, user post/material shaders, aspect/resolutions |
+| `port/notes/renderer.md` | GL pipeline, D3D8 parity fixes, textures, MSAA, user post/material shaders, aspect/resolutions, Vulkan |
 | `port/notes/platform.md` | window/Wayland/GPU driver quirks, threads, frame timing/loading, input, audio, movies, files |
 | `port/notes/testing.md` | game option details, interior doors, memcheck recipes + coverage, shutdown/robustness |
 | `port/notes/mods.md` | mod loading, every implemented hack and where it's wired, test mods |
@@ -39,7 +40,7 @@ Game options: `skipfe [lN mM]`, `race1-4`, `demo lN`, `incar`, `tpN`, `skipsunda
 `bonus`, `l0`. Env: `SHAR_SHOT_EVERY`, `SHAR_QUIT_AT`, `SHAR_KEY_SCRIPT="dik@start-end,..."` (E=18, Enter=28,
 1000+n mouse), `SHAR_KEYPRESS_SCRIPT`, `SHAR_RESIZE_SCRIPT`, `SHAR_MINIMIZE_SCRIPT`, `SHAR_TP_POS`,
 `SHAR_TP_INTERIOR_POS`, `SHAR_MOUSE_SCRIPT="x,y@ms,..."`, `SHAR_MAX_FRAME_MS`, `SHAR_ASSERT_ABORT=1`, `SHAR_FILL_ALLOC`/`SHAR_FILL_PDDI`, `SHAR_FPS_CAP`,
-`SHAR_VSYNC=0`, `SHAR_MSAA`, `SHAR_X11=1`, `SHAR_NO_AUDIO=1`, `SHAR_GL_DEBUG/STATS=1`,
+`SHAR_VSYNC=0`, `SHAR_MSAA`, `SHAR_X11=1`, `SHAR_NO_AUDIO=1`, `SHAR_GL_DEBUG/STATS=1`, `SHAR_RENDERER=vulkan`, `SHAR_VK_DEBUG=1`,
 `SHAR_{FRAME,INPUT,SOUND,DIALOG,RSD,REVERB,RUMBLE,MOD,TRAFFIC,MATERIAL}_LOG=1`. Details: testing.md.
 Mesa GL errors: `__GLX_VENDOR_LIBRARY_NAME=mesa LIBGL_ALWAYS_SOFTWARE=1 MESA_DEBUG=1`. No speakers:
 `SDL_AUDIODRIVER=disk`. Debug logs contain NULs: `grep -a`. `perf` not permitted.

@@ -21,6 +21,8 @@
   init on amd64 allocated from game heaps, freed into glibc). Check `nm -D --defined-only srr2 | grep _Zn` = empty.
 - Failed POST_BUILD objcopy is not redone by ninja: delete the library.
 - Compat layer runs inside the game's lazy heap init: malloc only, never C++ new.
+- glslang (C++17, STL-heavy) is `libshar_glslang.so` with its own static libstdc++ and a 2-symbol version script
+  (shar_glslang.map): linked statically it would allocate from the game's heaps.
 
 ## Compiler/runtime differences
 - CreateThread stack size is a commit size (Windows reserves 1 MB): pthreads get >= 1 MB.
