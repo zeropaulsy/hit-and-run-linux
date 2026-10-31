@@ -52,6 +52,8 @@
 - Bink-SDK stand-in over FFmpeg; wall clock; audio decoded ~0.5 s ahead into the mixer's movie stream.
 - `BinkOpen` rejects non-Bink (some retail copies have Ogg logo movies; 1280x720 overflowed the 9-tile renderer).
   Mods: up to 1920x1080 (64 tiles), fitted to window.
+- Tile texels past the picture repeat its last column/row (`binkrenderstrategy.cpp UnlockDestination`): filtering
+  at the right/bottom edge reads them (uninitialised = noisy strip against the bars, both renderers).
 
 ## Files
 - radcore drive: POSIX, case-insensitive, every drive letter = game dir.

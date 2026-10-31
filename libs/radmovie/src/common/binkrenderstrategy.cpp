@@ -52,6 +52,9 @@ radMovieRenderStrategyBink::radMovieRenderStrategyBink( void )
     m_DestLocked( false )
 {
     ::memset( m_pTile, 0, sizeof( m_pTile ) );
+#ifdef RAD_LINUX
+    m_pLockInfo = NULL;
+#endif
 
     // The shader is associated with the render strategy for both life times
 
@@ -107,6 +110,9 @@ unsigned int radMovieRenderStrategyBink::LockNextDestination( LockedDestination 
         m_DestLocked = true;        
 
         pddiLockInfo * pPddiLockInfo = m_pTile[ m_CurrentDestIndex ].m_pTexture->Lock( 0, 0 );
+#ifdef RAD_LINUX
+        m_pLockInfo = pPddiLockInfo;
+#endif
 
         pLockedDestination->m_pDest = pPddiLockInfo->bits;
         pLockedDestination->m_DestPitch = pPddiLockInfo->pitch;
@@ -137,6 +143,30 @@ unsigned int radMovieRenderStrategyBink::LockNextDestination( LockedDestination 
 void radMovieRenderStrategyBink::UnlockDestination( void )
 {
     rAssert( m_DestLocked == true );
+
+#ifdef RAD_LINUX
+    // Linux port: the texels past the tile's picture repeat its last column and row. Filtering at the movie's
+    // right and bottom edges reads them: uninitialised, they showed as a noisy strip against the black bars.
+    const Tile & tile = m_pTile[ m_CurrentDestIndex ];
+    pddiLockInfo * lock = m_pLockInfo;
+    if( lock != NULL && lock->depth == 32 && tile.m_Width > 0 && tile.m_Height > 0 &&
+        tile.m_Width <= (unsigned int) lock->width && tile.m_Height <= (unsigned int) lock->height )
+    {
+        for( int y = 0; y < lock->height; y++ )
+        {
+            unsigned int * row = (unsigned int *) ( (char *) lock->bits + y * lock->pitch );
+            if( (unsigned int) y >= tile.m_Height )
+            {
+                ::memcpy( row, (char *) lock->bits + ( (int) tile.m_Height - 1 ) * lock->pitch, lock->width * 4 );
+                continue;
+            }
+            for( int x = tile.m_Width; x < lock->width; x++ )
+            {
+                row[ x ] = row[ tile.m_Width - 1 ];
+            }
+        }
+    }
+#endif
 
     m_pTile[ m_CurrentDestIndex ].m_pTexture->Unlock( 0 );
     m_CurrentDestIndex++;
