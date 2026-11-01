@@ -2,8 +2,9 @@
 
 <img width="4476" height="1091" alt="Screenshot From 2026-10-23 20-03-31" src="https://github.com/user-attachments/assets/3def41df-9d76-474a-90c8-9d84a62eb772" />
 
-A Linux 64-Bit build of The Simpsons Hit & Run (2003) using SDL2 and OpenGL 3.3. It runs on X11 and Wayland, with
-widescreen & ultrawide, high resolutions, anti-aliasing, anisotropic filtering, controllers and optional post-processing shaders.
+A Linux 64-Bit build of The Simpsons Hit & Run (2003) using SDL2 and OpenGL 3.3, or the new Vulkan 1.3 renderer.
+It runs on X11 and Wayland, with widescreen & ultrawide, high resolutions, anti-aliasing, anisotropic filtering,
+controllers, dynamic sun shadows and optional post-processing shaders.
 
 **Bring your own game.** This release has no game data. You need your own copy of the PC game, installed or copied
 from the disc: the folder holding `art/`, `scripts/` and the `.rcf` files.
@@ -13,7 +14,8 @@ from the disc: the folder holding `art/`, `scripts/` and the `.rcf` files.
 
 | Original (2003) | This project |
 |---|---|
-| Direct3D 8, fixed-function | OpenGL 3.3 core, GLSL shaders matching Direct3D 8's output |
+| Direct3D 8, fixed-function | OpenGL 3.3 core (default) or Vulkan 1.3, shaders matching Direct3D 8's output |
+| Blob shadows under characters, cars and props | Dynamic sun shadows (Vulkan): ray traced on RTX-class GPUs, shadow map on any other |
 | DirectInput | SDL2: keyboard, mouse, any modern gamepad, rumble |
 | DirectSound + EAX hardware reverb | Software 3D mixer with EAX-style reverb in software |
 | Bink video | FFmpeg |
@@ -22,8 +24,10 @@ from the disc: the folder holding `art/`, `scripts/` and the `.rcf` files.
 
 ## Requirements
 
-A 64-bit (x86-64) Linux as new as Ubuntu 24.04 / Linux Mint 22 (glibc 2.38 or newer). The
-graphics driver and X11 / Wayland libraries come from your system; everything else is included.
+A 64-bit (x86-64) Linux as new as Ubuntu 24.04 / Linux Mint 22 (glibc 2.38 or newer), and a GPU driver with OpenGL
+3.3. The Vulkan renderer (optional) needs Vulkan 1.3 (NVIDIA, or Mesa for AMD / Intel); its High shadows need a GPU
+with ray tracing (`VK_KHR_ray_query`), and without it they run as Low. The graphics driver and X11 / Wayland libraries
+come from your system; everything else is included.
 
 ## Quick start
 
@@ -43,12 +47,37 @@ port/play.sh --data DIR skipfe              # straight into Level 1
 port/play.sh --data DIR bonus               # Bonus Game and its tracks open without completed card decks
 port/play.sh --data DIR --32                # the legacy 32-bit build
 ```
+
+## Graphics settings
+
+Options > Graphics (front end or pause menu) holds the port's own settings, saved in `run/simpsons.ini`:
+
+| Setting | Values | ini key |
+|---|---|---|
+| Renderer | OpenGL (default), Vulkan; takes effect at the next start | `renderer=vulkan\|opengl` |
+| Anti-aliasing | Off, 2x, 4x (default), 8x | `antialiasing=` |
+| Shaders | The post-processing and material shaders in `shaders/` on or off | `shaders=` |
+| Shadows | Off (default), Low, High; Vulkan only | `shadows=off\|low\|high` |
+
+**Sun shadows** (switch the renderer to Vulkan, then pick Low or High) come from the sun (or moon) painted in each level's sky, so they fall the way the sky suggests; the
+light warms as the sun gets low and turns moon-blue on the night levels. Everything casts: buildings, trees and
+fences through their cut-out textures, cars, and characters, which also darken as they walk into shade. With the
+sun on, the game's blob shadows and the trees' painted shadows are not drawn; interiors and the front end keep the
+original look.
+
+- **Low** bakes the world's shadow into a map and works on any Vulkan GPU. Cars and characters keep the game's blob
+  shadows. Costs about half a millisecond a frame on an RTX 5060.
+- **High** ray traces cars and characters into the sun's shadow (no blobs) and refines every shadow edge with rays.
+  Several milliseconds a frame on an RTX 5060 at 2560x1600 with 8x MSAA.
+- **F9** cycles Off, Low and High in game, the easiest way to compare them.
+
+The OpenGL renderer has no sun shadows: it draws the original blob shadows.
 ## Building from source
 
 ### 64-bit build (the default):
 ```bash
 sudo apt install cmake ninja-build python3 build-essential \
-    libsdl2-dev libgl-dev libopenal-dev \
+    libsdl2-dev libgl-dev libvulkan-dev libopenal-dev \
     libavformat-dev libavcodec-dev libswscale-dev libswresample-dev libavutil-dev
 ```
 Then:
@@ -62,7 +91,7 @@ port/play.sh --data DIR                                    # builds and runs it 
 ### 32-bit build (legacy; enable i386 with `sudo dpkg --add-architecture i386`):
 ```bash
 sudo apt install cmake ninja-build python3 gcc-multilib g++-multilib \
-    libsdl2-dev:i386 libgl-dev:i386 libopenal-dev:i386 \
+    libsdl2-dev:i386 libgl-dev:i386 libvulkan-dev libopenal-dev:i386 \
     libavformat-dev:i386 libavcodec-dev:i386 libswscale-dev:i386 libswresample-dev:i386 libavutil-dev:i386
 ```
 Then:
@@ -101,7 +130,11 @@ generated file.
 | `SHAR_MIPMAPS=0`, `SHAR_ANISOTROPY=n` | Texture filtering, overriding `simpsons.ini` |
 | `SHAR_SHADERS=dir`, `SHAR_POST=0` | Shaders folder (default `shaders/`); post-processing off |
 | `SHAR_MATERIAL_LOG=1` | Print each material's name and type when first drawn (for `materials.ini`) |
-| `SHAR_GL_DEBUG=1`, `SHAR_GL_STATS=1` | OpenGL debug messages; per-frame draw/upload counts and render times |
+| `SHAR_RENDERER=vulkan\|opengl` | Renderer, overriding `simpsons.ini` and Options > Graphics |
+| `SHAR_SUN=0\|low\|1` | Sun shadows off, Low or High, overriding `simpsons.ini` (0 also skips the ray-tracing setup) |
+| `SHAR_SUN_SOFT`, `SHAR_SUN_RAYS`, `SHAR_SUN_SHADOW`, `SHAR_SUN_ELEVATION`, ... | Sun tuning: edge softness, rays, shade brightness, sun height (all listed in `port/notes/vulkan.md`) |
+| `SHAR_VK_DEBUG=1`, `SHAR_VK_DEVICE=n` | Vulkan validation layers; pick the n-th GPU |
+| `SHAR_GL_DEBUG=1`, `SHAR_GL_STATS=1` | OpenGL debug messages; per-frame draw/upload counts and render times (both renderers) |
 
 `port/run.sh [seconds] [args]` rebuilds and runs the game under gdb, printing a backtrace on a crash.
 
@@ -120,12 +153,11 @@ generated file.
 
 ## Mods (work in progress)
 
-> **Mod support is a work in progress and is here for testing.** Many mods load and play, but some launcher
-> features are missing or only partly done, and mods may show wrong textures, break missions or crash the game. Don't
-> rely on it for a full playthrough yet, and keep backups of any saves you care about.
+> **Mod support is a work in progress and is here for testing.** Many mods load and play, only a few launcher
+> features are missing or only partly done. Backup saves before testing mods, playtesting is still in progress.
 
 Mods made for Lucas' Simpsons Hit & Run Mod Launcher load without the launcher. Give `run.sh` the mod with `--mod`:
-either a `.lmlm` package (read in place, no need to unpack it) or an extracted mod folder (the one holding
+either a `.lmlm` package or an extracted mod folder (the one holding
 `Meta.ini`):
 
 ```bash
@@ -150,10 +182,9 @@ skin shops, the 3D phone booth preview, custom cars and characters, new dialogue
 extensions, custom trigger actions, bonus missions and audio, moved or added interiors, raised engine limits, custom
 traffic, per-road traffic behaviour, shader parameter overrides and video textures.
 
-Not done yet: part of AdditionalScriptFunctionality (passenger animation, stage vehicle settings,
-SetStageCharacterModel, forces and gravity, AddParkedCar, CON commands), the [Sound] limits, skid marks on fake
-wheels and material shaders from more than one mod. Many hacks have only been tried
-with small test mods, not in full playthroughs.
+Not done yet: the CustomLimits [Sound] player limits above 64 clips / 9 streams, and CustomRoadBehaviour's
+undocumented UTurnTolerance (ignored). Many hacks have only been tried with small test mods, not in full
+playthroughs.
 
 Tested so far: the Futurama demo (level 1), Fully Connected Map (level 1) and SHAR Remastered (boots). If a mod
 misbehaves, report the mod's name and version along with `run/logs/last-session.log`.
@@ -162,8 +193,9 @@ misbehaves, report the mod's name and version along with `run/logs/last-session.
 
 | Platform | Status |
 |---|---|
-| Linux x86-64 (default) | **Main and side missions fully playtested.** All story missions, bonus missions and street races completed. Collector cards and cosmetics in progress. |
+| Linux x86-64 (default) | **Main and side missions fully playtested.** Game completed to 100%: all story missions, bonus missions, street races, collector cards and cosmetics. |
 | Linux x86 (32-bit, legacy) | **Playable.** Tested through Level 1 - 7 |
+| Vulkan renderer | **Optional** (`renderer=vulkan`). Tested on NVIDIA; Mesa (AMD / Intel) not yet. OpenGL is the default and fallback |
 | Windows x64 | Planned |
 | macOS (Apple silicon / Intel) | Planned |
 | Android / handhelds | Possible later: the renderer and input layers already allow it |

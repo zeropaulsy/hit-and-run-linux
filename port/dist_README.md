@@ -1,10 +1,34 @@
-# The Simpsons: Hit & Run: Linux port, 2026-10-26
+# The Simpsons: Hit & Run: Linux port, 2026-11-01
 
 A 64-bit Linux build of *The Simpsons: Hit & Run* (2003). It is not an emulator and it does not use Wine.
 
 > **Bring your own game.** No game data is included. You need your own copy of the PC game: the folder that holds `art/`, `scripts/` and the `.rcf` files.
 
-**Requirements:** A 64-bit (x86-64) Linux as new as Ubuntu 24.04 / Linux Mint 22 (glibc 2.38 or newer).
+**Requirements:** A 64-bit (x86-64) Linux as new as Ubuntu 24.04 / Linux Mint 22 (glibc 2.38 or newer), and a
+graphics driver with OpenGL 3.3. The optional Vulkan renderer needs Vulkan 1.3 (NVIDIA, or Mesa for AMD / Intel).
+
+## What's new
+
+**Graphics**
+- New Vulkan 1.3 renderer, optional: switch in Options > Graphics > Renderer (takes effect at the next start).
+  OpenGL stays the default and the fallback.
+- Dynamic sun shadows (Vulkan only): the sun or moon painted in each level's sky casts shadows from buildings, trees,
+  fences, cars and characters, with light that warms as the sun gets low and turns moon-blue on night levels.
+  Options > Graphics > Shadows: Off (default), Low (any Vulkan GPU) or High (ray traced, needs a ray-tracing GPU: adds
+  car and character shadows). F9 cycles them in game.
+- Options > Graphics page: renderer, anti-aliasing, shaders on/off and shadows, from the front end or the pause menu.
+- Example shaders: SSAO with a full-resolution blur; Vulkan (SPIR-V) post-processing and material shaders.
+
+**Fixes**
+- Held keys are no longer delayed on KDE Plasma.
+- A noisy strip at the edge of movies is gone.
+- The phone booth no longer shows the previous car's picture for a car without one.
+
+**Mods:** almost every remaining Mod Launcher hack is now in: all of AdditionalScriptFunctionality (stage vehicle and
+passenger settings, character models and forces, parked cars, CON file commands), the unlock and "no ..." hacks,
+custom audio, bonus missions, trigger actions, skin previews, collector cards, headlights, camera hacks, raised reward
+limits, Ogg/FLAC, video textures, the PS2 refraction shader, Frink's hover car refraction, skid marks on fake wheels
+and material shaders from every mod.
 
 ## Running
 
@@ -27,8 +51,8 @@ Lucas' Mod Launcher mods load without the launcher, either as a .lmlm package or
 ```
 **Working:** Lua scripting, Ogg and FLAC audio, HD movies, custom text, car and skin shops, custom cars, characters
 and dialogue, mission script extensions, trigger actions, bonus missions, interiors, raised engine limits and traffic.
-Nearly every launcher hack is implemented, but many have only been tried with small test mods, and some mission
-script commands are still missing. Mods can break missions or crash the game, so back up any saves you care about.
+Nearly every launcher hack is implemented (the [Sound] limits are the main gap), but many have only been tried with
+small test mods. Mods can break missions or crash the game, so back up any saves you care about.
 
 ## Reporting a problem
 
@@ -46,4 +70,4 @@ include the mod's name and version.
 ---
 
 The Simpsons: Hit & Run was developed by Radical Entertainment and published by Vivendi Universal Games. This project is not affiliated with or endorsed by them.
-Built with SDL2, FFmpeg, Lua 5.4 and libpng.
+Built with SDL2, Vulkan, glslang, FFmpeg, Lua 5.4 and libpng.
