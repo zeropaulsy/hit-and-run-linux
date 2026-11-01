@@ -23,7 +23,8 @@ Keep notes terse: rules, symptoms, file/symbol names. No history (git has it). U
 ```
 code/, libs/, build/   dump's sources + VS projects (git-tracked)
 port/                  everything added: gen_cmake.py (-> CMakeLists.txt, never edit by hand), check.py, run.sh,
-                       play.sh, memcheck.sh, package.sh, compat/ (shims, srr2.map, shar_mod*.cpp), third_party/lua
+                       play.sh, memcheck.sh, package.sh, compat/ (shims, srr2.map, shar_mod*.cpp),
+                       third_party/ (lua, glslang, stb, dejavu: console font)
 shaders/               example post/material shaders (shaders/README.md)
 build-linux/ release   build-linux-debug/ asserts   build-linux-asan/   build-linux-audit/ all warnings   (x86-64)
 build-linux32[-debug]/ legacy 32-bit (-DSHAR_64BIT=OFF; play.sh/package.sh --32)

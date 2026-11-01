@@ -33,14 +33,18 @@
 - Game input: radcore polls the keyboard/mouse state, so `radControllerSDLSetInputBlocked` (sdlcontroller.cpp) makes
   them read idle while open and after closing until every key/button is up (else Esc reached the pause menu).
   `SHAR_KEY_SCRIPT` holds bypass it.
-- Text: `SDL_StartTextInput`/`StopTextInput` on open/close; printable ASCII only (stroke font), ` and ~ dropped.
+- Text: `SDL_StartTextInput`/`StopTextInput` on open/close; printable ASCII only (the font has nothing else), ` and ~ dropped.
 - Drawing: `DevConsole::Render` before `EndFrame` (RenderManager.cpp), device projection, z compare always, no z write.
-  Text via `pddiFont` directly (`DrawString` is compiled out in RAD_RELEASE); widths from a copy of
-  `pddi/base/romans.h`. `pddiFont::Print` multiplies y by its scale: pass y / scale. Bold (drawn twice) at scale >= 1.5
-  (lines are 1 px). Background: "simple" shader, AddRef'd, released on close. Vulkan draws the panel lighter than GL.
+  Font: DejaVu Sans Mono cut to ASCII (`port/third_party/dejavu`, embedded header; README has the remake commands),
+  rasterised by stb_truetype (`port/third_party/stb`, STBTT_STATIC, malloc) into one 32-bit atlas texture by
+  `BuildFont`: 18 px at 1080 lines (min 14), rebuilt when the window height changes, released on close with the
+  background shader. Whole-pixel advance and glyph positions keep it sharp (bilinear, 1 px gaps); `%-Ns` columns line
+  up. Lock's rows are bottom-up (negative pitch): v is `1 - row / size`. `DrawText`: one textured prim stream per
+  line (`PDDI_V_CT`, "simple" shader, alpha blend). Background: "simple" shader, AddRef'd, released on close. Vulkan draws the panel lighter than GL.
 - Output: `Console::SetOutputHook` gets Printf/Errorf in all builds (script errors in red). Release `tName`s keep no
   text: `FunctionTableEntry::text` (64 chars) holds the names for completion/find.
-- Fixed static buffers only (scrollback 512 x 160, history 32), no allocation.
+- Fixed static buffers (scrollback 512 x 160, history 32); allocation only while open: the font texture and shaders
+  (pddi), stb_truetype's scratch while building (libc malloc).
 
 ## Testing
 - `SHAR_CONSOLE_SCRIPT="ms:line;ms:line"` opens the console and runs the lines at those times; `DevConsole::Print`

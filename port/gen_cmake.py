@@ -51,6 +51,7 @@ LINUX_EXCLUDE = (
 # Linux-only include directories per target (searched before the original ones)
 LINUX_INCLUDES = {
     "radmovie": ["libs/radmovie/src/linux"],                     # bink.h: FFmpeg-backed stand-in for the SDK header
+    "srr2": ["port/third_party/stb", "port/third_party/dejavu"], # the developer console's font (devconsole.cpp)
 }
 LINUX_EXTRA = {
     "radcore": ["libs/radcore/src/raddebugcommunication/linux/dbgcomstub.cpp",

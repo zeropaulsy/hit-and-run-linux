@@ -1,10 +1,12 @@
 //=============================================================================
-// Linux port: the developer console (devconsole.h). Drawn with pddi's stroke font (pddi/base/font.cpp), so it
-// works in release builds (pddiRenderContext::DrawString is debug only) and on both renderers.
+// Linux port: the developer console (devconsole.h). Text is DejaVu Sans Mono (port/third_party/dejavu), rasterised
+// with stb_truetype into a texture at the window's pixel size, so it is sharp at any resolution, works in release
+// builds (pddiRenderContext::DrawString is debug only) and on both renderers, and padded columns line up.
 //=============================================================================
 
 #include <SDL2/SDL.h>
 #include <ctype.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,8 +17,14 @@
 #include <p3d/utility.hpp>
 #include <p3d/matrixstack.hpp>
 #include <pddi/pddi.hpp>
-#include <pddi/base/font.hpp>
-#include <pddi/base/romans.h>   // the font's glyph widths (static tables, a copy for this file)
+
+// one translation unit uses it: static functions, libc heap (a few KB while the atlas is built)
+#define STBTT_STATIC
+#define STB_TRUETYPE_IMPLEMENTATION
+#define STBTT_malloc( size, user ) ( (void) ( user ), malloc( size ) )
+#define STBTT_free( p, user ) ( (void) ( user ), free( p ) )
+#include <stb_truetype.h>
+#include <dejavusansmono_ascii.h>     // kDejaVuSansMonoAscii: the font file, printable ASCII only
 
 #include <cheats/cheatinputsystem.h>
 #include <console/console.h>
@@ -57,6 +65,8 @@ int s_historyCount = 0;
 int s_historyIndex = -1;                    // -1: editing a new line
 
 pddiShader* s_backgroundShader = NULL;
+
+void ReleaseFont();
 
 void AddLine( const char* text, bool warning )
 {
@@ -149,6 +159,7 @@ void Open( bool open )
             s_backgroundShader->Release();
             s_backgroundShader = NULL;
         }
+        ReleaseFont();
     }
 }
 
@@ -704,7 +715,7 @@ void Insert( const char* text )
 {
     for( const char* c = text; *c != '\0'; c++ )
     {
-        // printable ASCII only (the stroke font has nothing else); the toggle key's characters never go in
+        // printable ASCII only (the font has nothing else); the toggle key's characters never go in
         if( *c < 32 || *c > 126 || *c == '`' || *c == '~' || s_inputLength >= LINE_LENGTH - 1 )
         {
             continue;
@@ -764,30 +775,212 @@ void HandleKey( const SDL_KeyboardEvent& key )
 // Drawing
 //-----------------------------------------------------------------------------
 
-// Width in pixels of text in pddiFont::Print at this scale (pddi/base/font.cpp)
-float TextWidth( const char* text, int length, float scale )
+// The font: every printable ASCII glyph rasterised at the pixel size the window needs into one atlas texture (white,
+// coverage in alpha), rebuilt when the size changes, released on close. Monospace: one advance, rounded to whole
+// pixels, per character, and glyphs at whole pixels, so text stays sharp and padded columns line up.
+enum
 {
-    float width = 0.0f;
-    for( int i = 0; i < length && text[i] != '\0'; i++ )
-    {
-        unsigned char c = (unsigned char) text[i];
-        if( c >= 32 && c <= 127 )
-        {
-            width += 2.0f * ( 0.5f + (float) abs( StrokeTable[GlyphTable[c - 32].firstStroke].x ) * 0.5f * scale );
-        }
-    }
-    return width;
+    FIRST_CHAR = 32,
+    CHAR_COUNT = 95,
+    ATLAS_COLUMNS = 16
+};
+
+struct AtlasGlyph
+{
+    int x, y, width, height;    // in the atlas
+    int offsetX, offsetY;       // from the cell's left edge and the baseline
+};
+
+struct Font
+{
+    pddiTexture* texture;
+    pddiShader* shader;
+    int pixelHeight;            // what it was built for (0: not built)
+    int advance;
+    int ascent;
+    int lineHeight;
+    float atlasScale;           // 1 / the atlas size
+    AtlasGlyph glyphs[CHAR_COUNT];
+};
+
+Font s_font;
+
+bool Printable( unsigned char c )
+{
+    return c >= FIRST_CHAR && c < FIRST_CHAR + CHAR_COUNT;
 }
 
-// pddiFont::Print scales y as well as the glyphs: pass it unscaled; bold at larger scales (lines are 1 px)
-void DrawText( pddiFont& font, const char* text, float x, float y, float z, float scale, pddiColour colour )
+void ReleaseFont()
 {
-    int fontY = (int) ( y / scale );
-    font.Print( text, (int) x, fontY, z, colour );
-    if( scale >= 1.5f )
+    if( s_font.shader != NULL )
     {
-        font.Print( text, (int) x + 1, fontY, z, colour );
+        s_font.shader->Release();
     }
+    if( s_font.texture != NULL )
+    {
+        s_font.texture->Release();
+    }
+    memset( &s_font, 0, sizeof( s_font ) );
+}
+
+bool BuildFont( int pixelHeight )
+{
+    ReleaseFont();
+    s_font.pixelHeight = pixelHeight;           // also when it fails: not retried every frame
+    stbtt_fontinfo info;
+    if( !stbtt_InitFont( &info, kDejaVuSansMonoAscii, 0 ) )
+    {
+        return false;
+    }
+    float scale = stbtt_ScaleForPixelHeight( &info, (float) pixelHeight );
+    int ascent, descent, lineGap, advance, bearing;
+    stbtt_GetFontVMetrics( &info, &ascent, &descent, &lineGap );
+    stbtt_GetCodepointHMetrics( &info, 'M', &advance, &bearing );
+    s_font.ascent = (int) ceilf( ascent * scale );
+    s_font.lineHeight = s_font.ascent + (int) ceilf( ( lineGap - descent ) * scale );
+    s_font.advance = (int) ( advance * scale + 0.5f );
+
+    // a grid of cells the size of the largest glyph, a pixel apart (bilinear filtering never reaches a neighbour)
+    int cellWidth = 1, cellHeight = 1;
+    for( int c = 0; c < CHAR_COUNT; c++ )
+    {
+        int x0, y0, x1, y1;
+        stbtt_GetCodepointBitmapBox( &info, FIRST_CHAR + c, scale, scale, &x0, &y0, &x1, &y1 );
+        AtlasGlyph& glyph = s_font.glyphs[c];
+        glyph.width = x1 - x0;
+        glyph.height = y1 - y0;
+        glyph.offsetX = x0;
+        glyph.offsetY = y0;
+        cellWidth = glyph.width > cellWidth ? glyph.width : cellWidth;
+        cellHeight = glyph.height > cellHeight ? glyph.height : cellHeight;
+    }
+    cellWidth++;
+    cellHeight++;
+    int rows = ( CHAR_COUNT + ATLAS_COLUMNS - 1 ) / ATLAS_COLUMNS;
+    int size = 64;
+    while( size < ATLAS_COLUMNS * cellWidth + 1 || size < rows * cellHeight + 1 )
+    {
+        size *= 2;
+    }
+    s_font.atlasScale = 1.0f / (float) size;
+
+    pddiTextureDesc desc;
+    desc.SetSizeX( size );
+    desc.SetSizeY( size );
+    desc.SetBitDepth( 32 );
+    desc.SetAlphaDepth( 8 );
+    desc.SetMipMapCount( 0 );
+    desc.SetType( PDDI_TEXTYPE_RGB );
+    s_font.texture = p3d::device->NewTexture( &desc );
+    unsigned char* coverage = (unsigned char*) malloc( cellWidth * cellHeight );
+    if( s_font.texture == NULL || coverage == NULL )
+    {
+        fprintf( stderr, "console: no %dx%d font texture\n", size, size );
+        free( coverage );
+        return false;
+    }
+    s_font.texture->AddRef();
+
+    pddiLockInfo* lock = s_font.texture->Lock( 0, NULL );
+    PDDI_U32 clear = lock->MakeColour( 0x00ffffff );
+    for( int y = 0; y < lock->height; y++ )
+    {
+        PDDI_U32* row = (PDDI_U32*) ( (char*) lock->bits + y * lock->pitch );
+        for( int x = 0; x < lock->width; x++ )
+        {
+            row[x] = clear;
+        }
+    }
+    for( int c = 0; c < CHAR_COUNT; c++ )
+    {
+        AtlasGlyph& glyph = s_font.glyphs[c];
+        glyph.x = 1 + ( c % ATLAS_COLUMNS ) * cellWidth;
+        glyph.y = 1 + ( c / ATLAS_COLUMNS ) * cellHeight;
+        if( glyph.width <= 0 || glyph.height <= 0 )
+        {
+            continue;
+        }
+        stbtt_MakeCodepointBitmap( &info, coverage, glyph.width, glyph.height, glyph.width, scale, scale,
+                                   FIRST_CHAR + c );
+        for( int y = 0; y < glyph.height; y++ )
+        {
+            PDDI_U32* row = (PDDI_U32*) ( (char*) lock->bits + ( glyph.y + y ) * lock->pitch ) + glyph.x;
+            for( int x = 0; x < glyph.width; x++ )
+            {
+                row[x] = lock->MakeColour( ( (PDDI_U32) coverage[y * glyph.width + x] << 24 ) | 0x00ffffff );
+            }
+        }
+    }
+    s_font.texture->Unlock( 0 );
+    free( coverage );
+
+    s_font.shader = p3d::device->NewShader( "simple" );
+    s_font.shader->AddRef();
+    s_font.shader->SetTexture( PDDI_SP_BASETEX, s_font.texture );
+    s_font.shader->SetInt( PDDI_SP_SHADEMODE, PDDI_SHADE_FLAT );
+    s_font.shader->SetInt( PDDI_SP_BLENDMODE, PDDI_BLEND_ALPHA );
+    s_font.shader->SetInt( PDDI_SP_FILTER, PDDI_FILTER_BILINEAR );
+    s_font.shader->SetInt( PDDI_SP_UVMODE, PDDI_UV_CLAMP );
+    return true;
+}
+
+// Width in pixels of the first length characters
+float TextWidth( const char* text, int length )
+{
+    int cells = 0;
+    for( int i = 0; i < length && text[i] != '\0'; i++ )
+    {
+        cells += Printable( (unsigned char) text[i] ) ? 1 : 0;
+    }
+    return (float) ( cells * s_font.advance );
+}
+
+// One line of text, its top at y
+void DrawText( const char* text, float x, float y, float z, pddiColour colour )
+{
+    if( s_font.shader == NULL )
+    {
+        return;
+    }
+    int quads = 0;
+    for( const unsigned char* s = (const unsigned char*) text; *s; s++ )
+    {
+        quads += Printable( *s ) && s_font.glyphs[*s - FIRST_CHAR].width > 0 ? 1 : 0;
+    }
+    if( quads == 0 )
+    {
+        return;
+    }
+
+    pddiPrimStream* stream = p3d::pddi->BeginPrims( s_font.shader, PDDI_PRIM_TRIANGLES, PDDI_V_CT, quads * 6 );
+    int cellX = (int) x;
+    int baseline = (int) y + s_font.ascent;
+    for( const unsigned char* s = (const unsigned char*) text; *s; s++ )
+    {
+        if( !Printable( *s ) )
+        {
+            continue;
+        }
+        const AtlasGlyph& glyph = s_font.glyphs[*s - FIRST_CHAR];
+        if( glyph.width > 0 )
+        {
+            float x0 = (float) ( cellX + glyph.offsetX ), x1 = x0 + glyph.width;
+            float y0 = (float) ( baseline + glyph.offsetY ), y1 = y0 + glyph.height;
+            float u0 = glyph.x * s_font.atlasScale, u1 = ( glyph.x + glyph.width ) * s_font.atlasScale;
+            // v runs bottom-up: Lock's first row (negative pitch) is the texture's last
+            float v0 = 1.0f - glyph.y * s_font.atlasScale, v1 = 1.0f - ( glyph.y + glyph.height ) * s_font.atlasScale;
+            const float corners[6][4] = { { x0, y0, u0, v0 }, { x1, y0, u1, v0 }, { x1, y1, u1, v1 },
+                                          { x0, y0, u0, v0 }, { x1, y1, u1, v1 }, { x0, y1, u0, v1 } };
+            for( int i = 0; i < 6; i++ )
+            {
+                stream->Colour( colour );
+                stream->UV( corners[i][2], corners[i][3] );
+                stream->Coord( corners[i][0], corners[i][1], z );
+            }
+        }
+        cellX += s_font.advance;
+    }
+    p3d::pddi->EndPrims( stream );
 }
 
 void DrawBackground( float width, float height, float z )
@@ -940,13 +1133,15 @@ void DevConsole::Render()
     float width = (float) p3d::display->GetWidth();
     float screenHeight = (float) p3d::display->GetHeight();
     float height = (float) (int) ( screenHeight * 0.5f );
-    float scale = screenHeight / 720.0f;
-    if( scale < 1.0f )
+    // 18 px at 1080 lines, no smaller than 14 px
+    int pixelHeight = (int) ( screenHeight * 18.0f / 1080.0f + 0.5f );
+    pixelHeight = pixelHeight < 14 ? 14 : pixelHeight;
+    if( pixelHeight != s_font.pixelHeight )
     {
-        scale = 1.0f;
+        BuildFont( pixelHeight );
     }
-    float lineHeight = 15.0f * scale;       // pddiFont's line spacing
-    float margin = 8.0f * scale;
+    float lineHeight = (float) s_font.lineHeight;
+    float margin = (float) (int) ( pixelHeight * 0.5f );
 
     p3d::stack->Push();
     p3d::stack->LoadIdentity();
@@ -967,18 +1162,15 @@ void DevConsole::Render()
 
     DrawBackground( width, height, z );
 
-    pddiFont font( p3d::pddi );
-    pddiFont::SetScale( scale, scale );
-
     // the input line at the bottom, a caret at the cursor
     float inputY = height - margin - lineHeight;
     char prompt[LINE_LENGTH + 4];
     snprintf( prompt, sizeof( prompt ), "] %s", s_input );
-    DrawText( font, prompt, margin, inputY, z, scale, pddiColour( 255, 255, 255 ) );
+    DrawText( prompt, margin, inputY, z, pddiColour( 255, 255, 255 ) );
     if( ( SDL_GetTicks() / 500 ) % 2 == 0 )
     {
-        float caretX = margin + TextWidth( prompt, s_cursor + 2, scale );
-        DrawText( font, "_", caretX, inputY + 2.0f * scale, z, scale, pddiColour( 255, 160, 0 ) );
+        float caretX = margin + TextWidth( prompt, s_cursor + 2 );
+        DrawText( "_", caretX, inputY, z, pddiColour( 255, 160, 0 ) );
     }
 
     // the scrollback above it, newest at the bottom
@@ -987,7 +1179,7 @@ void DevConsole::Render()
     float y = inputY - lineHeight;
     if( s_scroll > 0 )
     {
-        DrawText( font, "^ ^ ^", margin, y, z, scale, pddiColour( 255, 160, 0 ) );
+        DrawText( "^ ^ ^", margin, y, z, pddiColour( 255, 160, 0 ) );
         y -= lineHeight;
         rows--;
     }
@@ -1000,11 +1192,10 @@ void DevConsole::Render()
         }
         int index = ( s_lineCount - 1 - back ) % SCROLLBACK_LINES;
         pddiColour colour = s_lineWarning[index] ? pddiColour( 255, 120, 100 ) : pddiColour( 210, 210, 210 );
-        DrawText( font, s_lines[index], margin, y, z, scale, colour );
+        DrawText( s_lines[index], margin, y, z, colour );
         y -= lineHeight;
     }
 
-    pddiFont::SetScale( 1.0f, 1.0f );
     p3d::pddi->SetZWrite( zWrite );
     p3d::pddi->SetZCompare( zCompare );
     p3d::pddi->SetProjectionMode( projection );
