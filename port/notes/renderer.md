@@ -74,7 +74,8 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
   full-width polys stretch; full-page `FePure3dObject` fills; TV frame `Sprite::SetStretchToWindow`.
 - Resolution enum indexes a runtime table (`linuxplatform_sdl.cpp`): enum's 10, common sizes, desktop, ini WxH.
   `BuildResolutionList` shows those fitting the desktop. `display=borderless|fullscreen|window`; exclusive fullscreen
-  sets closest mode (leave fullscreen first or XWayland keeps size).
+  sets closest mode (leave fullscreen first or XWayland keeps size). Exclusive -> borderless also leaves first: Wayland
+  kept the drawable at the exclusive size (top-left, rest black).
 
 ## Diagnostics
 - `SHAR_GL_DEBUG=1`, `SHAR_GL_STATS=1` (draws/uploads, CPU/GPU ms per 5 s), `SHAR_MATERIAL_LOG=1`.

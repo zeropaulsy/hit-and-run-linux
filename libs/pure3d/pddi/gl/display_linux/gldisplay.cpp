@@ -185,6 +185,10 @@ bool pglDisplay::InitDisplay(const pddiDisplayInit* init)
     // e.g. for speed). In a window the requested size is the window size.
     if(mode == PDDI_DISPLAY_FULLSCREEN_DESKTOP)
     {
+        // leave exclusive fullscreen first: switching straight to borderless kept the drawable at the exclusive
+        // mode's size under Wayland (drawn in the top left corner, the rest black)
+        if((SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP) == SDL_WINDOW_FULLSCREEN)
+            SDL_SetWindowFullscreen(window, 0);
         SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
     }
     else if(mode == PDDI_DISPLAY_FULLSCREEN)
