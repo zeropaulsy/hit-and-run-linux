@@ -20,6 +20,7 @@
 #include <raddebug.hpp>
 #include <p3d/platform.hpp>
 #include <p3d/context.hpp>
+#include <console/devconsole.h>
 #include <input/inputmanager.h>
 #include <input/FEMouse.h>
 #include <input/MouseCursor.h>
@@ -489,6 +490,11 @@ bool Win32Platform::PumpEvents()
     }
     while( SDL_PollEvent( &e ) )
     {
+        // the developer console (` key) takes the keyboard and mouse while open
+        if( DevConsole::HandleEvent( &e ) )
+        {
+            continue;
+        }
         radControllerSDLHandleEvent( &e );                 // wheel + controller hot-plug for radcore input
 
         InputManager* pInputManager = GetInputManager();
@@ -615,6 +621,7 @@ bool Win32Platform::PumpEvents()
             break;
         }
     }
+    DevConsole::Update();
     return quit;
 }
 

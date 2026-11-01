@@ -45,6 +45,7 @@ port/play.sh --data DIR --mod MyMod.lmlm    # load a mod (repeatable; earlier mo
 port/play.sh --data DIR --no-build          # skip the build step
 port/play.sh --data DIR skipfe              # straight into Level 1
 port/play.sh --data DIR bonus               # Bonus Game and its tracks open without completed card decks
+port/play.sh --data DIR console             # developer console on the ` key (or SHAR_CONSOLE=1); type help
 port/play.sh --data DIR --32                # the legacy 32-bit build
 ```
 

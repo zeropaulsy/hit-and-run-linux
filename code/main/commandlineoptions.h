@@ -87,6 +87,7 @@ enum CmdLineOptionEnum
     CLO_RUNTIME_DEMO,       // Linux port: with skipfe, run level l<N>'s attract demo (AI drives the car), no time limit
     CLO_UNLOCK_BONUS,       // Linux port: Bonus Game and all its tracks selectable without completed card decks
     CLO_NO_FAIL,            // Linux port test option: mission conditions never fail a stage, the mission timer stops at 0
+    CLO_CONSOLE,            // Linux port: the developer console (` key; code/console/devconsole.cpp), also SHAR_CONSOLE=1
 
     NUM_CLO             // Must not exceed 64
 };

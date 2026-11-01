@@ -93,6 +93,7 @@
 void pglPostProcessScene();     // pddi/gl/glpost.hpp: the user's scene post-processing shaders
 void radMovieUpdateVideoTextures();    // radmovie linux/binkvideotexture.cpp: mods' VideoTextureSupport
 void pvkSunSetSuppressed( bool suppressed );    // pddi/vk/vksun.cpp: no sun shadows whatever the setting
+#include <console/devconsole.h>
 #include <gameflow/gameflow.h>
 #include <interiors/interiormanager.h>
 #endif
@@ -650,6 +651,10 @@ void RenderManager::ContextUpdate( unsigned int iElapsedTime )
 
         GetGame()->SetTime( time );
     }
+
+#ifdef RAD_LINUX
+    DevConsole::Render();   // Linux port: the developer console, over everything
+#endif
 
    p3d::context->EndFrame( false );
 

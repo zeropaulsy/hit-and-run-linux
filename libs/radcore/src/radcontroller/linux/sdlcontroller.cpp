@@ -39,6 +39,7 @@ const int* VirtualKeyToIndex = &s_VirtualKeyToIndex[ -1 ];      // DIK_* starts 
 const int* VirtualJoyKeyToIndex = &s_VirtualKeyToIndex[ -48 ];
 
 static radMemoryAllocator g_ControllerSystemAllocator = RADMEMORY_ALLOC_DEFAULT;
+static bool s_InputBlocked = false;     // radControllerSDLSetInputBlocked: keyboard and mouse read as idle
 
 // debug: SHAR_KEY_SCRIPT="code@startms-endms,..." holds DIK key codes (1000+n = mouse button n) during time windows.
 // Parsed once: rescanning the string for every key on every poll starved the load thread under valgrind.
@@ -404,7 +405,8 @@ public:
             const Uint8* keys = SDL_GetKeyboardState( NULL );
             for ( unsigned int i = 0; i < m_Points.size( ); i++ )
             {
-                bool down = ( !s_noInput && keys[ s_KeyTable[ i ].sc ] ) || KeyScriptHolds( s_KeyTable[ i ].dik, now );
+                bool down = ( !s_noInput && !s_InputBlocked && keys[ s_KeyTable[ i ].sc ] ) ||
+                            KeyScriptHolds( s_KeyTable[ i ].dik, now );
                 m_Points[ i ]->Update( down ? 0x80 : 0 );
             }
         }
@@ -422,7 +424,8 @@ public:
             unsigned int now = SDL_GetTicks( );
             for ( int b = 0; b < 5; b++ )
             {
-                bool down = ( !s_noInput && ( buttons & SDL_BUTTON( sdlButton[ b ] ) ) ) || KeyScriptHolds( 1000 + b, now );
+                bool down = ( !s_noInput && !s_InputBlocked && ( buttons & SDL_BUTTON( sdlButton[ b ] ) ) ) ||
+                            KeyScriptHolds( 1000 + b, now );
                 m_Points[ 3 + b ]->Update( down ? 0x80 : 0 );
             }
         }
@@ -870,4 +873,9 @@ void radControllerSDLSetMouseLook( bool on )
     {
         s_pTheSDLControllerSystem->SetMouseLook( on );
     }
+}
+
+void radControllerSDLSetInputBlocked( bool on )
+{
+    s_InputBlocked = on;
 }

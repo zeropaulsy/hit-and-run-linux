@@ -81,6 +81,8 @@ void radControllerSystemService( void );
 void radControllerSDLHandleEvent( const void* pSDLEvent );
 // Mouse-look on/off: hides and confines the pointer (replaces SDL relative mode, see sdlcontroller.cpp).
 void radControllerSDLSetMouseLook( bool on );
+// Keyboard and mouse read as idle while on (the developer console has them, code/console/devconsole.cpp).
+void radControllerSDLSetInputBlocked( bool on );
 #endif
 
 //=============================================================================

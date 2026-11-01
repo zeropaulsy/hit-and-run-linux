@@ -236,6 +236,10 @@ void CommandLineOptions::HandleOption( const char* const optionIn )
     {
         orValue <<= CLO_NO_FAIL;
     }
+    else if( strcmp( strupr(option), "CONSOLE" ) == 0 )
+    {
+        orValue <<= CLO_CONSOLE;
+    }
     else if( strcmp( strupr(option), "INCAR" ) == 0 )
     {
         orValue <<= CLO_START_IN_CAR;

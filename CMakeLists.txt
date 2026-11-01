@@ -570,6 +570,7 @@ add_executable(srr2
   code/supersprint/supersprintdata.cpp
   code/supersprint/supersprintmanager.cpp
   code/main/linuxplatform_sdl.cpp
+  code/console/devconsole.cpp
   code/mission/modscript.cpp
   code/mission/objectives/modobjectives.cpp
   code/mission/conditions/modconditions.cpp

@@ -21,6 +21,7 @@
 - `autopass[N]` (default 30 s game time): every stage completes; logs "autopass: ...". Only stage 1 is in a fully
   loaded world (skipped drives don't stream zones). Skips missions without a DYNALOAD locator.
 - `bonus`: from main menu (~65 s after boot) Left x2, Enter, Enter x3. `l0`: original shortcut into bonus menus.
+- `console` / `SHAR_CONSOLE=1`, `SHAR_CONSOLE_SCRIPT`: console.md.
 - `SHAR_QUIT_AT=ms` logs "Window closed (context N)" (contextenum.h: 1 bootup, 2 FE, 8 loading, 9 gameplay, 10 pause).
 - Verify runs with screenshots (`SHAR_SHOT_EVERY`): logs show little; runs have silently tested nothing (empty ground).
 - Menus: the item under the cursor wins over keys, so `SHAR_MOUSE_SCRIPT="5,5@8000"` first. Boot movies make menu
