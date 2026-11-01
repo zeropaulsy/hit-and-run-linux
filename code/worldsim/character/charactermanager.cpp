@@ -429,6 +429,9 @@ void CharacterManager::Destroy(bool permenant)
     }
 
     mNumCharactersAdded = 0;
+#ifdef RAD_LINUX
+    sSpawnedCharacter = NULL;   // Linux port: released above; Spawn would remove whatever reuses its address
+#endif
 }
 
 void CharacterManager::RemoveCharacter( Character* c)
@@ -2181,6 +2184,15 @@ void CharacterManager::Spawn(void*)
     if(sSpawnedCharacter)
         sSpawnedCharacter->AddToWorldScene();
 }
+
+#ifdef RAD_LINUX
+void CharacterManager::ConsoleSpawn( const char* model )
+{
+    strncpy( sCharacterToSpawn, model, sizeof( sCharacterToSpawn ) - 1 );
+    sCharacterToSpawn[ sizeof( sCharacterToSpawn ) - 1 ] = '\0';
+    Spawn( NULL );
+}
+#endif
 
 
 static const int sNumBartSkins = 7;

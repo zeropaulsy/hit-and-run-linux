@@ -1719,7 +1719,7 @@ void SuperCamCentral::UpdateForPhysics( unsigned int milliseconds )
             newPos.Add( camPos );
             mDebugCamera->SetPosition( newPos );
             mDebugCamera->SetTarget( camPos );
-#ifdef DEBUGWATCH
+#if defined DEBUGWATCH || defined RAD_LINUX
             //Draw the cam's frustrum.
             DrawFrustrum( );
 #endif
@@ -2081,7 +2081,7 @@ void SuperCamCentral::ToggleDebugView()
 #endif
 }
         
-#ifdef DEBUGWATCH
+#if defined DEBUGWATCH || defined RAD_LINUX
 //=============================================================================
 // SuperCamCentral::DrawFrustrum
 //=============================================================================

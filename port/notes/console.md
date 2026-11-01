@@ -19,12 +19,28 @@
 | `tp <x> <y> <z>` | moves the player to a point (`RelocateAndReset`; on foot only) |
 | `script <text>` | runs script text as typed, e.g. `script SetMaxTraffic(5)` |
 | `exec <file>` | runs a file of console lines (game dir; `//` and `#` lines skipped) |
+| `debugcam [xz y [dist]]` | toggles the debug view: a camera orbiting the game camera, frustum in white (`SuperCamCentral::ToggleDebugView`); angles in degrees (y from straight above), default 70 m |
+| `damage <hood\|back\|driver\|passenger>` | `Vehicle::DebugInflictDamage*` on the player's car (15% of hit points a hit) |
+| `cards [all\|none]` | counts collected cards, or `CardGallery::Add/RemoveAllCollectedCards` |
+| `npc [model]` | `CharacterManager::Spawn` (default homer) in front of the player; replaces the last one |
+| `skin` | `CharacterManager::NextSkin`: next outfit for Bart/Homer/Lisa/Marge/Apu |
+| `lang [english\|french\|german\|spanish]` | text language only (`CGuiTextBible::SetCurrentLanguage(l, false)`) |
+| `save [slot]` / `load [slot]` | `GameDataManager::SaveGame/LoadGame` (slots 1-8); save in a level, load in the front end only |
 | `quit` | quits the game (SDL_QUIT) |
 
 - Else script functions (`Console`'s table): `Name a b` -> `Name("a","b");` after an arg-count check
   (`Console::GetFunctionArgs`); a line with `(` (or `script ...`) goes to `Console::Evaluate` as typed (`;` added).
   Most are mission-load functions: mid-game calls can misbehave. Debug builds: script syntax errors hit `rTuneAssert`.
 - `tp x y z` only with three numbers (else the words are a destination name, which has spaces); on foot only.
+- debugcam..load are the original's Watcher functions (`radDbgWatchAddFunction`, DEBUGWATCH: off on Linux).
+  `SUPERCAM_DEBUG` (supercam.h) and `DrawFrustrum` are on for Linux release builds for debugcam. The debug view
+  doesn't show during the level-start intro (another camera has the view).
+- `lang` must not swap the dialogue cement file mid-level (`daSoundRenderingManager::SetLanguage`): heap corruption
+  (`free(): invalid size` at shutdown); retail PC has only `dialog.rcf` anyway.
+- `save` mid-level: the save only reports back through `GameDataManager::Update` (minimum save time), which the
+  original calls only in bootup/frontend/pause contexts; `GameplayContext::OnUpdate` calls it too on Linux.
+  `load` mid-level would change progress under a running level: front end only (then Resume Game).
+- `npc` checks `art\chars\<6 letters>_m.p3d` with `radFileOpenSync` first; `Destroy` clears `sSpawnedCharacter`.
 - `cheat`: own name table -> `CheatInputSystem::SetCheatEnabled`; FINAL ignores unlock cheats before 100% story.
 
 ## Wiring
@@ -49,7 +65,8 @@
 ## Testing
 - `SHAR_CONSOLE_SCRIPT="ms:line;ms:line"` opens the console and runs the lines at those times; `DevConsole::Print`
   output also goes to stderr as `console: ...`. Verify drawing with `SHAR_SHOT_EVERY`. Close: `SHAR_KEYPRESS_SCRIPT=Escape@ms`.
-- Not done: memcheck/audit build, real typing on Wayland IME.
+- Scratch run dir for save/load (run/ has the user's saves).
+- Not done: memcheck/audit build, real typing on Wayland IME, `lang` text seen on screen.
 
 ## Next
 - Pause the game while open (Source single-player), cvars (`name value`), autoexec, Lua lines, stderr tee.

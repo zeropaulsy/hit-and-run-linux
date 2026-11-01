@@ -13,7 +13,7 @@
 #define SUPERCAM_H
 
 //Uncomment this for supercam debugging.
-#ifndef RAD_RELEASE
+#if !defined RAD_RELEASE || defined RAD_LINUX   // Linux port: the developer console's debugcam (devconsole.cpp)
 #define SUPERCAM_DEBUG
 #endif
 

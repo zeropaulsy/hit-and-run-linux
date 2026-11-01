@@ -92,6 +92,11 @@ public:
     void GarbageCollect(bool ignoreDist = false);
 
     const char* GetModelName(Character*);
+#ifdef RAD_LINUX
+    // Linux port: the Watcher's Spawn NPC / Next Skin, for the developer console (devconsole.cpp)
+    static void ConsoleSpawn( const char* model );
+    static void ConsoleNextSkin() { NextSkin( NULL ); }
+#endif
     const char* GetAnimName(Character*);
 
     void ClearTargetVehicle(Vehicle*);

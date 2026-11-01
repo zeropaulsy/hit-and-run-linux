@@ -467,12 +467,19 @@ CGuiTextBible::GetLocalizedText( const char* stringID )
 }
 
 void
+#ifdef RAD_LINUX
+CGuiTextBible::SetCurrentLanguage( const Scrooby::XLLanguage language, bool dialogue )
+#else
 CGuiTextBible::SetCurrentLanguage( const Scrooby::XLLanguage language )
+#endif
 {
     Scrooby::App::GetInstance()->SetLocalizationLanguage( language );
 
     s_currentLanguage = language;
 
+#ifdef RAD_LINUX
+    if( dialogue )
+#endif
     GetSoundManager()->SetDialogueLanguage( language );
 }
 

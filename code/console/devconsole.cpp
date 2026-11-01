@@ -26,13 +26,25 @@
 #include <stb_truetype.h>
 #include <dejavusansmono_ascii.h>     // kDejaVuSansMonoAscii: the font file, printable ASCII only
 
+#include <radfile.hpp>
+
+#include <camera/supercamcentral.h>
+#include <camera/supercammanager.h>
+#include <cards/cardgallery.h>
 #include <cheats/cheatinputsystem.h>
 #include <console/console.h>
 #include <console/devconsole.h>
+#include <data/gamedatamanager.h>
+#include <data/memcard/memorycardmanager.h>
+#include <gameflow/gameflow.h>
 #include <main/commandlineoptions.h>
+#include <presentation/gui/guitextbible.h>
+#include <worldsim/avatar.h>
+#include <worldsim/avatarmanager.h>
 #include <worldsim/character/character.h>
 #include <worldsim/character/charactermanager.h>
 #include <worldsim/coins/coinmanager.h>
+#include <worldsim/redbrick/vehicle.h>
 
 namespace
 {
@@ -424,6 +436,275 @@ void CmdExec( int argc, char** argv )
     fclose( file );
 }
 
+//-----------------------------------------------------------------------------
+// The Watcher's debug functions (radDbgWatchAddFunction, DEBUGWATCH builds only in the original)
+//-----------------------------------------------------------------------------
+
+void CmdDebugCam( int argc, char** argv )
+{
+    SuperCamManager* cams = GetSuperCamManager();
+    SuperCamCentral* camera = ( cams != NULL && GetPlayer() != NULL ) ? cams->GetSCC( 0 ) : NULL;
+    if( camera == NULL )
+    {
+        DevConsole::Print( "No camera outside a level" );
+        return;
+    }
+    if( argc >= 3 )
+    {
+        // the orbit around the game camera: degrees round, degrees down from straight above, metres away
+        float distance = argc > 3 ? (float) atof( argv[3] ) : 70.0f;
+        camera->SetDebugViewAngles( rmt::DegToRadian( (float) atof( argv[1] ) ),
+                                    rmt::DegToRadian( (float) atof( argv[2] ) ), distance );
+        camera->ToggleDebugView( true );
+    }
+    else
+    {
+        camera->ToggleDebugView();
+    }
+    DevConsole::Print( "Debug camera %s", camera->IsDebugViewOn() ? "on: the white lines are the game camera's view"
+                                                                  : "off" );
+}
+
+void CmdDamage( int argc, char** argv )
+{
+    Avatar* avatar = GetAvatarManager() != NULL ? GetAvatarManager()->GetAvatarForPlayer( 0 ) : NULL;
+    Vehicle* vehicle = ( avatar != NULL && GetPlayer() != NULL && GetPlayer()->IsInCar() ) ? avatar->GetVehicle() : NULL;
+    if( vehicle == NULL )
+    {
+        DevConsole::Print( "Get in a car first" );
+        return;
+    }
+    const char* side = argc > 1 ? argv[1] : "";
+    if( strcasecmp( side, "hood" ) == 0 )
+    {
+        vehicle->DebugInflictDamageHood();
+    }
+    else if( strcasecmp( side, "back" ) == 0 )
+    {
+        vehicle->DebugInflictDamageBack();
+    }
+    else if( strcasecmp( side, "driver" ) == 0 )
+    {
+        vehicle->DebugInflictDamageDriverSide();
+    }
+    else if( strcasecmp( side, "passenger" ) == 0 )
+    {
+        vehicle->DebugInflictDamagePassengerSide();
+    }
+    else
+    {
+        DevConsole::Print( "damage <hood | back | driver | passenger>: each hit is 15%% of the car's hit points" );
+        return;
+    }
+    DevConsole::Print( "%s hit%s", side, vehicle->IsVehicleDestroyed() ? ", the car is wrecked" : "" );
+}
+
+void CmdCards( int argc, char** argv )
+{
+    CardGallery* gallery = GetCardGallery();
+    if( gallery == NULL || gallery->GetCardsDB() == NULL )
+    {
+        DevConsole::Print( "The cards aren't loaded yet" );
+        return;
+    }
+    if( argc > 1 && strcasecmp( argv[1], "all" ) == 0 )
+    {
+        gallery->AddAllCollectedCards();
+    }
+    else if( argc > 1 && strcasecmp( argv[1], "none" ) == 0 )
+    {
+        gallery->RemoveAllCollectedCards();
+    }
+    else if( argc > 1 )
+    {
+        DevConsole::Print( "cards [all | none]" );
+        return;
+    }
+    int total = 0;
+    for( unsigned int level = 0; level < NUM_LEVELS; level++ )
+    {
+        total += gallery->GetCollectedCards( level )->m_numCards;
+    }
+    DevConsole::Print( "%d of %u cards collected", total, NUM_LEVELS * NUM_CARDS_PER_LEVEL );
+}
+
+// art\chars\<model, cut to 6 letters>_m.p3d, as CharacterManager::LoadModel loads it
+bool CharacterModelExists( const char* model )
+{
+    char filename[64];
+    snprintf( filename, sizeof( filename ), "art\\chars\\%.6s_m.p3d", model );
+    IRadFile* file = NULL;
+    radFileOpenSync( &file, filename, false, OpenExisting );
+    bool exists = file != NULL && file->IsOpen();
+    if( file != NULL )
+    {
+        file->Release();
+    }
+    return exists;
+}
+
+void CmdNpc( int argc, char** argv )
+{
+    if( GetPlayer() == NULL )
+    {
+        DevConsole::Print( "No level to spawn in" );
+        return;
+    }
+    const char* model = argc > 1 ? argv[1] : "homer";
+    if( strlen( model ) >= 64 || !CharacterModelExists( model ) )
+    {
+        DevConsole::Print( "No character model \"%s\" (art/chars/<name>_m.p3d)", model );
+        return;
+    }
+    CharacterManager::ConsoleSpawn( model );    // replaces the last one spawned
+    DevConsole::Print( "Spawned %s in front of the player", model );
+}
+
+void CmdSkin( int, char** )
+{
+    Character* player = GetPlayer();
+    if( player == NULL )
+    {
+        DevConsole::Print( "No player outside a level" );
+        return;
+    }
+    const char* before = GetCharacterManager()->GetModelName( player );
+    char previous[64];
+    snprintf( previous, sizeof( previous ), "%s", before != NULL ? before : "" );
+    CharacterManager::ConsoleNextSkin();
+    const char* after = GetCharacterManager()->GetModelName( player );
+    if( after == NULL || strcmp( previous, after ) == 0 )
+    {
+        DevConsole::Print( "Only Bart, Homer, Lisa, Marge and Apu have skins to cycle through" );
+        return;
+    }
+    DevConsole::Print( "Skin %s", after );
+}
+
+struct LanguageName
+{
+    const char* name;
+    Scrooby::XLLanguage language;
+};
+
+const LanguageName s_languages[] =
+{
+    { "english", Scrooby::XL_ENGLISH },
+    { "french", Scrooby::XL_FRENCH },
+    { "german", Scrooby::XL_GERMAN },
+    { "spanish", Scrooby::XL_SPANISH },
+};
+
+void CmdLang( int argc, char** argv )
+{
+    const int count = sizeof( s_languages ) / sizeof( s_languages[0] );
+    int which = -1;
+    for( int i = 0; i < count; i++ )
+    {
+        if( argc > 1 ? strcasecmp( s_languages[i].name, argv[1] ) == 0
+                     : s_languages[i].language == CGuiTextBible::GetCurrentLanguage() )
+        {
+            which = i;
+        }
+    }
+    if( argc > 1 && which >= 0 )
+    {
+        CGuiTextBible::SetCurrentLanguage( s_languages[which].language, false );
+        DevConsole::Print( "Text in %s (screens already up keep theirs; speech doesn't change)", s_languages[which].name );
+    }
+    else if( argc > 1 )
+    {
+        DevConsole::Print( "lang <english | french | german | spanish>" );
+    }
+    else
+    {
+        DevConsole::Print( "Text in %s", which >= 0 ? s_languages[which].name : "another language" );
+    }
+}
+
+struct ConsoleSaveCallbacks : public GameDataLoadCallback, public GameDataSaveCallback
+{
+    virtual void OnLoadGameComplete( radFileError error )
+    {
+        if( error == Success )
+        {
+            DevConsole::Print( "Loaded" );
+        }
+        else
+        {
+            DevConsole::Print( "Load failed (error %d)", (int) error );
+        }
+    }
+    virtual void OnSaveGameComplete( radFileError error )
+    {
+        if( error == Success )
+        {
+            DevConsole::Print( "Saved" );
+        }
+        else
+        {
+            DevConsole::Print( "Save failed (error %d)", (int) error );
+        }
+    }
+};
+
+ConsoleSaveCallbacks s_saveCallbacks;
+
+// The slot (1 to NUM_GAME_SLOTS, as the save screens number them), or -1 when the save system can't be used now
+int SaveSlot( int argc, char** argv, const char* usage )
+{
+    int slot = argc > 1 ? atoi( argv[1] ) : 1;
+    if( slot < 1 || slot > (int) NUM_GAME_SLOTS )
+    {
+        DevConsole::Print( "%s [slot 1-%u]", usage, NUM_GAME_SLOTS );
+        return -1;
+    }
+    if( GetGameDataManager() == NULL || GetMemoryCardManager() == NULL ||
+        GetMemoryCardManager()->GetCurrentDrive() == NULL )
+    {
+        DevConsole::Print( "No save drive yet" );
+        return -1;
+    }
+    if( GetGameDataManager()->IsBusy() )
+    {
+        DevConsole::Print( "A load or save is already running" );
+        return -1;
+    }
+    return slot;
+}
+
+void CmdSave( int argc, char** argv )
+{
+    ContextEnum context = GetGameFlow()->GetCurrentContext();
+    if( context != CONTEXT_GAMEPLAY && context != CONTEXT_PAUSE )
+    {
+        DevConsole::Print( "Save from inside a level" );
+        return;
+    }
+    int slot = SaveSlot( argc, argv, "save" );
+    if( slot > 0 )
+    {
+        DevConsole::Print( "Saving to slot %d", slot );
+        GetGameDataManager()->SaveGame( slot - 1, &s_saveCallbacks );
+    }
+}
+
+void CmdLoad( int argc, char** argv )
+{
+    // a running level keeps its missions, characters and cars: the progress is only read when a level loads
+    if( GetGameFlow()->GetCurrentContext() != CONTEXT_FRONTEND )
+    {
+        DevConsole::Print( "Load from the main menu (a running level isn't reloaded)" );
+        return;
+    }
+    int slot = SaveSlot( argc, argv, "load" );
+    if( slot > 0 )
+    {
+        DevConsole::Print( "Loading slot %d", slot );
+        GetGameDataManager()->LoadGame( slot - 1, &s_saveCallbacks );
+    }
+}
+
 const Command s_commands[] =
 {
     { "help", CmdHelp, "[command]", "lists the commands, or describes one" },
@@ -436,6 +717,14 @@ const Command s_commands[] =
     { "tp", CmdTeleport, "[dest | x y z]", "lists the level's destinations, or teleports" },
     { "script", CmdScript, "<script>", "runs script text, e.g. script SetMaxTraffic(5)" },
     { "exec", CmdExec, "<file>", "runs a file of console lines (game directory)" },
+    { "debugcam", CmdDebugCam, "[xz y [dist]]", "views the game camera from outside (angles in degrees)" },
+    { "damage", CmdDamage, "<side>", "damages the player's car: hood, back, driver or passenger" },
+    { "cards", CmdCards, "[all | none]", "counts the collector cards, or collects / removes them all" },
+    { "npc", CmdNpc, "[model]", "spawns a character in front of the player (homer)" },
+    { "skin", CmdSkin, "", "the player's next outfit (works with: Bart, Homer, Lisa, Marge, Apu)" },
+    { "lang", CmdLang, "[language]", "shows or sets the text language" },
+    { "save", CmdSave, "[slot]", "saves the game (slot 1)" },
+    { "load", CmdLoad, "[slot]", "loads a saved game from the main menu (slot 1)" },
     { "quit", CmdQuit, "", "quits the game" },
 };
 

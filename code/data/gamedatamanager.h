@@ -105,6 +105,10 @@ public:
     void RestoreDefaultMinimumLoadSaveTime();
 
     bool IsGameLoaded() const { return m_isGameLoaded; }
+#ifdef RAD_LINUX
+    // Linux port: a load or save is running, or hasn't reported back yet (minimum time, Update)
+    bool IsBusy() const { return m_gameDataBuffer != NULL || m_currentFileOperation != FILE_OP_NONE; }
+#endif
     void SetGameLoaded() { m_isGameLoaded = true; }
 
     bool GetSaveGameInfo( IRadDrive* pDrive,
