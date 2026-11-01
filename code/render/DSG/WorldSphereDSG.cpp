@@ -246,7 +246,8 @@ void WorldSphereDSG::SetCompositeDrawable( tCompositeDrawable* ipCompDraw )
     mpCompDraw->GetBoundingSphere( &sphere );
 	mPosn = sphere.centre;
 #ifdef RAD_LINUX
-    // the sky's painted moon (L7: no lens flare), relative to the camera: the shadow sun's direction
+    // the sky's painted moon (L4/L7 MoonShape; L6 the billboards sunset_bb_bbgShape; no lens flare), relative to the
+    // camera: the shadow sun's direction
     tPose* pose = mpCompDraw->GetPose();
     pose->Evaluate();
     for( int i = 0; i < mpCompDraw->GetNumDrawableElement(); i++ )
@@ -257,7 +258,8 @@ void WorldSphereDSG::SetCompositeDrawable( tCompositeDrawable* ipCompDraw )
             continue;
         }
         tCompositeDrawable::DrawablePropElement* propElem = static_cast< tCompositeDrawable::DrawablePropElement* >( elem );
-        if( propElem->GetDrawable()->GetUID() == tEntity::MakeUID( "MoonShape" ) )
+        tUID uid = propElem->GetDrawable()->GetUID();
+        if( uid == tEntity::MakeUID( "MoonShape" ) || uid == tEntity::MakeUID( "sunset_bb_bbgShape" ) )
         {
             rmt::Sphere moon;
             propElem->GetDrawable()->GetBoundingSphere( &moon );

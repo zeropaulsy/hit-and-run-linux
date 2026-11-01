@@ -84,8 +84,8 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 - Compass direction: the sky's painted sun = the level's lens flare (`LensFlareDSG::SetCompositeDrawable`, its
   visibility mesh's joint, camera-relative -> `pvkSunSetSkyDirection`; the PC never draws the flare); L7 (night, no
   flare): the sky's `MoonShape` element (`WorldSphereDSG::SetCompositeDrawable`, UID match: release strips names),
-  0,0.343,0.940, 20 deg up. Neither: the game's key light (L7's was ~85 deg off the moon). L1 sky sun 0.557,0.245,0.794 (in front of the Simpsons' house, 14 deg up); the key light is ~85
-  deg round from it (behind the house), ~30 deg up. Height per level: `kLevelElevation` (L1 35 deg; 0 = as is);
+  0,0.343,0.940, 20 deg up; L6: the billboard group `sunset_bb_bbgShape` (shader `l6_background_L6_moon_m`), -0.985,0.172,0.018, 9.9 deg up. Neither: the game's key light (L7's was ~85 deg off the moon). L1 sky sun 0.557,0.245,0.794 (in front of the Simpsons' house, 14 deg up); the key light is ~85
+  deg round from it (behind the house), ~30 deg up. Height per level: `kLevelElevation` (measured: L1 14.2 sun, raised to 35; L2/L5 30 key light; L3 1.7 sunset sun; L4 19.4, L6 9.9, L7 20 moons; 0 = as is);
   level from `GameplayManager::SetLevelIndex` (`pvkSunSetLevel`). `SHAR_SUN_LOG=1` prints the sky's sun.
 - Receivers: depth-writing, blend none or alpha (characters fade near the camera: always alpha-blended). Lit draws
   trace from every surface with ray mask 0x01 (world only; lit instances are 0x02): no self-shadow on top of the

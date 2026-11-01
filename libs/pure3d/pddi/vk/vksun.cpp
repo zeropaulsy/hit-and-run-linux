@@ -59,8 +59,17 @@ static int s_debug = 0;            // SHAR_SUN_DEBUG=1: shadowed pixels show the
 static const char* s_drawingMaterial = "-";
 static const char* s_drawingFile = "-";
 
-// the sun's height per level, degrees (0: as it is). The sky's sun (lens flare) is low (L1 14 degrees): long shadows.
-static const float kLevelElevation[] = { 35.0f };
+// the sun's height per level, degrees (0: as it is), the compass direction kept. Tuned per map; the levels' own
+// (SHAR_SUN_ELEVATION=0, SHAR_SUN_LOG=1): L1 14.2, L2 30, L3 1.7, L4 19.4, L5 30, L6 9.9, L7 20.
+static const float kLevelElevation[] = {
+    35.0f,  // L1: the sky's sun (lens flare)
+    30.0f,  // L2: the key light (no sun in the sky)
+    10.0f,  // L3: the sky's sunset sun
+    19.4f,  // L4: the sky's moon (MoonShape)
+    30.0f,  // L5: the key light
+    15.0f,  // L6: the sky's moon (sunset_bb_bbgShape billboards)
+    20.0f,  // L7: the sky's moon (MoonShape)
+};
 static int s_level = -1;
 static float s_elevation = -1.0f;      // SHAR_SUN_ELEVATION: every level
 
