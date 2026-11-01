@@ -36,7 +36,9 @@
   `SUPERCAM_DEBUG` (supercam.h) and `DrawFrustrum` are on for Linux release builds for debugcam. The debug view
   doesn't show during the level-start intro (another camera has the view).
 - `lang` must not swap the dialogue cement file mid-level (`daSoundRenderingManager::SetLanguage`): heap corruption
-  (`free(): invalid size` at shutdown); retail PC has only `dialog.rcf` anyway.
+  (`free(): invalid size` at shutdown); retail PC has only `dialog.rcf` anyway. Text: the game loads only the
+  startup language's strings (`FeTextBibleLoader::SetOnlyLoadCurrentLanguage`, guisystem.cpp); with the console on
+  it loads all four (retail `srr2.p3d` has them), so `lang` switches text (seen: mission objective in French).
 - `save` mid-level: the save only reports back through `GameDataManager::Update` (minimum save time), which the
   original calls only in bootup/frontend/pause contexts; `GameplayContext::OnUpdate` calls it too on Linux.
   `load` mid-level would change progress under a running level: front end only (then Resume Game).
@@ -66,7 +68,7 @@
 - `SHAR_CONSOLE_SCRIPT="ms:line;ms:line"` opens the console and runs the lines at those times; `DevConsole::Print`
   output also goes to stderr as `console: ...`. Verify drawing with `SHAR_SHOT_EVERY`. Close: `SHAR_KEYPRESS_SCRIPT=Escape@ms`.
 - Scratch run dir for save/load (run/ has the user's saves).
-- Not done: memcheck/audit build, real typing on Wayland IME, `lang` text seen on screen.
+- Not done: memcheck/audit build, real typing on Wayland IME.
 
 ## Next
 - Pause the game while open (Source single-player), cvars (`name value`), autoexec, Lua lines, stderr tee.
