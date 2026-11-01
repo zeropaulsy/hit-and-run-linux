@@ -241,16 +241,23 @@ bool pvkPipeline::BuildProgram(Program& p, const char* name, const char* header,
                                               "#define PVK_SUN 1\n#define PVK_SUN_RAYS 1\n#define PVK_SUN_QUAD 1\n";
     // no ray queries on the device: the baked map alone (low)
     static const char* const kSunMapHeader = "#version 460 core\n#define PVK_SUN 1\n";
-    bool sun = !custom && pvkSunReady() && strncmp(header, kVersion330, strlen(kVersion330)) == 0;
+    // custom GLSL materials too (pglCustomFragmentMain shades ShadeMaterial's colour); not SPIR-V ones (the user's
+    // fragment module has no sun)
+    if(!fragmentHeader)
+        fragmentHeader = header;
+    bool sun = !spirvFragment && pvkSunReady() && strncmp(header, kVersion330, strlen(kVersion330)) == 0 &&
+               strncmp(fragmentHeader, kVersion330, strlen(kVersion330)) == 0;
     const char* sunHeader = !pvkSunRays() ? kSunMapHeader : g_pvk->quadFragment ? kSunQuadHeader : kSunHeader;
     const char* headerParts[] = { sun ? sunHeader : header,
                                   sun ? header + strlen(kVersion330) : "",
                                   "#define PVK 1\n", NULL };
-    const char* fragmentHeaderParts[] = { fragmentHeader ? fragmentHeader : header, "#define PVK 1\n", NULL };
+    const char* fragmentHeaderParts[] = { sun ? sunHeader : fragmentHeader,
+                                          sun ? fragmentHeader + strlen(kVersion330) : "",
+                                          "#define PVK 1\n", NULL };
     char* vertex = Join(vertexParts);
     char* fragment = Join(fragmentParts);
     char* vh = Join(headerParts);
-    char* fh = Join(sun ? headerParts : fragmentHeaderParts);
+    char* fh = Join(fragmentHeaderParts);
     shar_glsl_program compiled;
     bool ok = vertex && fragment && vh && fh && shar_glsl_compile(name, vh, vertex, fh, fragment, &compiled);
     free(vertex);

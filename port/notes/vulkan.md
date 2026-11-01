@@ -150,7 +150,8 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   world meshes (materials named *tree*shad*: `treeshadow_m`, `deadtree_shadow_m`, ...; `pvkMat::BakedTreeShadow`,
   skipped in `pvkContext::DrawPrimBuffer`). Kept: shadow-flagged world geometry
   (`StaticEntityDSG` IS_SHADOW: a few ~100 m chunks, rarely drawn).
-- Gaps: custom material shaders get no sun, additive-blended foliage never casts.
+- Custom GLSL materials get the sun (`SunShade` on ShadeMaterial in pglCustomFragmentMain); SPIR-V ones do not.
+- Gaps: SPIR-V material shaders get no sun, additive-blended foliage never casts.
 - Map window follows `s_worldEye`, the camera of the last caster drawn: the frame's last LoadViewMatrix is the HUD
   radar's (150 m up), which put level 0 off the player (coarse levels, faint shadows; High hid it under rays).
 

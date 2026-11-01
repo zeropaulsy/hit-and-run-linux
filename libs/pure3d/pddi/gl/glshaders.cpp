@@ -610,7 +610,13 @@ const char* const pglCustomFragmentMain =
     "\n"
     "void main()\n"
     "{\n"
+    "#ifdef PVK_SUN\n"
+    "    vec4 c = ShadeMaterial();\n"
+    "    c.rgb = SunShade(c.rgb);\n"
+    "    FinishFragment(c);\n"
+    "#else\n"
     "    FinishFragment(ShadeMaterial());\n"
+    "#endif\n"
     "}\n";
 
 const pglProgramSource pglProgramSources[PGL_PROGRAM_COUNT] =
