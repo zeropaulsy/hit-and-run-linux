@@ -283,6 +283,8 @@ const char* const pglFragmentPrelude =
     "uniform vec4 uSun;             // x: 0 none, 1 pre-lit, 2 lit; y, z: pre-lit shadow, sunlit; w: lit shadow\n"
     "uniform vec2 uSunSoft;         // the sun disc's radius (tangent), rays per pixel\n"
     "uniform vec3 uSunRange;        // full rays to x (one at 2x), no shadow past y (faded from 0.8y), ray length z\n"
+    "uniform vec3 uSunColour;       // the sunlight's tint (by the sun's height; luminance 1)\n"
+    "uniform vec3 uShadeColour;     // the shade's (sky light)\n"
     "#ifdef PVK_SUN_RAYS\n"
     "layout(binding = 5) uniform accelerationStructureEXT uSunScene;\n"
     "// with the baked map: the static world it is baked from, for the edges it cannot draw (else uSunScene again)\n"
@@ -555,8 +557,11 @@ const char* const pglFragmentPrelude =
     "        lit *= map;\n"
     "    lit = mix(lit, 1.0, fade);\n"
     "    if(!litDraw)\n"
-    "        return c * (uSun.y + (uSun.z - uSun.y) * lit * max(nl, 0.0));\n"
-    "    return c * mix(uSun.w, 1.0, lit);\n"
+    "    {\n"
+    "        vec3 shade = uShadeColour * uSun.y;\n"
+    "        return c * (shade + (uSunColour * uSun.z - shade) * lit * max(nl, 0.0));\n"
+    "    }\n"
+    "    return c * mix(uShadeColour * uSun.w, vec3(1.0), lit);\n"
     "}\n"
     "#endif\n"
     "// fog, then the alpha test\n"
@@ -624,4 +629,5 @@ const char* const pglUniformNames[U_COUNT] =
     "uReflectionTextured", "uReflection", "uEnvBlend", "uAlphaToCoverage", "uTime", "uResolution", "uMipAlpha",
     "uScreen", "uRefractColour", "uRefractIndex", "uRefractBlend",
     "uEyeToWorld", "uSunDirection", "uSun", "uSunSoft", "uSunRange", "uSunMap", "uSunMapInfo",
+    "uSunColour", "uShadeColour",
 };

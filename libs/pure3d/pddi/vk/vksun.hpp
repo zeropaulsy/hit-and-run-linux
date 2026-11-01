@@ -54,6 +54,8 @@ unsigned pvkSunVersion();
 // sun disc's radius (penumbra), rays per pixel; range: full rays to (one at twice it), no shadow past (0: everywhere),
 // ray length, metres
 void pvkSunParameters(float* direction, float* levels, float* soft, float* range);
+// the sunlight's and the shade's tints (luminance 1) for the sun's height and the level
+void pvkSunColours(float* sun, float* shade);
 
 // the level being played (RenderEnums::LevelEnum: 0 = level 1), for its sun's height
 void pvkSunSetLevel(int level);

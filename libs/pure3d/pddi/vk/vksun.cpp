@@ -73,6 +73,14 @@ static const float kLevelElevation[] = {
 static int s_level = -1;
 static float s_elevation = -1.0f;      // SHAR_SUN_ELEVATION: every level
 
+// the light's colour by the sun's height: warm low, near white high; the shade a little blue (sky light). Night
+// levels (the moon) cool both. Luminance kept at 1 (the levels set the brightness). SHAR_SUN_TINT: strength (0 off),
+// SHAR_SUN_COLOUR / SHAR_SUN_SHADE_COLOUR=r,g,b: fixed tints (normalised the same)
+static const bool kLevelNight[] = { false, false, false, true, false, true, true };
+static float s_tint = 1.0f;
+static float s_fixedSunColour[3], s_fixedShadeColour[3];
+static bool s_sunColourFixed = false, s_shadeColourFixed = false;
+
 // the sky's painted sun (the level's lens flare, LensFlareDSG): the compass direction when there is one, else the
 // game's key light (L1: ~85 degrees round from the sky's sun, behind the Simpsons' house)
 static bool s_sky = false;
@@ -121,6 +129,13 @@ bool pvkSunWanted()
             s_fixedDirection = true;
         }
         s_elevation = EnvFloat("SHAR_SUN_ELEVATION", -1.0f);
+        s_tint = EnvFloat("SHAR_SUN_TINT", s_tint);
+        const char* sc = getenv("SHAR_SUN_COLOUR");
+        s_sunColourFixed = sc && sscanf(sc, "%f,%f,%f", &s_fixedSunColour[0], &s_fixedSunColour[1],
+                                        &s_fixedSunColour[2]) == 3;
+        const char* hc = getenv("SHAR_SUN_SHADE_COLOUR");
+        s_shadeColourFixed = hc && sscanf(hc, "%f,%f,%f", &s_fixedShadeColour[0], &s_fixedShadeColour[1],
+                                          &s_fixedShadeColour[2]) == 3;
         s_softDegrees = EnvFloat("SHAR_SUN_SOFT", s_softDegrees);
         s_rays = EnvFloat("SHAR_SUN_RAYS", s_rays);
         s_rays = s_rays < 1.0f ? 1.0f : s_rays > 32.0f ? 32.0f : floorf(s_rays);
@@ -145,6 +160,8 @@ bool pvkSunWanted()
 
 void pvkSunSetLevel(int level)
 {
+    if(level != s_level)
+        s_version++;        // the tints
     s_level = level;
 }
 
@@ -296,6 +313,47 @@ void pvkSunParameters(float* direction, float* levels, float* soft, float* range
         soft[1] = 4.0f;         // low: no rays; the map's taps (twice this, 8 at least)
     if(s_debug)
         soft[1] = -1.0f;        // the shader's debug view: one ray, the blocker's id as the colour
+}
+
+// scaled to luminance 1, then towards white by 1 - SHAR_SUN_TINT
+static void Tint(const float* from, float* out)
+{
+    float l = 0.3f * from[0] + 0.59f * from[1] + 0.11f * from[2];
+    for(int c = 0; c < 3; c++)
+        out[c] = 1.0f + ((l > 0.0f ? from[c] / l : 1.0f) - 1.0f) * s_tint;
+}
+
+static void Mix(const float* a, const float* b, float t, float* out)
+{
+    for(int c = 0; c < 3; c++)
+        out[c] = a[c] + (b[c] - a[c]) * t;
+}
+
+void pvkSunColours(float* sun, float* shade)
+{
+    pvkSunWanted();
+    float elevation = asinf(s_direction[1] < -1.0f ? -1.0f : s_direction[1] > 1.0f ? 1.0f : s_direction[1]) *
+                      180.0f / 3.14159265f;
+    float t = (elevation - 5.0f) / 40.0f;      // 5 degrees up: the warmest, 45: the whitest
+    t = t < 0.0f ? 0.0f : t > 1.0f ? 1.0f : t;
+    t = t * t * (3.0f - 2.0f * t);
+    bool night = s_level >= 0 && s_level < (int)(sizeof(kLevelNight) / sizeof(kLevelNight[0])) && kLevelNight[s_level];
+    static const float kLowSun[3] = { 1.0f, 0.84f, 0.66f }, kHighSun[3] = { 1.0f, 0.97f, 0.92f };
+    static const float kLowShade[3] = { 0.86f, 0.90f, 1.08f }, kHighShade[3] = { 0.93f, 0.96f, 1.04f };
+    static const float kMoon[3] = { 0.86f, 0.93f, 1.08f }, kNightShade[3] = { 0.84f, 0.90f, 1.10f };
+    float s[3], h[3];
+    if(night)
+    {
+        memcpy(s, kMoon, sizeof(s));
+        memcpy(h, kNightShade, sizeof(h));
+    }
+    else
+    {
+        Mix(kLowSun, kHighSun, t, s);
+        Mix(kLowShade, kHighShade, t, h);
+    }
+    Tint(s_sunColourFixed ? s_fixedSunColour : s, sun);
+    Tint(s_shadeColourFixed ? s_fixedShadeColour : h, shade);
 }
 
 void pvkSunNoteLight(const float* eye, const float* colour)
@@ -2236,6 +2294,14 @@ void pvkSunEndFrame()
         {
             memcpy(s_direction, s_bestDirection, sizeof(s_direction));
             s_version++;
+            if(s_log)
+            {
+                float sun[3], shade[3];
+                pvkSunColours(sun, shade);
+                fprintf(stderr, "PDDI sun: %.1f degrees up, light %.2f %.2f %.2f, shade %.2f %.2f %.2f\n",
+                        asinf(s_direction[1]) * 180.0f / 3.14159265f, sun[0], sun[1], sun[2], shade[0], shade[1],
+                        shade[2]);
+            }
             if(baking)
             {
                 MapReset();

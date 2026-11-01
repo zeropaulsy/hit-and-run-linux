@@ -782,6 +782,10 @@ void pvkPipeline::UploadUniforms(Program& p)
         SetFloats(p, U_SUNDIRECTION, direction, 1, 3);
         SetFloats(p, U_SUNSOFT, soft, 1, 2);
         SetFloats(p, U_SUNRANGE, range, 1, 3);
+        float sunColour[3], shadeColour[3];
+        pvkSunColours(sunColour, shadeColour);
+        SetFloats(p, U_SUNCOLOUR, sunColour, 1, 3);
+        SetFloats(p, U_SHADECOLOUR, shadeColour, 1, 3);
         float windows[16], info[4];
         pvkSunMap(windows, info);
         SetFloats(p, U_SUNMAP, windows, 4, 4);

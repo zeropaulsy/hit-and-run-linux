@@ -87,6 +87,10 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   0,0.343,0.940, 20 deg up; L6: the billboard group `sunset_bb_bbgShape` (shader `l6_background_L6_moon_m`), -0.985,0.172,0.018, 9.9 deg up. Neither: the game's key light (L7's was ~85 deg off the moon). L1 sky sun 0.557,0.245,0.794 (in front of the Simpsons' house, 14 deg up); the key light is ~85
   deg round from it (behind the house), ~30 deg up. Height per level: `kLevelElevation` (measured: L1 14.2 sun, raised to 35; L2/L5 30 key light; L3 1.7 sunset sun; L4 19.4, L6 9.9, L7 20 moons; 0 = as is);
   level from `GameplayManager::SetLevelIndex` (`pvkSunSetLevel`). `SHAR_SUN_LOG=1` prints the sky's sun.
+- Tint (`pvkSunColours` -> `uSunColour`/`uShadeColour`, luminance 1): sunlight warm at 5 deg, near white by 45;
+  shade slightly blue (sky). Night levels (`kLevelNight`: L4/L6/L7) moon-blue both. Pre-lit: shade/sunlit levels x
+  tints; lit draws: only the shadow tinted. `SHAR_SUN_TINT` strength (0 off), `SHAR_SUN_COLOUR`/`SHAR_SUN_SHADE_COLOUR=r,g,b`.
+  The world's vertex colours already carry each level's mood (L3 orange): keep it gentle.
 - Receivers: depth-writing, blend none or alpha (characters fade near the camera: always alpha-blended). Lit draws
   trace from every surface with ray mask 0x01 (world only; lit instances are 0x02): no self-shadow on top of the
   game's own shading.
@@ -203,6 +207,8 @@ What each setting does:
 - SHAR_SUN_LIT_SHADOW: the same for characters and cars, default 0.7.
   - Keep it near SHAR_SUN_SHADOW, or Homer will look brighter or darker than the ground he's standing on.
 - SHAR_SUN_LIGHT: how bright sunlit ground gets, default 1.22. Lower it toward 1.0 if sunlit areas look washed out.
+- SHAR_SUN_TINT: how strongly the light's colour follows the sun's height (warm low sun, blue-ish shade), default 1.
+  - 0 turns the tint off, 2 doubles it. SHAR_SUN_COLOUR=r,g,b / SHAR_SUN_SHADE_COLOUR=r,g,b set fixed colours (brightness kept).
 - SHAR_SUN_NEAR: rays are at full count up to this distance (default 80 m), dropping to 1 at twice it.
 - SHAR_SUN_FAR: shadows fade out towards this distance and no rays are traced past it (default 320 m, 0 = never).
 - SHAR_SUN_REACH: how far a ray looks for a caster (default 150 m). Raise it if tall buildings lose far shadows at a low sun.
