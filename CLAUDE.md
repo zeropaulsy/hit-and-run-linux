@@ -1,7 +1,7 @@
 # CLAUDE.md: The Simpsons Hit & Run, native Linux port
 
-Port of the 2003 source to Linux (x86-64 default, 32-bit legacy), SDL2 + OpenGL 3.3 core (Vulkan 1.3 renderer in
-progress, `renderer=vulkan`). Original dump:
+Port of the 2003 source to Linux (x86-64 default, 32-bit legacy), SDL2 + Vulkan 1.3 (default) or OpenGL 3.3 core
+(fallback, `renderer=opengl`). Original dump:
 `~/Documents/Decomp/hitnrun_source/game` (never modify). Base game plays end to end (all story missions, bonus missions, street races); retail PC
 data works; Mod Launcher mods partly. Missing: steering-wheel FFB. `README.md` user overview, `TODO.md` checklist, `DONE.md` completed checklist,
 `RUST.md` possible Rust/Bevy rewrite.

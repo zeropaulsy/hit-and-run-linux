@@ -1407,7 +1407,7 @@ Win32Platform::Win32Platform( HINSTANCE hInstance, HINSTANCE hPrevInstance, LPST
     mAntialiasing = 4;      // 4x MSAA unless simpsons.ini says otherwise
     mMipmaps = true;        // mipmapped textures with 16x anisotropic filtering, likewise
     mAnisotropy = 16;
-    mRenderer = RENDERER_OPENGL;
+    mRenderer = RENDERER_VULKAN; // Vulkan, likewise (OpenGL when Vulkan cannot draw)
 #endif
 
 #ifdef RAD_LINUX

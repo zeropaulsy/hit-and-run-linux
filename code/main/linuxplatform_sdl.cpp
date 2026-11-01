@@ -82,8 +82,8 @@ static bool WantVulkan()
         return strcasecmp( e, "vulkan" ) == 0;
     FILE* f = fopen( "simpsons.ini", "r" );
     if( f == NULL )
-        return false;
-    bool vulkan = false;
+        return true;        // Vulkan unless simpsons.ini says otherwise
+    bool vulkan = true;
     char line[ 256 ];
     while( fgets( line, sizeof( line ), f ) )
     {
@@ -138,6 +138,13 @@ bool Win32Platform::InitializeWindow( HINSTANCE hInstance )
 
     bool vulkan = WantVulkan( );
     SDL_Window* window = CreateGameWindow( vulkan );
+    if( window == NULL && vulkan )
+    {
+        // no Vulkan loader or driver: OpenGL, on the same video driver
+        fprintf( stderr, "Vulkan renderer unavailable (%s): using OpenGL\n", SDL_GetError() );
+        vulkan = false;
+        window = CreateGameWindow( false );
+    }
     if( window == NULL && strcmp( SDL_GetCurrentVideoDriver( ), "wayland" ) == 0 )
     {
         // A Wayland window can still fail where X11 works (a driver's EGL platform): fall back to XWayland

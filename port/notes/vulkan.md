@@ -1,7 +1,7 @@
 # Vulkan renderer (`libs/pure3d/pddi/vk/`)
 
-Third pddi beside GL (GL stays the default and the fallback). ini `renderer=vulkan` (Options > Graphics, next
-start); `SHAR_RENDERER=vulkan|opengl` overrides.
+Third pddi beside GL. Default (no ini `renderer=`); GL is the fallback when no Vulkan window can be made or pvkStart
+fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_RENDERER=vulkan|opengl` overrides.
 
 ## Goals
 - Same picture as GL: GL is the reference (and dx8 in the dump behind it). Any difference is a Vulkan bug unless
