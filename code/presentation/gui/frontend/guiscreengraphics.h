@@ -2,8 +2,9 @@
 // Component:   CGuiScreenGraphics
 //
 // Description: Linux port: Options > Graphics (front end and pause menu): anti-aliasing, the user's shaders
-//              (shaders/) and the renderer. Built on the Display screen's page: its first three rows get
-//              copies of their texts with this screen's labels and values, shown while this screen is up.
+//              (shaders/), the renderer and shadows. Built on the Display screen's page: its first three rows get
+//              copies of their texts with this screen's labels and values, shown while this screen is up; the
+//              fourth is a copy of the third row (arrows too) a row down, where the hidden gamma slider was.
 //
 //===========================================================================
 
@@ -46,11 +47,13 @@ protected:
 	void InitOutro();
 
 private:
+    // in row order (labels and values: the constructor's switch)
     enum eMenuItem
     {
+        MENU_ITEM_RENDERER,
         MENU_ITEM_ANTIALIASING,
         MENU_ITEM_SHADERS,
-        MENU_ITEM_RENDERER,
+        MENU_ITEM_SHADOWS,          // a row below the Display page's (in the hidden gamma slider's place)
 
         NUM_MENU_ITEMS
     };
@@ -59,7 +62,8 @@ private:
     bool m_inGame;
     bool m_changed;
 
-    // the Display page's rows (label, value, arrows) and this screen's copies of the texts
+    // the Display page's rows (label, value, arrows; NULL texts past its rows) and this screen's copies of the texts
+    // (and of the arrows past its rows)
     Scrooby::Text* m_displayLabels[ NUM_MENU_ITEMS ];
     Scrooby::Text* m_displayValues[ NUM_MENU_ITEMS ];
     Scrooby::Sprite* m_arrows[ NUM_MENU_ITEMS ][ 2 ];

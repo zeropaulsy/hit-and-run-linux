@@ -72,7 +72,8 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 
 
 ## Sun prototype (branch `vulkan-sun`, `vksun.cpp`)
-- On by default (`SHAR_SUN=0` off; device made with ray queries + buffer device address), F9 toggles. Off/unsupported: programs and
+- Off by default: Options > Graphics Shadows (ini `shadows=`), F9 toggles (saved like the menu). Device made with ray
+  queries + buffer device address unless `SHAR_SUN=0` (so the menu applies at once); `SHAR_SUN=1` forces on. Off/unsupported: programs and
   layout as before. `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_ELEVATION=deg`
   (every level), `SHAR_SUN_SOFT=deg` (sun disc radius, default 0.3; 0 = hard), `SHAR_SUN_RAYS` (default 8),
   `SHAR_SUN_LOG=1` (2: every caster named as built: id, material, file, size), `SHAR_SUN_DEBUG=1` (one ray;
@@ -144,7 +145,7 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 - Gaps: custom material shaders get no sun, additive-blended foliage never casts.
 
 ## Sun Defaults
-The sun is on by default (SHAR_SUN=0 turns it off). The defaults are SHAR_SUN_SOFT=0.3, SHAR_SUN_RAYS=8,
+The sun is off by default (Options > Graphics Shadows, or SHAR_SUN=1). The defaults are SHAR_SUN_SOFT=0.3, SHAR_SUN_RAYS=8,
 SHAR_SUN_NEAR=80, SHAR_SUN_FAR=320, SHAR_SUN_BAKE_BUDGET=4000000 and SHAR_SUN_SHADOW=0.68. These presets are good for comparing:
 
 Defaults (crisp, like a real sun):

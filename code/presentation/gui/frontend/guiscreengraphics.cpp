@@ -33,19 +33,13 @@ static const char* DISPLAY_ROWS[] =
     "ColourDepth",
     "DisplayMode"
 };
+static const int NUM_DISPLAY_ROWS = sizeof( DISPLAY_ROWS ) / sizeof( DISPLAY_ROWS[ 0 ] );
 
-static const char* GRAPHICS_LABELS[] =
-{
-    "Anti-Aliasing",
-    "Shaders",
-    "Renderer"
-};
-
-static const int ANTIALIASING_SAMPLES[] = { 0, 2, 4, 8 };
+static const int ANTIALIASING_SAMPLES[] = { 0, 2, 4, 8};
 static const char* ANTIALIASING_VALUES[] = { "Off", "2x", "4x", "8x" };
 static const int NUM_ANTIALIASING_VALUES = sizeof( ANTIALIASING_SAMPLES ) / sizeof( ANTIALIASING_SAMPLES[ 0 ] );
 
-static const char* SHADERS_VALUES[] = { "Off", "On" };
+static const char* ON_OFF_VALUES[] = { "Off", "On" };
 
 static const char* RENDERER_VALUES[ Win32Platform::NUM_RENDERERS ] = { "OpenGL", "Vulkan" };
 
@@ -115,54 +109,102 @@ MEMTRACK_PUSH_GROUP( "CGuiScreenGraphics" );
     m_pMenu = new CGuiMenu( this, NUM_MENU_ITEMS );
     rAssert( m_pMenu != NULL );
 
+    // the rows' spacing, for the rows past the Display page's
+    int x0, y0, x1, y1;
+    pPage->GetGroup( DISPLAY_ROWS[ 0 ] )->GetText( DISPLAY_ROWS[ 0 ] )->GetOriginPosition( x0, y0 );
+    pPage->GetGroup( DISPLAY_ROWS[ 1 ] )->GetText( DISPLAY_ROWS[ 1 ] )->GetOriginPosition( x1, y1 );
+    int rowStep = y1 - y0;
+
     char itemName[ 32 ];
     for( int i = 0; i < NUM_MENU_ITEMS; i++ )
     {
-        Scrooby::Group* group = pPage->GetGroup( DISPLAY_ROWS[ i ] );
+        int row = i < NUM_DISPLAY_ROWS ? i : NUM_DISPLAY_ROWS - 1;
+        Scrooby::Group* group = pPage->GetGroup( DISPLAY_ROWS[ row ] );
         rAssert( group != NULL );
 
-        m_displayLabels[ i ] = group->GetText( DISPLAY_ROWS[ i ] );
-        sprintf( itemName, "%s_Value", DISPLAY_ROWS[ i ] );
-        m_displayValues[ i ] = group->GetText( itemName );
-        rAssert( m_displayLabels[ i ] != NULL && m_displayValues[ i ] != NULL );
+        Scrooby::Text* displayLabel = group->GetText( DISPLAY_ROWS[ row ] );
+        sprintf( itemName, "%s_Value", DISPLAY_ROWS[ row ] );
+        Scrooby::Text* displayValue = group->GetText( itemName );
+        rAssert( displayLabel != NULL && displayValue != NULL );
 
         // shared with the Display screen's menu, which already scaled them (AddMenuItem would again)
-        sprintf( itemName, "%s_ArrowL", DISPLAY_ROWS[ i ] );
+        sprintf( itemName, "%s_ArrowL", DISPLAY_ROWS[ row ] );
         m_arrows[ i ][ 0 ] = group->GetSprite( itemName );
-        sprintf( itemName, "%s_ArrowR", DISPLAY_ROWS[ i ] );
+        sprintf( itemName, "%s_ArrowR", DISPLAY_ROWS[ row ] );
         m_arrows[ i ][ 1 ] = group->GetSprite( itemName );
         rAssert( m_arrows[ i ][ 0 ] != NULL && m_arrows[ i ][ 1 ] != NULL );
+
+        m_displayLabels[ i ] = NULL;
+        m_displayValues[ i ] = NULL;
+        if( i < NUM_DISPLAY_ROWS )
+        {
+            m_displayLabels[ i ] = displayLabel;
+            m_displayValues[ i ] = displayValue;
+        }
+        else
+        {
+            // past the page's rows: the last row's arrows copied, moved down
+            for( int a = 0; a < 2; a++ )
+            {
+                sprintf( itemName, "Graphics%d_Arrow%c", i, a == 0 ? 'L' : 'R' );
+                Scrooby::Sprite* arrow = m_arrows[ i ][ a ]->Clone( itemName );
+                rAssert( arrow != NULL );
+                int x, y;
+                arrow->GetOriginPosition( x, y );
+                arrow->SetPosition( x, y + rowStep * ( i - row ) );
+                m_arrows[ i ][ a ] = arrow;
+            }
+        }
         rmt::Matrix arrowTransforms[ 2 ] = { *m_arrows[ i ][ 0 ]->GetTransform(), *m_arrows[ i ][ 1 ]->GetTransform() };
 
+        const char* label = NULL;
         const char* const* values = NULL;
         int numValues = 0;
         switch( i )
         {
+            case MENU_ITEM_RENDERER:
+            {
+                label = "Renderer";
+                values = RENDERER_VALUES;
+                numValues = Win32Platform::NUM_RENDERERS;
+                break;
+            }
             case MENU_ITEM_ANTIALIASING:
             {
+                label = "Anti-Aliasing";
                 values = ANTIALIASING_VALUES;
                 numValues = NUM_ANTIALIASING_VALUES;
                 break;
             }
             case MENU_ITEM_SHADERS:
             {
-                values = SHADERS_VALUES;
+                label = "Shaders";
+                values = ON_OFF_VALUES;
                 numValues = 2;
                 break;
             }
-            case MENU_ITEM_RENDERER:
+            case MENU_ITEM_SHADOWS:
             {
-                values = RENDERER_VALUES;
-                numValues = Win32Platform::NUM_RENDERERS;
+                label = "Shadows";
+                values = ON_OFF_VALUES;
+                numValues = 2;
                 break;
             }
         }
 
         sprintf( itemName, "Graphics%d", i );
-        m_labels[ i ] = m_displayLabels[ i ]->Clone( itemName, GRAPHICS_LABELS[ i ] );
+        m_labels[ i ] = displayLabel->Clone( itemName, label );
         sprintf( itemName, "Graphics%d_Value", i );
-        m_values[ i ] = m_displayValues[ i ]->Clone( itemName, values[ 0 ] );
+        m_values[ i ] = displayValue->Clone( itemName, values[ 0 ] );
         rAssert( m_labels[ i ] != NULL && m_values[ i ] != NULL );
+        if( i != row )
+        {
+            int x, y;
+            m_labels[ i ]->GetOriginPosition( x, y );
+            m_labels[ i ]->SetPosition( x, y + rowStep * ( i - row ) );
+            m_values[ i ]->GetOriginPosition( x, y );
+            m_values[ i ]->SetPosition( x, y + rowStep * ( i - row ) );
+        }
         for( int v = 1; v < numValues; v++ )
         {
             m_values[ i ]->AddHardCodedString( values[ v ] );
@@ -237,6 +279,12 @@ void CGuiScreenGraphics::HandleMessage
                 int value = static_cast< int >( param2 );
                 switch( param1 )
                 {
+                    case MENU_ITEM_RENDERER:
+                    {
+                        // read at start-up
+                        plat->SetRenderer( value == 1 ? Win32Platform::RENDERER_VULKAN : Win32Platform::RENDERER_OPENGL );
+                        break;
+                    }
                     case MENU_ITEM_ANTIALIASING:
                     {
                         if( value >= 0 && value < NUM_ANTIALIASING_VALUES )
@@ -250,10 +298,9 @@ void CGuiScreenGraphics::HandleMessage
                         plat->SetUserShaders( value != 0 );
                         break;
                     }
-                    case MENU_ITEM_RENDERER:
+                    case MENU_ITEM_SHADOWS:
                     {
-                        // read at start-up
-                        plat->SetRenderer( value == 1 ? Win32Platform::RENDERER_VULKAN : Win32Platform::RENDERER_OPENGL );
+                        plat->SetShadows( value != 0 );
                         break;
                     }
                 }
@@ -295,9 +342,10 @@ void CGuiScreenGraphics::InitIntro()
             aa = k;
         }
     }
+    m_pMenu->SetSelectionValue( MENU_ITEM_RENDERER, plat->GetRenderer() == Win32Platform::RENDERER_VULKAN ? 1 : 0 );
     m_pMenu->SetSelectionValue( MENU_ITEM_ANTIALIASING, aa );
     m_pMenu->SetSelectionValue( MENU_ITEM_SHADERS, plat->GetUserShaders() ? 1 : 0 );
-    m_pMenu->SetSelectionValue( MENU_ITEM_RENDERER, plat->GetRenderer() == Win32Platform::RENDERER_VULKAN ? 1 : 0 );
+    m_pMenu->SetSelectionValue( MENU_ITEM_SHADOWS, plat->GetShadows() ? 1 : 0 );
 
     this->ShowPage( true );
 }
@@ -339,8 +387,11 @@ void CGuiScreenGraphics::ShowPage( bool graphics )
 {
     for( int i = 0; i < NUM_MENU_ITEMS; i++ )
     {
-        m_displayLabels[ i ]->SetVisible( !graphics );
-        m_displayValues[ i ]->SetVisible( !graphics );
+        if( m_displayLabels[ i ] != NULL )
+        {
+            m_displayLabels[ i ]->SetVisible( !graphics );
+            m_displayValues[ i ]->SetVisible( !graphics );
+        }
         m_labels[ i ]->SetVisible( graphics );
         m_values[ i ]->SetVisible( graphics );
         m_arrows[ i ][ 0 ]->SetVisible( false );

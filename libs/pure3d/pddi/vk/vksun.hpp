@@ -24,10 +24,12 @@
 
 class pvkTexture;
 
-bool pvkSunWanted();            // SHAR_SUN set: the device is made with ray queries
+bool pvkSunWanted();            // not SHAR_SUN=0: the device is made with ray queries
 bool pvkSunReady();             // ray queries on the device: programs are built with the sun's code
-bool pvkSunOn();                // shading with it now (F9)
-void pvkSunToggle();
+bool pvkSunOn();                // shading with it now (the setting, on a device that can)
+void pvkSunToggle();            // F9
+void pvkSunSetEnabled(bool on); // the setting (Options > Graphics Shadows, simpsons.ini shadows=; off by default)
+bool pvkSunEnabled();
 
 // p3d's camera (row vectors, translation in row 3)
 void pvkSetViewMatrix(const float* cameraToWorld);

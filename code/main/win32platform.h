@@ -181,8 +181,9 @@ public:
     bool IsBorderless() const { return mBorderless; }
     static void GetResolutionSize( Resolution res, int& x, int& y ) { TranslateResolution( res, x, y ); }
 
-    // Graphics settings (CGuiScreenGraphics; simpsons.ini antialiasing=, shaders=, renderer=). Anti-aliasing and
-    // the user's shaders (shaders/) change at once; the renderer is read at start-up.
+    // Graphics settings (CGuiScreenGraphics; simpsons.ini antialiasing=, shaders=, renderer=, shadows=). Anti-aliasing,
+    // the user's shaders (shaders/) and shadows change at once; the renderer is read at start-up. Shadows: the sun's
+    // ray-traced shadows (Vulkan with ray queries only; pddi/vk/vksun.hpp), off by default.
     enum Renderer
     {
         RENDERER_OPENGL,
@@ -196,6 +197,8 @@ public:
     bool GetUserShaders() const;
     void SetRenderer( Renderer renderer ) { mRenderer = renderer; }
     Renderer GetRenderer() const { return mRenderer; }
+    void SetShadows( bool on );
+    bool GetShadows() const;
 private:
 #endif
 

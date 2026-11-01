@@ -510,7 +510,7 @@ void StaticPhysDSG::RecomputeShadowPositionNoIntersect( float height, const rmt:
 }
 
 #ifdef RAD_LINUX
-bool pvkSunOn();    // pddi/vk/vksun.cpp: the sun's shadows are drawn (Vulkan unless SHAR_SUN=0, F9)
+bool pvkSunOn();    // pddi/vk/vksun.cpp: the sun's shadows are drawn (Vulkan, Options > Graphics Shadows, F9)
 #endif
 
 void StaticPhysDSG::DisplaySimpleShadow()

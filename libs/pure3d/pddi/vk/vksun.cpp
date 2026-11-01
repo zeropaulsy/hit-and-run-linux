@@ -28,7 +28,7 @@ static const float kMissingRange = 60.0f;
 static const unsigned kWorldStreak = 30;        // frames running with the same transform before it is baked
 
 static int s_wanted = -1;
-static bool s_enabled = true;
+static bool s_enabled = false;     // Options > Graphics Shadows (simpsons.ini shadows=), F9, SHAR_SUN=1
 static float s_eyeToWorld[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
 static unsigned s_version = 1;
 static float s_direction[3] = { 0.36f, 0.80f, 0.48f };
@@ -86,7 +86,9 @@ bool pvkSunWanted()
     if(s_wanted < 0)
     {
         const char* e = getenv("SHAR_SUN");
-        s_wanted = !e || e[0] != '0';      // on unless SHAR_SUN=0 (needs ray queries)
+        s_wanted = !e || e[0] != '0';      // ray queries on the device unless SHAR_SUN=0 (the menu can turn it on)
+        if(e && e[0] == '1')
+            s_enabled = true;
         s_levels[0] = EnvFloat("SHAR_SUN_SHADOW", s_levels[0]);
         s_levels[1] = EnvFloat("SHAR_SUN_LIGHT", s_levels[1]);
         s_levels[2] = EnvFloat("SHAR_SUN_LIT_SHADOW", s_levels[2]);
@@ -160,6 +162,18 @@ bool pvkSunReady()
 bool pvkSunOn()
 {
     return s_enabled && pvkSunReady();
+}
+
+void pvkSunSetEnabled(bool on)
+{
+    if(on != s_enabled)
+        s_version++;
+    s_enabled = on;
+}
+
+bool pvkSunEnabled()
+{
+    return s_enabled;
 }
 
 void pvkSunToggle()
