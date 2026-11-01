@@ -101,6 +101,11 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   in flight, built at Present before the upload barrier. Casters > 1500 m (sky) skipped, and those drawn at the
   camera (a 19 m ring moved with it: ring shadow round the player). Buffers rebuilt every frame (CPU-skinned
   characters: Lock each frame) rebuild their BLAS (fast-build) within 96 builds a frame, old shape meanwhile.
+  From the 5th build a `Skin`: same indices -> refit (MODE_UPDATE) of the last structure into the next of
+  pvkFrames (structure, input, scratch each; full build every 120), bounds over the used vertices only. A second
+  shape in one frame just rewrites the input the recorded build reads. Was ~0.4 ms CPU/frame in L1 plus GPU time.
+- Instance buffers are host-visible uncached: never read them (bitfield writes are read-modify-write: FillInstance
+  fills a local and copies; it cost ~0.45 ms/frame).
   Also skipped: casters > 8 m keeping the same offset from a moving camera, and draws whose projection is not the
   one set with the camera (`pvkSunInView`). A ring shadow that followed the player (user report) went away with
   these; neither check was seen to catch anything, cause unconfirmed: SHAR_SUN_DEBUG names it if it returns.

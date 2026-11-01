@@ -555,7 +555,36 @@ struct Blas
     unsigned meshVertices, meshTriangles;
     int meshMask, meshCompare;  // the alpha test (meshMask >= 0: alpha-tested)
     float meshRef;
+    struct Skin* skin;          // rebuilt every frame: updated instead (b.as is one of its structures)
 };
+
+// A caster rebuilt every frame (skinned characters; b.builds > 3): while its triangles stay the same, a new shape
+// updates (refits) the last structure into the next instead of a build from scratch. pvkFrames structures, inputs
+// (positions, then the triangles) and scratches, used in turn: the one written was last read by a frame that is done
+// (or by an earlier upload, ordered before this frame's by its closing barrier).
+struct Skin
+{
+    unsigned short* indices;    // as drawn: the same ones keep the structure
+    unsigned count, vertexCount;
+    bool strip;
+    pvkTexture* alphaTexture;
+    int alphaCompare;
+    float alphaRef;
+    unsigned triangles;
+    unsigned first, last;       // the vertices the triangles use (the bounds): first..last, or those in used
+    unsigned* used;
+    unsigned usedCount;
+    pvkBuffer input[pvkFrames], storage[pvkFrames], scratch[pvkFrames];
+    VkAccelerationStructureKHR as[pvkFrames];
+    VkDeviceAddress address[pvkFrames], scratchAddress[pvkFrames];
+    int current;                // b.as's
+    unsigned long long serial;  // the frame it was last built or updated in
+    unsigned updates;           // since the last full build
+};
+
+static const unsigned kSkinRebuild = 120;   // updates between full builds (a refitted tree loosens as the shape moves)
+static const VkBuildAccelerationStructureFlagsKHR kSkinFlags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR |
+                                                              VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
 
 static Blas* s_blas;
 static unsigned s_blasCount, s_blasCapacity;
@@ -575,8 +604,40 @@ static VkDeviceAddress BufferAddress(const pvkBuffer& b)
 
 static void GeometryFree(unsigned offset, unsigned words);
 
+static void FreeSkin(Blas& b, bool now)
+{
+    Skin* s = b.skin;
+    if(!s)
+        return;
+    for(int f = 0; f < pvkFrames; f++)
+    {
+        if(now)
+        {
+            if(s->as[f])
+                vkDestroyAccelerationStructureKHR(g_pvk->device, s->as[f], NULL);
+            g_pvk->DestroyNow(s->input[f]);
+            g_pvk->DestroyNow(s->storage[f]);
+            g_pvk->DestroyNow(s->scratch[f]);
+        }
+        else
+        {
+            g_pvk->RetireAccel(s->as[f]);
+            g_pvk->Retire(s->input[f]);
+            g_pvk->Retire(s->storage[f]);
+            g_pvk->Retire(s->scratch[f]);
+        }
+    }
+    free(s->indices);
+    free(s->used);
+    free(s);
+    b.skin = NULL;
+    b.as = VK_NULL_HANDLE;
+}
+
 static void ReleaseBlas(Blas& b)
 {
+    if(b.skin)
+        FreeSkin(b, false);
     g_pvk->RetireAccel(b.as);
     g_pvk->Retire(b.storage);
     g_pvk->Retire(b.mesh);
@@ -717,12 +778,34 @@ bool pvkSunBuffers(VkDescriptorBufferInfo* buffers)
     return true;
 }
 
+static void SetBounds(Blas& b, const float* lo, const float* hi)
+{
+    float d[3] = { hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2] };
+    b.size = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    memcpy(b.lo, lo, 12);
+    memcpy(b.hi, hi, 12);
+    b.huge = b.size > kHugeSize;
+}
+
+// the bounds of the triangles in list into b
+static void CasterBounds(Blas& b, const float* positions, const unsigned* list, unsigned triangles)
+{
+    float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
+    for(unsigned t = 0; t < triangles * 3; t++)
+        for(int k = 0; k < 3; k++)
+        {
+            float v = positions[list[t] * 3 + k];
+            lo[k] = v < lo[k] ? v : lo[k];
+            hi[k] = v > hi[k] ? v : hi[k];
+        }
+    SetBounds(b, lo, hi);
+}
+
 // a caster's triangles as a list (those in range; NULL: none), its bounds into b; malloc'd
 static unsigned* CasterTriangles(Blas& b, const float* positions, unsigned vertexCount, const unsigned short* indices,
                                  unsigned count, bool strip, unsigned* triangles)
 {
     unsigned* list = Triangles(indices, count, strip, triangles);
-    float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
     unsigned kept = 0;
     for(unsigned t = 0; t < *triangles; t++)
     {
@@ -731,13 +814,6 @@ static unsigned* CasterTriangles(Blas& b, const float* positions, unsigned verte
             continue;
         memmove(&list[kept * 3], tri, 12);
         kept++;
-        for(int i = 0; i < 3; i++)
-            for(int k = 0; k < 3; k++)
-            {
-                float v = positions[tri[i] * 3 + k];
-                lo[k] = v < lo[k] ? v : lo[k];
-                hi[k] = v > hi[k] ? v : hi[k];
-            }
     }
     *triangles = kept;
     if(kept == 0)
@@ -745,11 +821,7 @@ static unsigned* CasterTriangles(Blas& b, const float* positions, unsigned verte
         free(list);
         return NULL;
     }
-    float d[3] = { hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2] };
-    b.size = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-    memcpy(b.lo, lo, sizeof(lo));
-    memcpy(b.hi, hi, sizeof(hi));
-    b.huge = b.size > kHugeSize;
+    CasterBounds(b, positions, list, kept);
     return list;
 }
 
@@ -784,10 +856,181 @@ static bool BuildMesh(Blas& b, const float* positions, const float* uvs, unsigne
     return true;
 }
 
-// alphaSlot >= 0: alpha-tested (uvs, the mask and the test written to the table at id)
+static void BlasGeometry(VkAccelerationStructureGeometryKHR& geometry, VkAccelerationStructureBuildGeometryInfoKHR& build,
+                         VkDeviceAddress input, unsigned vertexCount, bool alpha, VkBuildAccelerationStructureFlagsKHR flags)
+{
+    memset(&geometry, 0, sizeof(geometry));
+    geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+    geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+    geometry.flags = alpha ? 0 : VK_GEOMETRY_OPAQUE_BIT_KHR;   // alpha-tested: the shaders decide
+    VkAccelerationStructureGeometryTrianglesDataKHR& tri = geometry.geometry.triangles;
+    tri.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+    tri.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+    tri.vertexData.deviceAddress = input;
+    tri.vertexStride = 12;
+    tri.maxVertex = vertexCount - 1;
+    tri.indexType = VK_INDEX_TYPE_UINT32;
+    tri.indexData.deviceAddress = input + (VkDeviceSize)vertexCount * 12;
+    memset(&build, 0, sizeof(build));
+    build.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+    build.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+    build.flags = flags;
+    build.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    build.geometryCount = 1;
+    build.pGeometries = &geometry;
+}
+
+// the skin's next structure from positions: an update of the current one, or every kSkinRebuild a full build
+static void SkinBuild(Blas& b, const float* positions, bool update)
+{
+    Skin* s = b.skin;
+    int next = (s->current + 1) % pvkFrames;
+    memcpy(s->input[next].memory.mapped, positions, (size_t)s->vertexCount * 12);
+    VkAccelerationStructureGeometryKHR geometry;
+    VkAccelerationStructureBuildGeometryInfoKHR build;
+    BlasGeometry(geometry, build, BufferAddress(s->input[next]), s->vertexCount, b.alpha, kSkinFlags);
+    if(update && s->updates < kSkinRebuild)
+    {
+        build.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR;
+        build.srcAccelerationStructure = s->as[s->current];
+        s->updates++;
+    }
+    else
+        s->updates = 0;
+    build.dstAccelerationStructure = s->as[next];
+    build.scratchData.deviceAddress = s->scratchAddress[next];
+    VkAccelerationStructureBuildRangeInfoKHR range = { s->triangles, 0, 0, 0 };
+    const VkAccelerationStructureBuildRangeInfoKHR* ranges = &range;
+    vkCmdBuildAccelerationStructuresKHR(g_pvk->UploadCmd(), 1, &build, &ranges);
+    s->current = next;
+    s->serial = g_pvk->FrameSerial();
+    b.as = s->as[next];
+    b.address = s->address[next];
+    s_buildsThisFrame++;
+}
+
+// b rebuilt every frame: its skin, built from positions (list freed)
+static bool MakeSkin(Blas& b, const float* positions, unsigned vertexCount, unsigned* list, unsigned triangles,
+                     const unsigned short* indices, unsigned count, bool strip, pvkTexture* alphaTexture,
+                     int alphaCompare, float alphaRef)
+{
+    Skin* s = (Skin*)calloc(1, sizeof(Skin));
+    b.skin = s;
+    s->indices = (unsigned short*)malloc((size_t)count * 2);
+    memcpy(s->indices, indices, (size_t)count * 2);
+    s->count = count;
+    s->vertexCount = vertexCount;
+    s->strip = strip;
+    s->alphaTexture = alphaTexture;
+    s->alphaCompare = alphaCompare;
+    s->alphaRef = alphaRef;
+    s->triangles = triangles;
+    // the vertices used, for the bounds: usually a run with none left out
+    unsigned char* seen = (unsigned char*)calloc(vertexCount, 1);
+    s->first = vertexCount;
+    s->last = 0;
+    for(unsigned t = 0; t < triangles * 3; t++)
+    {
+        unsigned v = list[t];
+        seen[v] = 1;
+        s->first = v < s->first ? v : s->first;
+        s->last = v > s->last ? v : s->last;
+    }
+    unsigned n = 0;
+    for(unsigned v = s->first; v <= s->last; v++)
+        n += seen[v];
+    if(n != s->last - s->first + 1)
+    {
+        s->used = (unsigned*)malloc(n * sizeof(unsigned));
+        for(unsigned v = s->first; v <= s->last; v++)
+            if(seen[v])
+                s->used[s->usedCount++] = v;
+    }
+    free(seen);
+
+    VkAccelerationStructureGeometryKHR geometry;
+    VkAccelerationStructureBuildGeometryInfoKHR build;
+    BlasGeometry(geometry, build, 0, vertexCount, b.alpha, kSkinFlags);
+    VkAccelerationStructureBuildSizesInfoKHR sizes = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+    vkGetAccelerationStructureBuildSizesKHR(g_pvk->device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &build,
+                                            &triangles, &sizes);
+    VkDeviceSize scratchSize = sizes.buildScratchSize > sizes.updateScratchSize ? sizes.buildScratchSize :
+                                                                                  sizes.updateScratchSize;
+    VkDeviceSize vertexBytes = (VkDeviceSize)vertexCount * 12;
+    for(int f = 0; f < pvkFrames; f++)
+    {
+        if(!g_pvk->CreateBuffer(vertexBytes + (VkDeviceSize)triangles * 12, kInputUsage, true, &s->input[f]) ||
+           !g_pvk->CreateBuffer(sizes.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+                                VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, &s->storage[f]) ||
+           !g_pvk->CreateBuffer(scratchSize + 256, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, &s->scratch[f]))
+        {
+            free(list);
+            FreeSkin(b, false);
+            return false;
+        }
+        memcpy(s->input[f].memory.mapped + vertexBytes, list, (size_t)triangles * 12);
+        s->scratchAddress[f] = (BufferAddress(s->scratch[f]) + 255) & ~(VkDeviceAddress)255;
+        VkAccelerationStructureCreateInfoKHR create = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
+        create.buffer = s->storage[f].buffer;
+        create.size = sizes.accelerationStructureSize;
+        create.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+        if(vkCreateAccelerationStructureKHR(g_pvk->device, &create, NULL, &s->as[f]) != VK_SUCCESS)
+        {
+            s->as[f] = VK_NULL_HANDLE;
+            free(list);
+            FreeSkin(b, false);
+            return false;
+        }
+        VkAccelerationStructureDeviceAddressInfoKHR ai = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
+        ai.accelerationStructure = s->as[f];
+        s->address[f] = vkGetAccelerationStructureDeviceAddressKHR(g_pvk->device, &ai);
+    }
+    free(list);
+    SkinBuild(b, positions, false);
+    return true;
+}
+
+static void SkinBounds(Blas& b, const float* positions)
+{
+    const Skin* s = b.skin;
+    float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
+    unsigned n = s->used ? s->usedCount : s->last - s->first + 1;
+    for(unsigned i = 0; i < n; i++)
+    {
+        const float* p = &positions[(s->used ? s->used[i] : s->first + i) * 3];
+        for(int k = 0; k < 3; k++)
+        {
+            lo[k] = p[k] < lo[k] ? p[k] : lo[k];
+            hi[k] = p[k] > hi[k] ? p[k] : hi[k];
+        }
+    }
+    SetBounds(b, lo, hi);
+}
+
+// a new shape for a skinned caster with the same triangles: its structure updated (false: build it again)
+static bool UpdateSkin(Blas& b, const float* positions, unsigned vertexCount, const unsigned short* indices,
+                       unsigned count, bool strip, pvkTexture* alphaTexture, int alphaCompare, float alphaRef)
+{
+    Skin* s = b.skin;
+    if(!s || !b.live || s->vertexCount != vertexCount || s->count != count || s->strip != strip ||
+       s->alphaTexture != alphaTexture || s->alphaCompare != alphaCompare || s->alphaRef != alphaRef ||
+       memcmp(s->indices, indices, (size_t)count * 2) != 0)
+        return false;
+    SkinBounds(b, positions);
+    if(s->serial == g_pvk->FrameSerial())
+        // a second shape this frame: the build recorded for the first reads it when the frame is submitted
+        memcpy(s->input[s->current].memory.mapped, positions, (size_t)vertexCount * 12);
+    else
+        SkinBuild(b, positions, true);
+    return true;
+}
+
+// alphaSlot >= 0: alpha-tested (uvs, the mask and the test written to the table at id). Rebuilt often (builds > 3):
+// made as a skin (alphaTexture and the test kept to tell when it changes)
 static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float* uvs, unsigned vertexCount,
-                      const unsigned short* indices, unsigned count, bool strip, int alphaSlot, int alphaCompare,
-                      float alphaRef)
+                      const unsigned short* indices, unsigned count, bool strip, int alphaSlot, pvkTexture* alphaTexture,
+                      int alphaCompare, float alphaRef)
 {
     bool alpha = alphaSlot >= 0 && uvs && id < kMaxCasterIds && s_casterTable.memory.mapped;
     b.alpha = false;
@@ -796,18 +1039,8 @@ static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float*
     if(!list)
         return false;
 
-    // the input in host-visible memory, read by the build straight from there
-    pvkBuffer input;
     VkDeviceSize vertexBytes = (VkDeviceSize)vertexCount * 12;
     VkDeviceSize triangleBytes = (VkDeviceSize)triangles * 12;
-    if(!g_pvk->CreateBuffer(vertexBytes + triangleBytes, kInputUsage, true, &input))
-    {
-        free(list);
-        return false;
-    }
-    memcpy(input.memory.mapped, positions, vertexBytes);
-    memcpy(input.memory.mapped + vertexBytes, list, triangleBytes);
-    VkDeviceAddress inputAddress = BufferAddress(input);
     unsigned offset = 0, words = vertexCount * 2 + triangles * 3;
     if(alpha && GeometryAlloc(words, &offset))
     {
@@ -827,30 +1060,27 @@ static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float*
     {
         // no room: it would cast as solid cards
         free(list);
-        g_pvk->Retire(input);
         return false;
     }
+    if(b.builds > 3)
+        return MakeSkin(b, positions, vertexCount, list, triangles, indices, count, strip, alphaTexture, alphaCompare,
+                        alphaRef);
+
+    // the input in host-visible memory, read by the build straight from there
+    pvkBuffer input;
+    if(!g_pvk->CreateBuffer(vertexBytes + triangleBytes, kInputUsage, true, &input))
+    {
+        free(list);
+        return false;
+    }
+    memcpy(input.memory.mapped, positions, vertexBytes);
+    memcpy(input.memory.mapped + vertexBytes, list, triangleBytes);
     free(list);
 
-    VkAccelerationStructureGeometryKHR geometry = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
-    geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-    geometry.flags = alpha ? 0 : VK_GEOMETRY_OPAQUE_BIT_KHR;   // alpha-tested: the shaders decide
-    VkAccelerationStructureGeometryTrianglesDataKHR& tri = geometry.geometry.triangles;
-    tri.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-    tri.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-    tri.vertexData.deviceAddress = inputAddress;
-    tri.vertexStride = 12;
-    tri.maxVertex = vertexCount - 1;
-    tri.indexType = VK_INDEX_TYPE_UINT32;
-    tri.indexData.deviceAddress = inputAddress + vertexBytes;
-
-    VkAccelerationStructureBuildGeometryInfoKHR build = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
-    build.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    build.flags = b.builds > 3 ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR :     // rebuilt often
-                                 VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    build.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-    build.geometryCount = 1;
-    build.pGeometries = &geometry;
+    VkAccelerationStructureGeometryKHR geometry;
+    VkAccelerationStructureBuildGeometryInfoKHR build;
+    BlasGeometry(geometry, build, BufferAddress(input), vertexCount, alpha,
+                 VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
     VkAccelerationStructureBuildSizesInfoKHR sizes = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
     vkGetAccelerationStructureBuildSizesKHR(g_pvk->device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &build,
                                             &triangles, &sizes);
@@ -1000,6 +1230,11 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
             if(!b.as && !b.mesh.buffer)
                 return;
         }
+        else if(UpdateSkin(b, positions, vertexCount, indices, count, strip, alphaTexture, alphaCompare, alphaRef))
+        {
+            b.version = version;
+            b.builds++;
+        }
         else
         {
             ReleaseBlas(b);
@@ -1010,8 +1245,8 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
             if(alphaTexture && slot < 0)
                 return;         // no mask: it would cast as a solid card
             if(mode == 1 ? !BuildMesh(b, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare, alphaRef) :
-                           !BuildBlas(b, *id, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare,
-                                      alphaRef))
+                           !BuildBlas(b, *id, positions, uvs, vertexCount, indices, count, strip, slot, alphaTexture,
+                                      alphaCompare, alphaRef))
                 return;
             if(s_logLevel >= 2 && b.builds == 1)
                 fprintf(stderr, "PDDI sun: caster %u = %s (%s), %.1f m, %u vertices, %u indices, %s\n", *id,
@@ -1255,16 +1490,20 @@ VkAccelerationStructureKHR pvkSunWorldScene()
     return draws && world.as ? world.as : draws;
 }
 
+// out is in the mapped instance buffer (uncached: the bitfields' read-modify-writes read it back): filled here, then
+// written in one copy
 static void FillInstance(VkAccelerationStructureInstanceKHR& out, const Instance& in)
 {
-    memcpy(out.transform.matrix, in.transform, sizeof(out.transform.matrix));
+    VkAccelerationStructureInstanceKHR local;
+    memcpy(local.transform.matrix, in.transform, sizeof(local.transform.matrix));
     const Blas& b = s_blas[in.id];
-    out.instanceCustomIndex = in.id;    // the caster table's row (alpha-tested), SHAR_SUN_DEBUG's colour
-    out.mask = in.keep ? 0x01 : 0x02;     // the world; lit things (cars), which lit draws' rays skip
-    out.instanceShaderBindingTableRecordOffset = 0;
-    out.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR |
-                (b.alpha ? 0 : VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR);
-    out.accelerationStructureReference = s_blas[in.id].address;
+    local.instanceCustomIndex = in.id;    // the caster table's row (alpha-tested), SHAR_SUN_DEBUG's colour
+    local.mask = in.keep ? 0x01 : 0x02;     // the world; lit things (cars), which lit draws' rays skip
+    local.instanceShaderBindingTableRecordOffset = 0;
+    local.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR |
+                  (b.alpha ? 0 : VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR);
+    local.accelerationStructureReference = b.address;
+    memcpy(&out, &local, sizeof(local));
 }
 
 //-----------------------------------------------------------------------------
@@ -2374,6 +2613,7 @@ void pvkSunShutdown()
         return;
     for(unsigned i = 1; i <= s_blasCount; i++)
     {
+        FreeSkin(s_blas[i], true);
         if(s_blas[i].as)
             vkDestroyAccelerationStructureKHR(g_pvk->device, s_blas[i].as, NULL);
         g_pvk->DestroyNow(s_blas[i].storage);
