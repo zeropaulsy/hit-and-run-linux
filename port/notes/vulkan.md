@@ -76,7 +76,8 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   (saved like the menu). Device made with ray queries + buffer device address where it has them, unless `SHAR_SUN=0`
   (so the menu applies at once) or `SHAR_SUN_RT=0` (Low only, as an iGPU: tests the no-ray-query programs on an RTX).
   `SHAR_SUN=1` forces High, `SHAR_SUN=low` Low. High without ray queries runs Low. `SHAR_SUN=0`: programs and layout
-  as before. `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_ELEVATION=deg`
+  as before. Off in interiors and the front end whatever the setting (`RenderManager::ContextUpdate` ->
+  `pvkSunSetSuppressed` each frame; blobs come back). `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_ELEVATION=deg`
   (every level), `SHAR_SUN_SOFT=deg` (sun disc radius, default 0.3; 0 = hard), `SHAR_SUN_RAYS` (default 8),
   `SHAR_SUN_LOG=1` (2: every caster named as built: id, material, file, size), `SHAR_SUN_DEBUG=1` (one ray;
   shadowed pixels coloured by the blocker's id: red = low byte, green = high, blue 255).

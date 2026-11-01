@@ -39,6 +39,7 @@ void pvkSunToggle();            // F9: off, low, high
 // device without ray queries)
 void pvkSunSetQuality(int quality);
 int pvkSunQuality();
+void pvkSunSetSuppressed(bool suppressed);  // the game's, each frame: off whatever the setting (interiors, front end)
 
 // p3d's camera (row vectors, translation in row 3)
 void pvkSetViewMatrix(const float* cameraToWorld);

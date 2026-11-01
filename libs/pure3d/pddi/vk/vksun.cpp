@@ -32,6 +32,7 @@ static int s_wanted = -1;
 static bool s_wantRays = true;     // SHAR_SUN_RT=0: the device made without ray queries (Low only, as on an iGPU)
 static int s_quality = 0;          // Options > Graphics Shadows (simpsons.ini shadows=), F9, SHAR_SUN=1/low: 0 off,
                                    // 1 low (the map rasterised), 2 high (ray traced; low without ray queries)
+static bool s_suppressed = false;  // the game's: no sun here (interiors, the front end; pvkSunSetSuppressed)
 static int s_casterMode = 0;       // what the casters were built for (1 meshes, 2 acceleration structures)
 static float s_eyeToWorld[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
 static unsigned s_version = 1;
@@ -184,7 +185,7 @@ bool pvkSunRays()
 // what shades now: 0 off, 1 the map rasterised, 2 rays
 static int Mode()
 {
-    if(!pvkSunReady() || s_quality == 0)
+    if(!pvkSunReady() || s_quality == 0 || s_suppressed)
         return 0;
     return s_quality >= 2 && g_pvk->rayQuery ? 2 : 1;
 }
@@ -205,6 +206,16 @@ void pvkSunSetQuality(int quality)
     if(quality != s_quality)
         s_version++;
     s_quality = quality;
+}
+
+void pvkSunSetSuppressed(bool suppressed)
+{
+    if(suppressed == s_suppressed)
+        return;
+    s_version++;
+    s_suppressed = suppressed;
+    if(s_log)
+        fprintf(stderr, "PDDI sun: %s\n", suppressed ? "suppressed (interior or front end)" : "back");
 }
 
 int pvkSunQuality()
