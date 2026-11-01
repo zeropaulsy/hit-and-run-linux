@@ -112,6 +112,10 @@ public:
     void InitDynaLoad();
 #ifdef RAD_LINUX
     bool HasDynaLoad() const { return mDynaloadLoc != NULL; }
+    // Linux port: mods' CustomBonusMissionSupport [L<n><mission>]: whether loading the mission resets the player
+    // (ResetPlayer) and whether ResetPlayer puts them in the car (ForcePlayerInCar); both street races by default
+    bool ModResetPlayerOnLoad();
+    bool ModForcePlayerInCar();
 #endif
 
     bool DialogueCharactersTeleported();
@@ -299,6 +303,11 @@ private:
     // UseTrafficGroup (selecting or restarting the mission) and a retry's SetCheckpointTrafficGroup; -1 = unset
     int mModTrafficGroup;
     int mModRestartTrafficGroup;
+    // Add/SetStageDynaLoadData: the zone load sent last (kept until the next, like mDynaloadLoc)
+    ZoneEventLocator* mModStageDynaLoad;
+    // SetHUDMapDrawable: put on the HUD map once the mission starts ("" = unset); pending until a stage starts with a HUD
+    char mModHudMap[ 64 ];
+    bool mModHudMapPending;
     void ModStreetRacePropLoad();
 #endif
 };

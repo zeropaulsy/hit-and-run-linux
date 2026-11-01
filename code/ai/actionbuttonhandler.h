@@ -1134,6 +1134,10 @@ protected:
 private:
     static AnimatedIcon* mAnimatedCollectionThing;
     static unsigned int mCollectibleCardCount;
+#ifdef RAD_LINUX
+    AnimatedIcon* mModCollectionThing;              // Linux port: mods' CollectDrawable for this card (else NULL)
+    static AnimatedIcon* sModCollectionPlaying;     // the one UpdateThing also updates
+#endif
 };
 
 ////////////////////////////////////////////////////////

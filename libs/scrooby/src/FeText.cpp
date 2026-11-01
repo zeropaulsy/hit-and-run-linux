@@ -112,6 +112,44 @@ void FeText::AddHardCodedString( const char* string )
     ResetText();
 }
 
+// Linux port: see Scrooby::Text::Clone
+Scrooby::Text* FeText::Clone( const char* name, const char* string )
+{
+    FeParent* parent = dynamic_cast< FeParent* >( mParent );
+    if( parent == NULL )
+    {
+        return NULL;
+    }
+
+    FeText* copy = new FeText( name, 0, 0 );
+    copy->mPosX = mPosX;
+    copy->mPosY = mPosY;
+    copy->m_matrix = m_matrix;
+    copy->SetBoundingBoxSize( m_width, m_height );
+    copy->SetHorizontalJustification( m_horizontalJustification );
+    copy->SetVerticalJustification( m_verticalJustification );
+    copy->mOriginalColour = mOriginalColour;
+    copy->SetColour( mColour );
+    copy->mAlpha = mAlpha;
+    copy->SetTextStyle( mTextStyle );
+    copy->mTextMode = mTextMode;
+    copy->mDisplayShadow = mDisplayShadow;
+    copy->mShadowColour = mShadowColour;
+    copy->mXShadowOffset = mXShadowOffset;
+    copy->mYShadowOffset = mYShadowOffset;
+    copy->mDisplayOutline = mDisplayOutline;
+    copy->mOutlineColour = mOutlineColour;
+#ifdef RAD_WIN32
+    copy->mIsBoundingBoxStretched = mIsBoundingBoxStretched;
+#endif
+    copy->AddHardCodedString( string );
+    copy->SetVisible( mVisible );
+
+    copy->SetParent( mParent );
+    parent->AddChild( copy );
+    return copy;
+}
+
 void FeText::AddTextBibleString( unsigned int textBibleResourceID, const char* stringID )
 {
     FeTextChildTextBibleString* pTextBible;

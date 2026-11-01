@@ -53,6 +53,9 @@
 #include <Text.h>
 
 #include <string.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //===========================================================================
 // Global Data, Local Data, Local Classes
@@ -521,11 +524,21 @@ void CGuiScreenMainMenu::HandleMessage
                     this->TurnOnGlowItems( (1 << param2) );
 
 #ifndef RAD_DEMO
+#ifdef RAD_LINUX
+                    // Linux port: mods' NoSavedGames hack: Load Game greyed out as the locked mini-game is
+                    if( param2 == MAIN_MENU_MINI_GAME ||
+                        ( param2 == MAIN_MENU_LOAD_GAME && shar_ModHackRequired( "NoSavedGames" ) ) )
+#else
                     if( param2 == MAIN_MENU_MINI_GAME ) // special case for mini-game
+#endif
                     {
-                        if( !GetCharacterSheetManager()->IsMiniGameUnlocked() &&
-                            !CommandLineOptions::Get( CLO_SKIP_FE ) &&
-                            !CommandLineOptions::Get( CLO_UNLOCK_BONUS ) ) // Linux port test option
+                        if( ( !GetCharacterSheetManager()->IsMiniGameUnlocked() &&
+                              !CommandLineOptions::Get( CLO_SKIP_FE ) &&
+                              !CommandLineOptions::Get( CLO_UNLOCK_BONUS ) ) // Linux port test option
+#ifdef RAD_LINUX
+                            || param2 == MAIN_MENU_LOAD_GAME
+#endif
+                          )
                         {
                             // don't turn on glowing track
                             //

@@ -54,6 +54,7 @@
 
 #include <p3d/billboardobject.hpp>
 #include <shar_mods.h>
+#include <mission/modscript.h>
 
 int VehicleCentral::GetMaxActiveVehicles()
 {
@@ -921,6 +922,14 @@ Vehicle* VehicleCentral::InitVehicle( const char* name, bool addToActiveVehicleL
     // so the script hooks can get at it
     rAssert( mVehicleUnderConstruction[mCurrentVehicleUnderConstructionTail] == NULL );
     mVehicleUnderConstruction[mCurrentVehicleUnderConstructionTail] = vehicle;
+#ifdef RAD_LINUX
+    // Linux port: mods' BugFixes FixCarDeletedWhileLoadingCONFileCrash: the queue holds a reference until the .con
+    // script has run, so a car released meanwhile is not freed under its commands and OnProcessRequestsComplete
+    if( shar_ModBugFix( "Crashes", "FixCarDeletedWhileLoadingCONFileCrash", 0 ) )
+    {
+        vehicle->AddRef();
+    }
+#endif
     mCurrentVehicleUnderConstructionTail = (mCurrentVehicleUnderConstructionTail + 1) % GetMaxActiveVehicles();
 
     //If this happens, we're in big shit. We'll need to up the number of active vehicles or look closer at the loading.
@@ -1177,6 +1186,9 @@ bool VehicleCentral::RemoveVehicleFromActiveList(Vehicle* vehicle)
 
             mActiveVehicleList[i] = 0;
             mNumActiveVehicles--;
+#ifdef RAD_LINUX
+            ModScript::OnVehicleRemoved( vehicle, false );  // Linux port: a mod's passengers leave it
+#endif
 
             // make sure controller slot doesn't have junk left lying around in it.
             if( mActiveVehicleControllerList[i] )
@@ -2100,6 +2112,12 @@ void VehicleCentral::OnProcessRequestsComplete( void* pUserData )
     //Clear the head.
     mVehicleUnderConstruction[mCurrentVehicleUnderContructionHead] = NULL;
     mCurrentVehicleUnderContructionHead = (mCurrentVehicleUnderContructionHead + 1) % GetMaxActiveVehicles();
+#ifdef RAD_LINUX
+    if( shar_ModBugFix( "Crashes", "FixCarDeletedWhileLoadingCONFileCrash", 0 ) )
+    {
+        vehicle->Release();     // the queue's reference (above)
+    }
+#endif
 
     if ( mCurrentVehicleUnderContructionHead == mCurrentVehicleUnderConstructionTail )
     {

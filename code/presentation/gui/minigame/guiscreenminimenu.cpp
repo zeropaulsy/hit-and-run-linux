@@ -53,6 +53,9 @@
 #include <raddebug.hpp>
 
 #include <string.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //===========================================================================
 // Global Data, Local Data, Local Classes
@@ -1116,7 +1119,11 @@ void CGuiScreenMiniMenu::InitIntro()
     // disable track(s) that are not unlocked
     //
     rAssert( m_pTrackMenu != NULL );
-    if( !CommandLineOptions::Get( CLO_SKIP_FE ) && !CommandLineOptions::Get( CLO_UNLOCK_BONUS ) ) // Linux port test option
+    if( !CommandLineOptions::Get( CLO_SKIP_FE ) && !CommandLineOptions::Get( CLO_UNLOCK_BONUS ) // Linux port test option
+#ifdef RAD_LINUX
+        && !shar_ModHackRequired( "UnlockBonusGame" )   // Linux port: mods' UnlockBonusGame hack: every track
+#endif
+      )
     {
         for( int i = 0; i < NUM_TRACKS; i++ )
         {
@@ -1517,6 +1524,12 @@ CGuiScreenMiniMenu::AddRewardVehicle( Reward* pReward )
 //        GetCheatInputSystem()->IsCheatEnabled( CHEAT_ID_UNLOCK_CARDS ) ||
         GetCheatInputSystem()->IsCheatEnabled( CHEAT_ID_UNLOCK_VEHICLES ) )
     {
+#ifdef RAD_LINUX
+        if( m_numUnlockedVehicles >= MAX_NUM_VEHICLES )
+        {
+            return;     // mods with more rewards
+        }
+#endif
         rAssert( m_numUnlockedVehicles < MAX_NUM_VEHICLES );
 
         m_unlockedVehicles[ m_numUnlockedVehicles ] = pReward;
@@ -1531,9 +1544,16 @@ CGuiScreenMiniMenu::PrepareVehicleSelections()
     {
         Reward* pReward = NULL;
 
+#ifdef RAD_LINUX
+        // mods' quest rewards (CustomRewardQuestSupport) included
+        for( int i = 0; i < GetRewardsManager()->GetNumRewards( level ); i++ )
+        {
+            pReward = GetRewardsManager()->GetRewardAt( level, i );
+#else
         for( int i = Reward::eBlank + 1; i < Reward::NUM_QUESTS; i++ )
         {
             pReward = GetRewardsManager()->GetReward( level, static_cast<Reward::eQuestType>( i ) );
+#endif
             if( pReward != NULL )
             {
                 if( pReward->GetRewardType() == Reward::ALT_PLAYERCAR )

@@ -80,7 +80,12 @@ GoToObjective::GoToObjective() :
     mOldEvent( LocatorEvent::NUM_EVENTS ),
     mOldData( -1 )
 {
+#ifdef RAD_LINUX
+    // Linux port: mods' BugFixes RoadArrowPathItemLimitIncludeIntersectionCount (the path holds intersections too)
+    mArrowPath.mPathRoute.Allocate( MissionObjective::ArrowPathCapacity() );
+#else
     mArrowPath.mPathRoute.Allocate( RoadManager::GetInstance()->GetNumRoads() );   
+#endif
 
     mEffectName[0] = '\0';
 }

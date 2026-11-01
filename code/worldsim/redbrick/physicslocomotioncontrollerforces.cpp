@@ -528,6 +528,9 @@ void PhysicsLocomotion::GasForce2(rmt::Vector& forceResult, int wheelNum, float 
             {                
                 rmt::Vector wheelie = mVehicle->mCMOffset;
 
+#ifdef RAD_LINUX
+                wheelie.x += mVehicle->mModWheelieXOffset;     // a mod's SetWheelieOffsetX
+#endif
                 wheelie.y += mVehicle->mDesignerParams.mDpWheelieYOffset;
                 wheelie.z += mVehicle->mDesignerParams.mDpWheelieZOffset;
 

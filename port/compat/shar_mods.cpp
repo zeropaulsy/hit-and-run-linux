@@ -44,7 +44,7 @@ struct KeyEntry
 {
     uint32_t key;
     int index;              // into s_Files or s_Rules
-    int priority;           // 0: the file's own name, 1: an .ogg standing in for the .rsd of that name
+    int priority;           // 0: the file's own name, 1: an .ogg / .flac standing in for the .rsd of that name
 };
 
 struct Limit
@@ -78,7 +78,23 @@ const char* const SUPPORTED_HACKS[] = { "CustomFiles", "CustomLimits", "OggVorbi
                                         "CustomLicenseScreenTime", "NoMainMenuCameraAnimations", "HUDMapIgnorePlayerHeight",
                                         "CustomTrafficSupport", "CustomStatsTotals", "CustomAudioSupport",
                                         "CustomAnimationSetSupport",  // no-op: see port/notes/mods.md
-                                        "CustomTriggerActions" };
+                                        "CustomTriggerActions", "CustomBonusMissionSupport", "CustomSkinPreviewAnimations",
+                                        "OverrideShaderParameters", "CustomCharacterSupport",
+                                        "NoCheats", "NoWrenches", "NoHitAndRunMusic",
+                                        "NoBustedHitAndRunMeterReset", "NoFastCarReset",
+                                        "NoAutomaticSavedGameLoad", "NoSavedGames",
+                                        "UnlockAllMissions", "UnlockAllVehicles",
+                                        "UnlockAllOutfits", "UnlockBonusGame",
+                                        "NoBonusGame",
+                                        "SkippableFMVs",  // no-op: see port/notes/mods.md
+                                        "NoMissionStartCameras", "NoNeitherRoadArrowProcessing",
+                                        "NoInactiveDynamicObjectCollisions", "ReplayableBonusMissions",
+                                        "BugFixes", "CustomCollectorCardSupport", "CustomDutchAngleNPCCameraTilt",
+                                        "CustomHeadlights", "CustomMissionSkipFailCounts",
+                                        "CustomVideoResolutionSupport", "DrunkCamera", "IncreasedRewardLimits",
+                                        "PerLevelCoinCount", "RefractionShaderSupport",
+                                        "WalkerCameraDataSupport", "FLACSupport", "VideoTextureSupport", "HackSupport",
+                                        "CustomRewardQuestSupport", "HoverCarRefraction" };
 
 void Init( void );
 
@@ -578,8 +594,36 @@ void OnMeta( const char* section, const char* key, const char* value, void* user
     }
     else if ( strcasecmp( key, "RequiredMod" ) == 0 )
     {
+        if ( strcasecmp( value, "HoverCarRefraction" ) == 0 )
+        {
+            // the hack's name as a mod (mods made when it was a separate one, e.g. the Futurama demo)
+            Append( s_RequiredHacks, sizeof( s_RequiredHacks ), value );
+            return;
+        }
         Append( meta->requiredMods, sizeof( meta->requiredMods ), value );
     }
+}
+
+// ModSettings.ini sections named after a setting hack (the Mod Launcher's Settings page): Enabled=1 turns it on
+// without a mod requiring it; its other keys are settings for shar_ModHackSetting, kept as "Hack.Key=value" lines
+char s_HackSettings[ 1024 ];
+
+void OnHackSettings( const char* section, const char* key, const char* value, void* user )
+{
+    if ( key == NULL || strcasecmp( section, "HoverCarRefraction" ) != 0 )
+    {
+        return;
+    }
+    if ( strcasecmp( key, "Enabled" ) == 0 )
+    {
+        if ( atoi( value ) != 0 )
+        {
+            Append( s_RequiredHacks, sizeof( s_RequiredHacks ), section );
+        }
+        return;
+    }
+    size_t len = strlen( s_HackSettings );
+    snprintf( s_HackSettings + len, sizeof( s_HackSettings ) - len, "%s.%s=%s\n", section, key, value );
 }
 
 void OnLimit( const char* section, const char* key, const char* value, void* )
@@ -889,6 +933,12 @@ void Init( void )
     }
     const char* log = getenv( "SHAR_MOD_LOG" );
     s_Log = log != NULL && log[ 0 ] != '\0' && log[ 0 ] != '0';
+    char* userSettings = ReadWholeFile( "ModSettings.ini", NULL );
+    if ( userSettings != NULL )
+    {
+        ParseIni( userSettings, OnHackSettings, NULL );
+        free( userSettings );
+    }
     const char* env = getenv( "SHAR_MODS" );
     if ( env == NULL || env[ 0 ] == '\0' )
     {
@@ -937,11 +987,12 @@ void Init( void )
         KeyEntry e = { KeyOf( key ), i, 0 };
         s_FileKeys[ s_NumFileKeys++ ] = e;
         size_t len = strlen( key );
-        if ( len > 4 && strcmp( key + len - 4, ".ogg" ) == 0 && len < PATH_MAX )
+        size_t ext = len > 4 && strcmp( key + len - 4, ".ogg" ) == 0 ? 4 : len > 5 && strcmp( key + len - 5, ".flac" ) == 0 ? 5 : 0;
+        if ( ext > 0 && len < PATH_MAX )
         {
             char rsd[ PATH_MAX ];
-            memcpy( rsd, key, len - 4 );
-            strcpy( rsd + len - 4, ".rsd" );
+            memcpy( rsd, key, len - ext );
+            strcpy( rsd + len - ext, ".rsd" );
             KeyEntry o = { KeyOf( rsd ), i, 1 };
             s_FileKeys[ s_NumFileKeys++ ] = o;
         }
@@ -1064,11 +1115,17 @@ const ModFile* FindFile( const char* gamePath, const char* key )
     size_t len = strlen( key );
     if ( f == NULL && len > 4 && len < PATH_MAX && strcmp( key + len - 4, ".rsd" ) == 0 )
     {
-        // OggVorbisSupport: a mod's .ogg stands in for the .rsd (decoded in radsound's rsdfiledatasource.cpp)
-        char ogg[ PATH_MAX ];
+        // OggVorbisSupport, FLACSupport: a mod's .ogg or .flac stands in for the .rsd (decoded in radsound's
+        // rsdfiledatasource.cpp)
+        char ogg[ PATH_MAX + 1 ];
         memcpy( ogg, key, len - 4 );
         strcpy( ogg + len - 4, ".ogg" );
         f = (const ModFile*)bsearch( ogg, s_Files, s_NumFiles, sizeof( ModFile ), CompareKey );
+        if ( f == NULL )
+        {
+            strcpy( ogg + len - 4, ".flac" );
+            f = (const ModFile*)bsearch( ogg, s_Files, s_NumFiles, sizeof( ModFile ), CompareKey );
+        }
     }
     return f;
 }
@@ -1664,6 +1721,27 @@ extern "C" int shar_ModTakeResolved( const char* gamePath, SharModFile* file, co
     return r;
 }
 
+extern "C" int shar_ModVfsResolve( const char* vpath, SharModFile* file, const char** redirect )
+{
+    pthread_once( &s_Once, Init );
+    static __thread char t_GamePath[ PATH_MAX ];
+    switch ( ModVfsLocate( vpath, file, t_GamePath, sizeof( t_GamePath ) ) )
+    {
+    case 1:
+        return SHAR_MOD_FILE;
+    case 2:
+        *redirect = t_GamePath;
+        return SHAR_MOD_REDIRECT;
+    }
+    return SHAR_MOD_MISSING;
+}
+
+extern "C" int shar_ModsLoaded( void )
+{
+    pthread_once( &s_Once, Init );
+    return g_NumMods > 0;
+}
+
 extern "C" const char* shar_ModSaveDir( void )
 {
     pthread_once( &s_Once, Init );
@@ -1814,9 +1892,24 @@ extern "C" int shar_ModConfigInt( const char* file, const char* section, const c
     return atoi( value );
 }
 
+extern "C" int shar_ModBugFix( const char* section, const char* key, int defaultValue )
+{
+    if ( !shar_ModHackRequired( "BugFixes" ) )
+    {
+        return 0;
+    }
+    return shar_ModConfigInt( "BugFixes.ini", section, key, defaultValue ) != 0;
+}
+
 static const Mod* s_FolderMod = NULL;   // the mod the last shar_ModConfigFolder call read from
 
 extern "C" int shar_ModConfigFolder( const char* folder, char** texts, size_t* sizes, char** names, int max )
+{
+    return shar_ModConfigFolderNth( folder, 0, texts, sizes, names, max, NULL );
+}
+
+extern "C" int shar_ModConfigFolderNth( const char* folder, int nth, char** texts, size_t* sizes, char** names, int max,
+                                        const char** modName )
 {
     pthread_once( &s_Once, Init );
     char key[ PATH_MAX ];
@@ -1874,9 +1967,22 @@ extern "C" int shar_ModConfigFolder( const char* folder, char** texts, size_t* s
                 }
             }
         }
+        if ( count > 0 && nth-- > 0 )
+        {
+            for ( int f = 0; f < count; f++ )
+            {
+                free( texts[ f ] );
+                free( names[ f ] );
+            }
+            count = 0;
+        }
         if ( count > 0 )
         {
             s_FolderMod = mod;
+            if ( modName != NULL )
+            {
+                *modName = mod->name;
+            }
             return count;
         }
     }
@@ -1897,6 +2003,21 @@ extern "C" const char* shar_ModConfigFolderLanguage( const char* folder )
         free( names[ i ] );
     }
     return s_FolderMod != NULL ? s_FolderMod->language : NULL;
+}
+
+int shar_ModHackSetting( const char* hack, const char* key, int defaultValue )
+{
+    pthread_once( &s_Once, Init );
+    char prefix[ 128 ];
+    int n = snprintf( prefix, sizeof( prefix ), "%s.%s=", hack, key );
+    for ( const char* line = s_HackSettings; *line != '\0'; line = strchr( line, '\n' ) + 1 )
+    {
+        if ( strncasecmp( line, prefix, n ) == 0 )
+        {
+            return atoi( line + n );
+        }
+    }
+    return defaultValue;
 }
 
 int shar_ModHackRequired( const char* hack )

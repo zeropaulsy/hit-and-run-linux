@@ -91,6 +91,10 @@
 
 #ifdef RAD_LINUX
 void pglPostProcessScene();     // pddi/gl/glpost.hpp: the user's scene post-processing shaders
+void radMovieUpdateVideoTextures();    // radmovie linux/binkvideotexture.cpp: mods' VideoTextureSupport
+void pvkSunSetSuppressed( bool suppressed );    // pddi/vk/vksun.cpp: no sun shadows whatever the setting
+#include <gameflow/gameflow.h>
+#include <interiors/interiormanager.h>
 #endif
 //******************************************************************************
 //
@@ -531,6 +535,14 @@ void RenderManager::ContextUpdate( unsigned int iElapsedTime )
     {
         TransitionMoodLighting( iElapsedTime );
     }
+
+#ifdef RAD_LINUX
+    radMovieUpdateVideoTextures();      // Linux port: mods' VideoTextureSupport (radmovie binkvideotexture.cpp)
+
+    // Linux port: no sun shadows in interiors (lit by lamps, not the sun) nor the front end (main menu)
+    pvkSunSetSuppressed( ( GetGameFlow() != NULL && GetGameFlow()->GetCurrentContext() == CONTEXT_FRONTEND ) ||
+                         GetInteriorManager()->IsInside() );
+#endif
 
     BEGIN_PROFILE( "Begin Frame" );
     p3d::context->BeginFrame();

@@ -50,6 +50,9 @@
 #include <render/animentitydsgmanager/animentitydsgmanager.h>
 #include <interiors/interiormanager.h>
 #include <mission/charactersheet/charactersheetmanager.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //******************************************************************************
 //
@@ -799,8 +802,30 @@ void MissionObjective::LightPathWrongWay( SwapArray<RoadManager::PathElement>& o
 }
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
+#ifdef RAD_LINUX
+int MissionObjective::ArrowPathCapacity()
+{
+    // Linux port: mods' BugFixes RoadArrowPathItemLimitIncludeIntersectionCount: the game sizes the path by the road
+    // count, but intersections are elements too; a longer path is cut short (custom road networks)
+    int capacity = static_cast< int >( RoadManager::GetInstance()->GetNumRoads() );
+    if( shar_ModBugFix( "Crashes", "RoadArrowPathItemLimitIncludeIntersectionCount", 0 ) )
+    {
+        capacity += RoadManager::GetInstance()->GetNumIntersectionsUsed();
+    }
+    return capacity;
+}
+#endif
+
 void MissionObjective::UpdateLightPath( PathStruct& orPathStruct)
 {
+#ifdef RAD_LINUX
+    // Linux port: mods' NoNeitherRoadArrowProcessing hack: a "neither" stage never lit a path (LightPath)
+    static const bool s_noNeitherArrows = shar_ModHackRequired( "NoNeitherRoadArrowProcessing" ) != 0;
+    if( s_noNeitherArrows && ( DirectionalArrowEnum::NEITHER & mArrowType ) )
+    {
+        return;
+    }
+#endif
     SwapArray<RoadManager::PathElement>& orPathRoute = orPathStruct.mPathRoute;
     if(!GetCharacterSheetManager()->QueryNavSystemSetting())
     {

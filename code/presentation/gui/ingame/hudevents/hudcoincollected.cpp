@@ -312,7 +312,12 @@ HudCoinCollected::SetItemCount( unsigned int numCollected,
                                 unsigned int numCollectibles )
 {
     char buffer[ BITMAP_TEXT_BUFFER_SIZE ];
+#ifdef RAD_LINUX
+    // Linux port: 8+ digits overflowed the buffer (as in guiscreenhud.cpp); shown capped
+    snprintf( buffer, sizeof( buffer ), "%u", numCollected > 9999999u ? 9999999u : numCollected );
+#else
     sprintf( buffer, "%d", numCollected );
+#endif
 
     rAssert( m_numCoins != NULL );
     m_numCoins->SetBitmapText( buffer );

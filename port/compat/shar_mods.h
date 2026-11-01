@@ -4,11 +4,25 @@
  * A main mod (Meta.ini Main=1) gets its own saved games in ModSaves/<InternalName>/ in the game dir.
  * Supported: CustomFiles (a mod's CustomFiles/ tree overrides game files, also those inside RCF archives, also
  * by the sound system's key strings; CustomFiles.ini redirections, occluded paths and Lua path handlers;
- * CustomFiles.lua), OggVorbisSupport (x.ogg serves x.rsd), CustomLimits (only the limits wired up through
+ * CustomFiles.lua), OggVorbisSupport and FLACSupport (x.ogg or x.flac serves x.rsd), CustomLimits (only the limits wired up through
  * shar_ModLimit); read by the game through shar_ModConfig: CustomShopSupport (shar_modshops.h), CustomCarSupport (shar_modcars.h),
  * CustomDialogueCharacterCodes (dialogline.cpp, dialoglist.cpp), CustomText (guitextbible.cpp; Language setting), 3DPhoneBoothPreviewSupport (guiscreenphonebooth.cpp),
  * CustomInteriorSupport (shar_modinteriors.h), CustomRoadBehaviour (shar_modroads.h), CustomAudioSupport (shar_modaudio.h),
- * CustomTriggerActions (code/meta/modtriggeractions.h);
+ * CustomTriggerActions (code/meta/modtriggeractions.h), CustomBonusMissionSupport (shar_modbonus.h),
+ * CustomSkinPreviewAnimations (guiscreenpurchaserewards.cpp), OverrideShaderParameters (shar_modshaders.h),
+ * CustomCharacterSupport (shar_modcharacters.h), CustomCollectorCardSupport (shar_modcards.h),
+ * CustomDutchAngleNPCCameraTilt (shar_moddutch.h), CustomHeadlights (geometryvehicle.cpp),
+ * CustomMissionSkipFailCounts (guiscreenmissionover.cpp), CustomVideoResolutionSupport (binkrenderstrategy.cpp);
+ * DrunkCamera (supercam.cpp), IncreasedRewardLimits (rewardsmanager.cpp, guiscreenrewards.cpp,
+ * charactersheetmanager.cpp), PerLevelCoinCount (charactersheetmanager.cpp),
+ * RefractionShaderSupport (pddi/gl gldev.cpp, glmat.cpp), HoverCarRefraction (geometryvehicle.cpp, pddi/gl
+ * glmat.cpp; also RequiredMod=HoverCarRefraction), WalkerCameraDataSupport (cameradataloader.cpp,
+ * walkercam.cpp), VideoTextureSupport (radmovie binkvideotexture.cpp), HackSupport (OverrideTexture: p3d shader.cpp;
+ * car camera data reloads: cameradataloader.cpp); switches (port/notes/mods.md): NoCheats, NoWrenches,
+ * NoHitAndRunMusic, NoBustedHitAndRunMeterReset, NoFastCarReset, NoAutomaticSavedGameLoad,
+ * NoSavedGames, UnlockAllMissions, UnlockAllVehicles, UnlockAllOutfits, UnlockBonusGame,
+ * NoBonusGame, NoMissionStartCameras, NoNeitherRoadArrowProcessing,
+ * NoInactiveDynamicObjectCollisions, ReplayableBonusMissions; BugFixes (shar_ModBugFix);
  * DynamicTreeNodeEntityLimits (WorldScene).
  * Other hacks a mod's Meta.ini requires are reported at startup and ignored. Mod settings are
  * their Meta.ini defaults unless ModSettings.ini in the game dir sets them ([InternalName] Name=value).
@@ -52,6 +66,14 @@ int shar_ModResolve(const char* gamePath, SharModFile* file, const char** redire
  * thread: SHAR_MOD_FILE and *file when that was for gamePath, else resolves now. */
 int shar_ModTakeResolved(const char* gamePath, SharModFile* file, const char** redirect);
 
+/* A path in the Mod Launcher's virtual file system ("/GameData/movies/x.bik", "/Mods/<InternalName>/...",
+ * "/GameDir/..."): SHAR_MOD_FILE and *file, SHAR_MOD_REDIRECT and the game path (a /GameData one no mod or loose
+ * file provides), or SHAR_MOD_MISSING. *file and *redirect stay valid until the next call on this thread. */
+int shar_ModVfsResolve(const char* vpath, SharModFile* file, const char** redirect);
+
+/* Whether any mod is loaded (for the Mod Launcher's always-on HackSupport changes). */
+int shar_ModsLoaded(void);
+
 /* The game-relative folder holding the main mod's saved games ("ModSaves/<InternalName>"), or NULL. */
 const char* shar_ModSaveDir(void);
 
@@ -86,6 +108,9 @@ int shar_ModConfigInt(const char* file, const char* section, const char* key, in
  * (malloc'd, NUL-terminated after sizes[i] bytes, which may include zeros, e.g. UTF-16) and file names (malloc'd),
  * all for the caller to free. Returns the count. */
 int shar_ModConfigFolder(const char* folder, char** texts, size_t* sizes, char** names, int max);
+/* The same from the nth mod (0: first, in load order) that has any; modName (may be NULL) gets that mod's name. */
+int shar_ModConfigFolderNth(const char* folder, int nth, char** texts, size_t* sizes, char** names, int max,
+                            const char** modName);
 
 /* The Language setting (ModSettings.ini [InternalName] Language=..., the Mod Launcher's choice among a mod's
  * CustomText files by their Title) of the mod shar_ModConfigFolder(folder) reads from; NULL when not set. */
@@ -94,6 +119,14 @@ const char* shar_ModConfigFolderLanguage(const char* folder);
 /* Whether a loaded mod's Meta.ini has RequiredHack=hack (case-insensitive): for behaviour the Mod Launcher enables
  * only for mods that ask for it. */
 int shar_ModHackRequired(const char* hack);
+
+/* A setting hack's setting (the Mod Launcher's Settings page): ModSettings.ini [hack] key=n in the game dir, else
+ * defaultValue. [hack] Enabled=1 there turns the hack on without a mod requiring it (HoverCarRefraction). */
+int shar_ModHackSetting(const char* hack, const char* key, int defaultValue);
+
+/* One of the BugFixes hack's fixes (port/notes/mods.md): 0 unless a mod requires BugFixes, else its BugFixes.ini
+ * [section] key, defaultValue when missing (the Mod Launcher's settings default: 1, 0 for its -testing ones). */
+int shar_ModBugFix(const char* section, const char* key, int defaultValue);
 
 #ifdef __cplusplus
 }

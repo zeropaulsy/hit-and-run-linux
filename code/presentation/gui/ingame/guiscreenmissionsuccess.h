@@ -37,6 +37,11 @@ public:
 			                    GuiParam param1 = 0,
 								GuiParam param2 = 0 );
     virtual void InitIntro();
+#ifdef RAD_LINUX
+    // Linux port: the mission that brought up the screen (mods' end bitmaps); the current mission has moved on
+    // by InitIntro
+    static void SetModMissionName( const char* name );
+#endif
 protected:
     virtual void OutroDone();
 private:

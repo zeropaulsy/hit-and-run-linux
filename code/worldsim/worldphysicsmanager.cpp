@@ -2098,6 +2098,16 @@ void WorldPhysicsManager::SubmitDynamicsPseudoCallback(rmt::Vector& position, fl
                         // only pair with us
                         //
                         
+#ifdef RAD_LINUX
+                        // Linux port: mods' NoInactiveDynamicObjectCollisions hack: an object at rest pairs only
+                        // with the submitter, not with the other dynamics in the area
+                        static const bool s_noInactivePairs = shar_ModHackRequired( "NoInactiveDynamicObjectCollisions" ) != 0;
+                        if(s_noInactivePairs && curr->IsAtRest())
+                        {
+                            currCollObj->SetAutoPair(false);
+                        }
+                        else
+#endif
                         if(allowAutoPairing && curr->mpSimState()->mAIRefIndex != PhysicsAIRef::redBrickVehicle)
                         {
                             currCollObj->SetAutoPair(true);    

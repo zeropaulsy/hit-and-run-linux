@@ -35,6 +35,7 @@
 #include <worldsim/character/charactermanager.h>
 #ifdef RAD_LINUX
 #include <shar_mods.h>
+#include <shar_modbonus.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -697,6 +698,19 @@ SelectableDialog* DialogList::FindDialogForEvent( EventEnum id,
 
                     char1UID = getPuppetUID( character1 );
                     char2UID = getPuppetUID( character2 );
+#ifdef RAD_LINUX
+                    // Linux port: mods' CustomBonusMissionSupport binds their race hosts' models to 9 / 10
+                    int modMission = shar_ModBonusRaceIntroIndex( level, GetCharacterManager()->GetModelName( character1 ) );
+                    if( modMission < 0 )
+                    {
+                        modMission = shar_ModBonusRaceIntroIndex( level, GetCharacterManager()->GetModelName( character2 ) );
+                    }
+                    if( modMission >= 0 )
+                    {
+                        mission = rmt::Min( modMission, static_cast< int >( GameplayManager::MAX_MISSIONS ) );
+                    }
+                    else
+#endif
                     if( ( char1UID == s_milhouseKey )
                         || ( char2UID == s_milhouseKey ) 
                         || ( char1UID == s_raceZombie1 )
@@ -717,6 +731,10 @@ SelectableDialog* DialogList::FindDialogForEvent( EventEnum id,
                         // This had better be Ralph or zombie Ralph
                         //
                         mission = DialogLine::FIRST_RACE_MISSION_NUMBER + 2;
+#ifdef RAD_LINUX
+                        mission = shar_ModBonusRaceIntroLastIndex( mission );
+                        mission = rmt::Clamp( mission, 0, static_cast< int >( GameplayManager::MAX_MISSIONS ) );
+#endif
                     }
                 }
                 else if( level == 0 )

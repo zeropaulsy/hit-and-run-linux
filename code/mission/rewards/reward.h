@@ -26,6 +26,24 @@ class Reward
 				eBonusMission,
                 eGoldCards, // TC: Is this obsolete now??
 				NUM_QUESTS
+#ifdef RAD_LINUX
+                ,
+                // Linux port: Mod Launcher CustomRewardQuestSupport's quest types (past NUM_QUESTS: the game's
+                // per-level slots stay as they were; these rewards are RewardsManager's mod rewards)
+                eModFirst = NUM_QUESTS,
+                eWasps = eModFirst,
+                eGags,
+                eMission,
+                eWager,
+                eCoins,
+                eHitAndRun,
+                eEvaded,
+                eBusted,
+                eGetIn,
+                eDoorbell,
+                eMaxCoins,
+                NUM_MOD_QUESTS
+#endif
 			};
 
         Reward ();
@@ -47,6 +65,16 @@ class Reward
         eQuestType GetQuestType ( );
         void SetRepairCost( int cost );
         int GetRepairCost() const;
+#ifdef RAD_LINUX
+        // Linux port: CustomRewardQuestSupport's extra BindReward argument (card / race / mission number, time,
+        // coins, count: number; getin / doorbell: name)
+        void SetModQuestArg( const char* arg );
+        bool HasModQuestArg() const { return mModQuestArg[ 0 ] != '\0'; }
+        int GetModQuestNumber() const;
+        const char* GetModQuestArg() const { return mModQuestArg; }
+    private:
+        char mModQuestArg[ 32 ];
+#endif
     private:
         tUID mUID;
         int mLevel;

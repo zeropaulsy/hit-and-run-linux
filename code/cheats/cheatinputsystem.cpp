@@ -17,6 +17,9 @@
 //===========================================================================
 #include <cheats/cheatinputsystem.h>
 #include <cheats/cheatinputhandler.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 #include <events/eventmanager.h>
 #include <input/inputmanager.h>
@@ -36,6 +39,9 @@ CheatInputSystem* CheatInputSystem::spInstance = NULL;
 //===========================================================================
 
 CHEATBITMASK CheatInputSystem::s_cheatsEnabled = 0;
+#ifdef RAD_LINUX
+CHEATBITMASK CheatInputSystem::s_modStageCheats = 0;
+#endif
 
 //===========================================================================
 // Public Member Functions
@@ -339,6 +345,22 @@ CheatInputSystem::SetCheatEnabled( eCheatID cheatID, bool enable )
 bool
 CheatInputSystem::IsCheatEnabled( eCheatID cheatID ) const
 {
+#ifdef RAD_LINUX
+    // Linux port: mods' Unlock* hacks act as the matching cheats, without the cheats' all-missions-done rule
+    static const bool s_unlockMissions = shar_ModHackRequired( "UnlockAllMissions" ) != 0;
+    static const bool s_unlockVehicles = shar_ModHackRequired( "UnlockAllVehicles" ) != 0;
+    static const bool s_unlockOutfits = shar_ModHackRequired( "UnlockAllOutfits" ) != 0;
+    if( ( cheatID == CHEAT_ID_UNLOCK_MISSIONS && s_unlockMissions ) ||
+        ( cheatID == CHEAT_ID_UNLOCK_VEHICLES && s_unlockVehicles ) ||
+        ( cheatID == CHEAT_ID_UNLOCK_SKINS && s_unlockOutfits ) )
+    {
+        return true;
+    }
+    if( s_modStageCheats & (1 << cheatID) )
+    {
+        return true;
+    }
+#endif
     return ((s_cheatsEnabled & (1 << cheatID)) > 0);
 }
 
@@ -358,6 +380,14 @@ void
 CheatInputSystem::ReceiveInputs( eCheatInput* cheatInputs,
                                  int numInputs )
 {
+#ifdef RAD_LINUX
+    // Linux port: mods' NoCheats hack
+    static const bool s_noCheats = shar_ModHackRequired( "NoCheats" ) != 0;
+    if( s_noCheats )
+    {
+        return;
+    }
+#endif
     int cheatIndex = CheatsDB::ConvertSequenceToIndex( cheatInputs,
                                                        numInputs );
 

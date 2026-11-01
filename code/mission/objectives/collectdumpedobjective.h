@@ -48,6 +48,10 @@ public:
         Vehicle* GetDumpVehicle() {return mDumpVehicle;}
 
         bool IsBumperCars() {return mBumperCars;}
+#ifdef RAD_LINUX
+        // Linux port: mods' SetObjFailDistance (AdditionalScriptFunctionality); 0 = never fails on distance
+        void ModSetFailDistance( float distance ) { mModFailDistance = distance; }
+#endif
 
         virtual void HandleEvent( EventEnum id, void* pEventData );
 
@@ -94,6 +98,9 @@ private:
     bool mTerminalDump;
 
     AnimatedIcon* mAnimatedIcon;
+#ifdef RAD_LINUX
+    float mModFailDistance;
+#endif
 
     //Prevent wasteful constructor creation.
     CollectDumpedObjective( const CollectDumpedObjective& collectdumpedobjective );

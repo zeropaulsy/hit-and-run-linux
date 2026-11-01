@@ -24,6 +24,17 @@
 #include <Page.h>
 #include <Screen.h>
 #include <Text.h>
+#ifdef RAD_LINUX
+#include <shar_modbonus.h>
+#include <stdio.h>
+
+static char s_modMissionName[ 32 ] = "";
+
+void CGuiScreenMissionSuccess::SetModMissionName( const char* name )
+{
+    snprintf( s_modMissionName, sizeof( s_modMissionName ), "%s", name );
+}
+#endif
 
 //===========================================================================
 // Global Data, Local Data, Local Classes
@@ -134,6 +145,14 @@ void CGuiScreenMissionSuccess::InitIntro()
     {
         SetBitmapName( "art/frontend/dynaload/images/misXX_PS.p3d" );
     }
+#ifdef RAD_LINUX
+    // Linux port: mods' CustomBonusMissionSupport [EndBitmaps] / [EndBitmapsL<n>]
+    const char* modBitmap = shar_ModBonusEndBitmap( level, s_modMissionName );
+    if( modBitmap != NULL )
+    {
+        SetBitmapName( modBitmap );
+    }
+#endif
     ReplaceBitmap();
 
     //

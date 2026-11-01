@@ -10,10 +10,22 @@
 #ifndef _GLCUSTOM_HPP_
 #define _GLCUSTOM_HPP_
 
-class pglPipeline;
+#include <stddef.h>
+
+// what builds the shaders: the GL pipeline (glpipeline.hpp) or the Vulkan one (vk/vkpipeline.hpp)
+class pglCustomTarget
+{
+public:
+    // the program slot for a material, -1 when it does not build (the reason printed)
+    virtual int BuildCustomProgram(const char* name, const char* source) = 0;
+    // a *.spv file: SPIR-V for the Vulkan renderer (words: count of them; pragmas: the .frag beside it, "" without
+    // one). The default (OpenGL) skips it.
+    virtual int BuildCustomSpirv(const char* name, const unsigned* words, size_t count, const char* pragmas);
+    virtual void ReleaseCustomPrograms() = 0;
+};
 
 // from BeginFrame (render thread): loads the rules and shaders the first time, then reloads changed ones
-void pglCustomUpdate(pglPipeline* pipeline);
+void pglCustomUpdate(pglCustomTarget* pipeline);
 
 // bumped whenever the rules or shaders are reloaded: materials look themselves up again
 unsigned pglCustomGeneration();

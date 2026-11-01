@@ -21,6 +21,9 @@
 
 // cards database header file
 #include <cards/cards.h>
+#ifdef RAD_LINUX
+#include <shar_modcards.h>
+#endif
 
 #include <memory/srrmemory.h>
 
@@ -129,13 +132,28 @@ CardsDB::LoadCards()
 
         if( s_cardsDB[ i ].type == COLLECTOR_CARD )
         {
+            const eQuoteID* quotes = s_cardsDB[ i ].quotes;
+#ifdef RAD_LINUX
+            // Linux port: mods' CustomCollectorCardSupport <Quotes>: the card's quote characters, all replaced
+            eQuoteID modQuotes[ MAX_NUM_QUOTES ];
+            const SharModCard* modCard = shar_ModCollectorCard( s_cardsDB[ i ].level - 1, s_cardsDB[ i ].levelID - 1 );
+            if( modCard != NULL && modCard->hasQuotes )
+            {
+                for( unsigned int q = 0; q < MAX_NUM_QUOTES; q++ )
+                {
+                    modQuotes[ q ] = static_cast< int >( q ) < modCard->numQuotes ?
+                                     static_cast< eQuoteID >( modCard->quotes[ q ] ) : EMPTY_QUOTE;
+                }
+                quotes = modQuotes;
+            }
+#endif
             // create new collector card
             //
             m_cards[ cardID ] = new CollectorCard( cardID,
                                                    s_cardsDB[ i ].level,
                                                    s_cardsDB[ i ].levelID,
                                                    tEntity::MakeUID( s_cardsDB[ i ].name ),
-                                                   s_cardsDB[ i ].quotes,
+                                                   quotes,
                                                    MAX_NUM_QUOTES );
         }
         else if( s_cardsDB[ i ].type == BONUS_CARD )

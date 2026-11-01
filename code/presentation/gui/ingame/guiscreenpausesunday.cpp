@@ -29,6 +29,9 @@
 #include <Page.h>
 #include <Screen.h>
 #include <Text.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //===========================================================================
 // Global Data, Local Data, Local Classes
@@ -116,6 +119,13 @@ MEMTRACK_PUSH_GROUP( "CGUIScreenPauseSunday" );
     // disable certain menu items for demos
     //
     m_pMenu->SetMenuItemEnabled( MENU_ITEM_SAVE_GAME, false );
+#endif
+#ifdef RAD_LINUX
+    // Linux port: mods' NoSavedGames hack
+    if( shar_ModHackRequired( "NoSavedGames" ) )
+    {
+        m_pMenu->SetMenuItemEnabled( MENU_ITEM_SAVE_GAME, false );
+    }
 #endif
 MEMTRACK_POP_GROUP("CGUIScreenPauseSunday");
 }

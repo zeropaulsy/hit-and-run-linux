@@ -967,7 +967,14 @@ CGuiScreenPhoneBooth::On3DModelLoaded( const PreviewObject* previewObject )
         }
         else
         {
+#ifdef RAD_LINUX
+            // Linux port: a car without a 2D image (rocke_v, cBlbart, mods' cars): the previous car's sprite
+            // was unloaded with its section, drawing it corrupted memory; show none
+            m_previewImage->SetRawSprite( NULL, true );
+            m_previewImage->SetVisible( false );
+#else
             rAssertMsg( false, "*** Can't find 2D vehicle image!!" );
+#endif
         }
     }
 }
@@ -994,11 +1001,21 @@ CGuiScreenPhoneBooth::InitMenu()
     {
         Reward* pReward = NULL;
 
+#ifdef RAD_LINUX
+        // the level's quest rewards, mods' (CustomRewardQuestSupport) included
+        for( int j = 0; j < GetRewardsManager()->GetNumRewards( i ); j++ )
+        {
+            pReward = GetRewardsManager()->GetRewardAt( i, j );
+            if( pReward != NULL &&
+                pReward->GetRewardType() == Reward::ALT_PLAYERCAR &&
+                m_numPreviewVehicles < MAX_NUM_PREVIEW_VEHICLES - 1 )
+#else
         for( int j = (Reward::eBlank + 1); j < Reward::NUM_QUESTS; j++ )
         {
             pReward = GetRewardsManager()->GetReward( i, (Reward::eQuestType)j );
             if( pReward != NULL &&
                 pReward->GetRewardType() == Reward::ALT_PLAYERCAR )
+#endif
             {
                 rAssert( m_numPreviewVehicles < MAX_NUM_PREVIEW_VEHICLES - 1 );
                 m_numPreviewVehicles = this->InsertPreviewObject( m_previewVehicles,

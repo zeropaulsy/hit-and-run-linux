@@ -12,19 +12,121 @@
 #include <string.h>
 
 #ifdef RAD_LINUX
+#include <shar_modshaders.h>
+#include <shar_mods.h>
 void pglSetMaterialName(pddiShader* shader, const char* name, const char* file);     // pddi/gl/glmat.cpp
+bool radMovieSetVideoTexture(pddiShader* shader, unsigned param, const char* path);  // radmovie binkvideotexture.cpp
+
+// Linux port: mods' VideoTextureSupport: a texture named by a virtual path ("/GameData/x.bik") is a Bink video
+static bool SetModVideoTexture(tShader* shader, unsigned param, const char* name)
+{
+    static int s_Enabled = -1;
+    if(s_Enabled < 0)
+        s_Enabled = shar_ModHackRequired("VideoTextureSupport");
+    return s_Enabled && name[0] == '/' && radMovieSetVideoTexture(shader->GetShader(), param, name);
+}
+
+// Linux port: mods' HackSupport.ini [Miscellaneous] OverrideTexture: one texture on every shader (animated ones
+// set their own each frame)
+static void ApplyModOverrideTexture(tShader* shader, tEntityStore* store)
+{
+    static int s_Read = 0;
+    static char s_Texture[256];
+    if(!s_Read)
+    {
+        if(!shar_ModHackRequired("HackSupport") ||
+           !shar_ModConfigValue("HackSupport.ini", "Miscellaneous", "OverrideTexture", s_Texture, sizeof(s_Texture)))
+            s_Texture[0] = '\0';
+        s_Read = 1;
+    }
+    if(s_Texture[0] == '\0' || SetModVideoTexture(shader, PDDI_SP_BASETEX, s_Texture))
+        return;
+    tTexture* tex = p3d::find<tTexture>(store, s_Texture);
+    if(!tex)
+        tex = p3d::find<tTexture>(s_Texture);
+    if(tex)
+        shader->SetTexture(PDDI_SP_BASETEX, tex);
+}
+
+// Linux port: mods' OverrideShaderParameters.xml (port/compat/shar_modshaders.h), as the shader loads
+static void ApplyModShaderOverrides(tShader* shader, const char* name, tEntityStore* store)
+{
+    SharModShaderParam params[32];
+    int count = shar_ModShaderOverrides(name, params, 32);
+    bool ambient = false;
+    const pddiColour* diffuse = NULL;
+    pddiColour diffuseColour;
+    for(int i = 0; i < count; i++)
+    {
+        const SharModShaderParam& p = params[i];
+        if(p.param == PDDI_SP_AMBIENT)
+            ambient = true;
+        if(!p.hasValue)
+            continue;
+        switch(p.type)
+        {
+            case SHAR_SHADERPARAM_INT:
+                shader->SetInt(p.param, p.intValue);
+                if(p.param == PDDI_SP_BLENDMODE)
+                    shader->mFileBlendMode = p.intValue;
+                break;
+            case SHAR_SHADERPARAM_FLOAT:
+                shader->SetFloat(p.param, p.floatValue);
+                break;
+            case SHAR_SHADERPARAM_COLOUR:
+                shader->SetColour(p.param, pddiColour(p.colour));
+                if(p.param == PDDI_SP_DIFFUSE)
+                {
+                    diffuseColour = pddiColour(p.colour);
+                    diffuse = &diffuseColour;
+                }
+                break;
+            case SHAR_SHADERPARAM_VECTOR:
+                {
+                    pddiVector v;
+                    v.x = p.vector[0];
+                    v.y = p.vector[1];
+                    v.z = p.vector[2];
+                    shader->SetVector(p.param, v);
+                }
+                break;
+            case SHAR_SHADERPARAM_TEXTURE:
+                {
+                    if(SetModVideoTexture(shader, p.param, p.texture))
+                        break;
+                    tTexture* tex = p3d::find<tTexture>(store, p.texture);
+                    if(!tex)
+                        tex = p3d::find<tTexture>(p.texture);
+                    if(tex)
+                        shader->SetTexture(p.param, tex);
+                    else
+                        rReleasePrintf("mods: shader %s: no texture %s\n", name, p.texture);
+                }
+                break;
+        }
+    }
+    // the loader sets ambient with diffuse
+    if(diffuse != NULL && !ambient)
+        shader->SetColour(PDDI_SP_AMBIENT, *diffuse);
+}
 #endif
 
 tShader::tShader()
 {
     shader = p3d::device->NewShader("simple");
     shader->AddRef();
+#ifdef RAD_LINUX
+    mFileBlendMode = -1;
+#endif
 }
 
 tShader::tShader(char* shaderName, char* definition)
 {
     shader = p3d::device->NewShader(shaderName, definition);
     shader->AddRef();
+#ifdef RAD_LINUX
+    mFileBlendMode = -1;
+#endif
 }
 
 tShader::~tShader()
@@ -177,6 +279,10 @@ tEntity* tShaderLoader::LoadObject(tChunkFile* f, tEntityStore* store)
                         foundEvilChainlink = true;
                     }
 
+#ifdef RAD_LINUX
+                    if(SetModVideoTexture(shader, param, texName))
+                        break;
+#endif
                     shader->SetTexture(param, tex);
                 }
                 break;
@@ -190,6 +296,10 @@ tEntity* tShaderLoader::LoadObject(tChunkFile* f, tEntityStore* store)
                     unsigned val = f->GetInt();
 
                     shader->SetInt(param, val);
+#ifdef RAD_LINUX
+                    if(param == PDDI_SP_BLENDMODE)
+                        shader->mFileBlendMode = val;
+#endif
                 }
                 break;
 
@@ -280,6 +390,8 @@ tEntity* tShaderLoader::LoadObject(tChunkFile* f, tEntityStore* store)
     shader->SetName(name);
 #ifdef RAD_LINUX
     pglSetMaterialName(shader->GetShader(), name, f->GetFullFilename());    // for user material shaders (pddi/gl/glcustom.cpp)
+    ApplyModOverrideTexture(shader, store);
+    ApplyModShaderOverrides(shader, name, store);
 #endif
     return shader;
 }

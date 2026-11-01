@@ -11,7 +11,7 @@
 
 #pragma shar_cull none                 // every face of the shell (the fragment part picks the back ones)
 
-const float WIDTH = 4.0;                // line width in pixels at 1080 lines (scaled with the window height)
+const float WIDTH = 2;                  // line width in pixels at 1080 lines (scaled with the window height)
 const float MIN_WIDTH = 0.6;            // far away, lines thin down to this share of WIDTH ...
 const float FULL_WIDTH_DISTANCE = 6.0;  // ... beyond this distance (game units, about metres) from the camera
 const vec3 COLOUR = vec3(0.0);          // line colour

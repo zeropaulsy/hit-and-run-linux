@@ -67,6 +67,7 @@
 #include <cheats/cheatinputsystem.h>
 #ifdef RAD_LINUX
 #include <shar_modcars.h>
+#include <shar_mods.h>
 #endif
 
 //*****************************************************************************
@@ -1747,6 +1748,15 @@ bool SuperCamCentral::AllowCameraToggle()
     //In these modes do not allow the camera to be toggled.
     SuperCam::Type type = mActiveSuperCam->GetType();
     
+#ifdef RAD_LINUX
+    // Linux port: mods' BugFixes FixRelativeAnimatedCamCameraChange: the phone booth's camera pan cancelled by the
+    // change-camera button (leaving the mouse camera on until the game next sets one)
+    static const bool s_fixRelativeAnimated = shar_ModBugFix( "Camera", "FixRelativeAnimatedCamCameraChange", 1 ) != 0;
+    if( s_fixRelativeAnimated && type == SuperCam::RELATIVE_ANIMATED_CAM )
+    {
+        return false;
+    }
+#endif
     return !( type == SuperCam::RAIL_CAM || type == SuperCam::STATIC_CAM || type == SuperCam::ANIMATED_CAM );
 }
 

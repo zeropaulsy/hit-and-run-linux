@@ -31,6 +31,11 @@ public:
     void  SetMatrix(unsigned paramName, const pddiMatrix& v) {shader->SetMatrix(paramName, v);}
 
     bool mTranslucent;
+#ifdef RAD_LINUX
+    // Linux port: the blend mode the shader file (or a mod's override) gives, -1 for none: characters force alpha on
+    // every shader, mods' CustomCharacterSupport BlendModeSupport keeps additive and subtractive ones
+    int mFileBlendMode;
+#endif
 protected:
     ~tShader();
     pddiShader* shader;

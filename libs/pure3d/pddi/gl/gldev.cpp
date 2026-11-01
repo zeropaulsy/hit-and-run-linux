@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <shar_mods.h>
 // #include <io.h>
 #include <pddi/base/debug.hpp>
 
@@ -162,6 +163,7 @@ pddiTexture* pglDevice::NewTexture(pddiTextureDesc* desc)
 static pddiBaseShader* AllocSimpleShader(pddiRenderContext* c, const char*, const char*)     { return new pglMat((pglContext*)c); }
 static pddiBaseShader* AllocReflectionShader(pddiRenderContext* c, const char*, const char*) { return new pglReflectionMat((pglContext*)c); }
 static pddiBaseShader* AllocErrorShader(pddiRenderContext* c, const char*, const char*)      { return new pglErrorMat((pglContext*)c); }
+static pddiBaseShader* AllocRefractionShader(pddiRenderContext* c, const char*, const char*) { return new pglRefractionMat((pglContext*)c); }
 
 static void pglInstallShaders()
 {
@@ -174,6 +176,9 @@ static void pglInstallShaders()
     pddiBaseShader::InstallShader("error",       AllocErrorShader, NULL);
     pddiBaseShader::InstallShader("environment", AllocReflectionShader, NULL);
     pddiBaseShader::InstallShader("spheremap",   AllocReflectionShader, NULL);
+    // the PS2's refraction: on the PC (D3D8) it drew as simple, as it does here unless a mod asks for it
+    if(shar_ModHackRequired("RefractionShaderSupport"))
+        pddiBaseShader::InstallShader("refract", AllocRefractionShader, NULL);
 }
 
 pddiShader *pglDevice::NewShader(const char* name, const char* aux) 

@@ -15,6 +15,7 @@
 // Foundation Tech
 #include <radmath/radmath.hpp>
 #include <raddebug.hpp>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <p3d/utility.hpp>
@@ -585,11 +586,18 @@ void ParkedCarManager::AddCarType( const char* name )
     }
     else
     {
-        rAssert( mNumCarTypes < MAX_DIFFERENT_CARS );
+        rAssert( mNumCarTypes < MAX_MOD_CARS ); // Linux port: was MAX_DIFFERENT_CARS
     }
 #endif
 
     rAssert( strlen( name ) < MAX_CAR_NAME_LEN );
+
+    // Linux port: a mod's traffic groups plus AddParkedCar can pass the array (5 in the original)
+    if ( !CommandLineOptions::Get( CLO_PARKED_CAR_TEST ) && mNumCarTypes >= MAX_MOD_CARS )
+    {
+        fprintf( stderr, "mods: more than %d parked car types, %s ignored\n", MAX_MOD_CARS, name );
+        return;
+    }
 
     HeapMgr()->PushHeap( GMA_LEVEL_OTHER );
 
@@ -806,7 +814,7 @@ ParkedCarManager::ParkedCarManager() :
     }
     else
     {
-        mParkedCars = new ParkedCarInfo[ MAX_DIFFERENT_CARS ];
+        mParkedCars = new ParkedCarInfo[ MAX_MOD_CARS ]; // Linux port: room for mods' AddParkedCar
     }
 
     //We want an inventory section for the car

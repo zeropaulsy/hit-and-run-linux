@@ -41,6 +41,12 @@
 #include <choreo/puppet.hpp>
 #include <radmath/radmath.hpp>
 #include <interiors/interiormanager.h>
+#ifdef RAD_LINUX
+#include <shar_modcharacters.h>
+#include <shar_mods.h>
+#include <worldsim/vehiclecentral.h>
+#include <worldsim/redbrick/vehiclecontroller/vehiclecontroller.h>
+#endif
 
 inline bool AnyStickMovement(Character* character, float tol = 0.0f)
 {
@@ -352,6 +358,32 @@ void WalkerLocomotionAction::Update( float timeins)
         static int s_idleProbabilityTable[10] = { 0,0,0,0,0,1,1,1,2,2 };
         static int s_lastIdle = 0;
         int idle = s_idleProbabilityTable[sRandom.IntRanged(9)];
+#ifdef RAD_LINUX
+        // Linux port: mods' CustomCharacterSupport IdleAnimationWeight, one per <model>_idle<N>
+        const SharModCharacter* modCharacter = shar_ModCharacter( GetCharacterManager()->GetModelName( mpCharacter ) );
+        if( modCharacter != NULL && modCharacter->numIdleWeights > 0 )
+        {
+            float total = 0.0f;
+            for( int i = 0; i < modCharacter->numIdleWeights; i++ )
+            {
+                total += modCharacter->idleWeights[ i ];
+            }
+            if( total > 0.0f )
+            {
+                float pick = sRandom.Float() * total;
+                idle = modCharacter->numIdleWeights - 1;
+                for( int i = 0; i < modCharacter->numIdleWeights; i++ )
+                {
+                    if( pick < modCharacter->idleWeights[ i ] )
+                    {
+                        idle = i;
+                        break;
+                    }
+                    pick -= modCharacter->idleWeights[ i ];
+                }
+            }
+        }
+#endif
 
         if((s_lastIdle != 0) && (s_lastIdle == idle))
         {
@@ -466,6 +498,17 @@ void InCarAction::IWannaRock(bool whattaYouWannaDoWithYourLife)
     {
         anim = choreo::find<choreo::Animation>( pPuppet->GetBank(), mIsDriver ? "in_car_idle_driver" : "in_car_idle" );
     }
+#ifdef RAD_LINUX
+    // Linux port: a mod's passenger's animation (SetStageVehicleCharacterAnimation; one the set lacks: the idle)
+    if( mpCharacter->HasModSeat() && mpCharacter->GetModSeatSettings().animation != 0 )
+    {
+        choreo::Animation* modAnim = choreo::find<choreo::Animation>( pPuppet->GetBank(), mpCharacter->GetModSeatSettings().animation );
+        if( modAnim != 0 )
+        {
+            anim = modAnim;
+        }
+    }
+#endif
 
     if (anim == 0)
     {
@@ -509,8 +552,15 @@ Return:         void
 */
 void InCarAction::DoSimulation( float timeins)
 {
+#ifdef RAD_LINUX
+    // Linux port: a mod's passenger faces its seat's way
+    float facing = mpCharacter->HasModSeat() ? mpCharacter->GetModSeatFacing() : rmt::PI;
+    mpCharacter->SetDesiredDir( facing );
+    mpCharacter->SetFacingDir( facing );
+#else
     mpCharacter->SetDesiredDir( rmt::PI );
     mpCharacter->SetFacingDir( rmt::PI );
+#endif
     mpCharacter->SetDesiredSpeed( 0.0f );
     mpCharacter->SetSpeed( 0.0f );
 }
@@ -659,6 +709,20 @@ bool SteerAction::ShouldRelease(void)
    }
 
    float steer = GetCharacterManager()->GetCharacter(0)->GetController()->GetValue(CharacterController::LeftStickX);
+#ifdef RAD_LINUX
+   // Linux port: mods' BugFixes FixSteeringAnimations: the character's stick reads nothing while driving (keyboard),
+   // so the animation was released as it started and restarted every frame; the car's steering instead
+   static const bool s_fixSteering = shar_ModBugFix( "Visual", "FixSteeringAnimations", 1 ) != 0;
+   if( s_fixSteering )
+   {
+       VehicleController* v = GetVehicleCentral()->GetVehicleController(
+           GetVehicleCentral()->GetVehicleId( mpCharacter->GetTargetVehicle(), false ) );
+       if( v != NULL )
+       {
+           steer = v->GetEffectiveSteering();
+       }
+   }
+#endif
    return (rmt::Abs(steer) < 0.1f) || (mpCharacter->GetTargetVehicle()->IsInReverse()); 
 ;
 }

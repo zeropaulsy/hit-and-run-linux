@@ -49,6 +49,10 @@
 #include <ai/actor/intersectionlist.h>
 
 #include <choreo/utility.hpp>
+#ifdef RAD_LINUX
+#include <shar_moddutch.h>
+#include <shar_mods.h>
+#endif
 
 
 //******************************************************************************
@@ -274,7 +278,20 @@ void WalkerCam::Update( unsigned int milliseconds )
 
         //---------  Goofin' with the twist
         //Are we on level 7?
-        if ( GetGameplayManager()->GetCurrentLevelIndex() == RenderEnums::L7 && pedPCT > 0.0f)
+        bool creepyLevel = GetGameplayManager()->GetCurrentLevelIndex() == RenderEnums::L7;
+        float creepyTwist = CREEPY_TWIST_WALKER;
+#ifdef RAD_LINUX
+        // Linux port: mods' CustomDutchAngleNPCCameraTilt: which levels / missions tilt, and by how much
+        float tiltDegrees;
+        int modTilt = shar_ModDutchTilt( static_cast< int >( GetGameplayManager()->GetCurrentLevelIndex() ),
+                                         GetGameplayManager()->GetCurrentMissionIndex(), &tiltDegrees );
+        if( modTilt >= 0 )
+        {
+            creepyLevel = modTilt != 0;
+            creepyTwist = rmt::DegToRadian( tiltDegrees );
+        }
+#endif
+        if ( creepyLevel && pedPCT > 0.0f)
         {
             rmt::Vector velocity;
             mTarget->GetVelocity( &velocity );
@@ -283,7 +300,7 @@ void WalkerCam::Update( unsigned int milliseconds )
 
             if ( velocity.MagnitudeSqr() < minCharSpeed )
             {
-                SetTwist( CREEPY_TWIST_WALKER * pedPCT );
+                SetTwist( creepyTwist * pedPCT );
             }
             else
             {
@@ -455,9 +472,30 @@ void WalkerCam::SetTarget( ISuperCamTarget* target )
         if ( wcD->mID == target->GetID() )
         {
             //Load the data.
+#ifdef RAD_LINUX
+            // Linux port: mods' WalkerCameraDataSupport: all of it (the minimum was never set, the offset and the
+            // starting distance not taken)
+            if ( shar_ModHackRequired( "WalkerCameraDataSupport" ) )
+            {
+                mData.SetMinMagnitude( wcD->mMinMagnitude );
+                mData.SetMaxMagnitude( wcD->mMaxMagnitude );
+                mData.SetMagnitude( ( wcD->mMaxMagnitude - wcD->mMinMagnitude ) / 2.0f + wcD->mMinMagnitude );
+                mData.SetElevation( wcD->mElevation );
+                mData.SetTargetOffset( wcD->mTargetOffset );
+                if ( getenv( "SHAR_MOD_LOG" ) )
+                {
+                    fprintf( stderr, "mods: walker camera data %u: magnitude %g-%g elevation %g offset %g %g %g\n",
+                                    wcD->mID, wcD->mMinMagnitude, wcD->mMaxMagnitude, wcD->mElevation,
+                                    wcD->mTargetOffset.x, wcD->mTargetOffset.y, wcD->mTargetOffset.z );
+                }
+            }
+            else
+#endif
+            {
             mData.SetMaxMagnitude( wcD->mMaxMagnitude);
             mData.SetMaxMagnitude( wcD->mMaxMagnitude);
             mData.SetElevation( wcD->mElevation );
+            }
 
             p3d::inventory->Remove( wcD );
 

@@ -685,6 +685,14 @@ Return:         ActionButtonHandler
 ActionButton::ButtonHandler* ActionButtonManager::NewActionButtonHandler( const char* typeName, ActionEventLocator* pActionEventLocator )
 {
     ActionButton::ButtonHandler* pActionButtonHandler = 0;  
+#ifdef RAD_LINUX
+    // Linux port: mods' NoWrenches hack: no repair wrench pickups
+    static const bool s_noWrenches = shar_ModHackRequired( "NoWrenches" ) != 0;
+    if ( s_noWrenches && strcasecmp( typeName, "Wrench" ) == 0 )
+    {
+        return 0;
+    }
+#endif
     int i;
     for ( i = 0; i < ActionButton::ActionListSize; i++ )
     {

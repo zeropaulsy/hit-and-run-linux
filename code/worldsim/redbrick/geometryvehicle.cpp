@@ -49,6 +49,9 @@
 #include <worldsim/coins/sparkle.h>
 #ifdef RAD_LINUX
 #include <shar_modcars.h>
+#include <shar_mods.h>
+#include <worldsim/redbrick/suspensionjointdriver.h>
+void pglRecaptureScreen();      // pddi/gl/glpipeline.hpp: HoverCarRefraction's per car screen capture
 #endif
 
 //#define SHADOW_EDITTING
@@ -882,38 +885,62 @@ BEGIN_PROFILE("GeometryVehicle::Display Render")
         float refraction = percentOfTopSpeed;
         refraction = rmt::Clamp( refraction, 0.0f, 1.0f );
 
-        int emissiveAlpha = (int)( 255.0f * (1.0f - refraction) );
-
-        tShaderIntBroadcast blendMode( PDDI_SP_BLENDMODE, PDDI_BLEND_ALPHA );
-        tShaderIntBroadcast emissive( PDDI_SP_EMISSIVEALPHA, emissiveAlpha );
-        int count = mCompositeDrawable->GetNumDrawableElement ();
-        for (int j = 0; j < count; j++)
+#ifdef RAD_LINUX
+        // HoverCarRefraction (Linux port, as the Mod Launcher's hack): the Xbox's refraction (Update's #ifndef
+        // RAD_WIN32 part, here per car as the shaders are shared) instead of the PC's fade; the GL pddi draws the
+        // simple materials given these as the Xbox's refract shader (pglMat::SetDevPass)
+        if( shar_ModHackRequired( "HoverCarRefraction" ) )
         {
-            tCompositeDrawable::DrawableElement* pElement = mCompositeDrawable->GetDrawableElement( j );
-            tDrawable* pDrawable = pElement->GetDrawable();
-            pDrawable->ProcessShaders( blendMode );
-            pDrawable->ProcessShaders( emissive );
-        }
-
-        // so since we just made EVERY SHADER alpha blend, we need to take
-        // care of the BBQGs (that need to be additive blended)
-        if( mFrinkArc )
-        {
-            tColour arcColour;
-            for( int j=0; j< NUM_FRINKARC_BBQS; j++ )
+            if( shar_ModHackSetting( "HoverCarRefraction", "PerCarScreenCapture", 1 ) )
             {
-                tBillboardQuad* bbq = mFrinkArc->GetQuad(j);
-                rAssert( bbq );
-
-                arcColour.Set( 
-                    rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Red()*(1.0f - refraction)), 0, 255 ),
-                    rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Green()*(1.0f - refraction)), 0, 255 ),
-                    rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Blue()*(1.0f - refraction)), 0, 255 ),
-                    rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Alpha()*(1.0f - refraction)), 0, 255 )
-                );
-                bbq->SetColour( arcColour );
+                pglRecaptureScreen();
             }
-            mFrinkArc->GetShader()->SetInt( PDDI_SP_BLENDMODE, PDDI_BLEND_ADD );
+            for( int j = 0; j < MAX_REFRACTION_SHADERS; ++j )
+            {
+                if( mRefractionShader[ j ] != NULL )
+                {
+                    // the windshield (first) never goes below half
+                    mRefractionShader[ j ]->SetFloat( PDDI_SP_REFRACTBLEND, j == 0 ? 0.5f + 0.5f * refraction : refraction );
+                    mRefractionShader[ j ]->SetFloat( PDDI_SP_REFRACTINDEX, refractiveIndex );
+                }
+            }
+        }
+        else
+#endif
+        {
+            int emissiveAlpha = (int)( 255.0f * (1.0f - refraction) );
+
+            tShaderIntBroadcast blendMode( PDDI_SP_BLENDMODE, PDDI_BLEND_ALPHA );
+            tShaderIntBroadcast emissive( PDDI_SP_EMISSIVEALPHA, emissiveAlpha );
+            int count = mCompositeDrawable->GetNumDrawableElement ();
+            for (int j = 0; j < count; j++)
+            {
+                tCompositeDrawable::DrawableElement* pElement = mCompositeDrawable->GetDrawableElement( j );
+                tDrawable* pDrawable = pElement->GetDrawable();
+                pDrawable->ProcessShaders( blendMode );
+                pDrawable->ProcessShaders( emissive );
+            }
+
+            // so since we just made EVERY SHADER alpha blend, we need to take
+            // care of the BBQGs (that need to be additive blended)
+            if( mFrinkArc )
+            {
+                tColour arcColour;
+                for( int j=0; j< NUM_FRINKARC_BBQS; j++ )
+                {
+                    tBillboardQuad* bbq = mFrinkArc->GetQuad(j);
+                    rAssert( bbq );
+
+                    arcColour.Set( 
+                        rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Red()*(1.0f - refraction)), 0, 255 ),
+                        rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Green()*(1.0f - refraction)), 0, 255 ),
+                        rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Blue()*(1.0f - refraction)), 0, 255 ),
+                        rmt::Clamp( (int)(mOriginalFrinkArcColour[j].Alpha()*(1.0f - refraction)), 0, 255 )
+                    );
+                    bbq->SetColour( arcColour );
+                }
+                mFrinkArc->GetShader()->SetInt( PDDI_SP_BLENDMODE, PDDI_BLEND_ADD );
+            }
         }
     }
 #endif
@@ -1122,12 +1149,14 @@ void GeometryVehicle::SetSkidValues(int wheel, float intensity, rmt::Vector& gro
     // if this got called, intensity is > 0.0
 
 #ifdef RAD_LINUX
-    // CustomCarSupport NoSkidMarks / NoFrontSkidMarks (wheels 2 and 3 are the front ones)
+    // CustomCarSupport NoSkidMarks / NoFrontSkidMarks (wheels 2 and 3 are the front ones); fake wheels still copy a
+    // front wheel's skids
     const SharModCar* modCar = mVehicleOwner->mModCar;
-    if( modCar != NULL && ( modCar->noSkidMarks == 1 || ( modCar->noFrontSkidMarks == 1 && wheel >= 2 ) ) )
+    if( modCar != NULL && modCar->noSkidMarks == 1 )
     {
         return;
     }
+    bool ownSkid = modCar == NULL || modCar->noFrontSkidMarks != 1 || wheel < 2;
 #endif
     if(mSkidMarkGenerator)// && mDrawSkids)  // test here though this should only be getting called for vehicles that have it... ie. VT_USER
     {
@@ -1169,8 +1198,30 @@ void GeometryVehicle::SetSkidValues(int wheel, float intensity, rmt::Vector& gro
         // Michael - would this blow up if I passed in 0,0,0 ?
         sd.velocityDirection = velocityDir;
 
+#ifdef RAD_LINUX
+        if( ownSkid )
+#endif
 		mSkidMarkGenerator->GenerateSkid(wheel, sd);
 
+#ifdef RAD_LINUX
+        // CustomCarSupport [FakeWheel] CopySkidMarks: the fake wheel skids under its joint, at this wheel's ground
+        // height, once a frame however many wheels it copies
+        for( int f = 0; f < mVehicleOwner->mNumFakeWheelDrivers; f++ )
+        {
+            const FakeWheelJointDriver* fake = mVehicleOwner->mFakeWheelDrivers[ f ];
+            int slot = SkidMarkGenerator::MAX_NUM_WHEELS + f;
+            if( !( fake->GetConfig()->copySkidMarks & ( 1 << wheel ) ) || mSkidMarkGenerator->IsExtendedThisFrame( slot ) )
+            {
+                continue;
+            }
+            rmt::Vector fakeOffset = fake->GetRestPoint();
+            fakeOffset.y = offset.y;
+            mSkidMarkGenerator->SetWheelOffset( slot, fakeOffset );
+            float width = mVehicleOwner->mWheels[wheel]->mRadius * 0.8f * fake->GetConfig()->skidMarkWidthMultiplier;
+            mSkidMarkGenerator->SetWheelDimensions( slot, width, 0.0f );
+            mSkidMarkGenerator->GenerateSkid( slot, sd );
+        }
+#endif
     }
 
 }
@@ -1199,9 +1250,19 @@ int GeometryVehicle::CastsShadow()
 {
     return 2;
 }
+#ifdef RAD_LINUX
+bool pvkSunRaysOn();    // pddi/vk/vksun.cpp: the sun's ray-traced shadows (Shadows High; low keeps the blobs)
+#endif
+
 //------------------------------------------------------------------------
 void GeometryVehicle::DisplayShadow( BlobShadowParams* BlobParams )
 {
+#ifdef RAD_LINUX
+    if( pvkSunRaysOn() && ::GetGameplayManager()->GetGameType() != GameplayManager::GT_SUPERSPRINT )
+    {
+        return; // Linux port: the sun's shadows replace the blob
+    }
+#endif
     BEGIN_PROFILE("GeometryVehicle::DisplayShadow")
     rAssert(BlobParams);
     tColour OutsideColour, insideColour;
@@ -2260,6 +2321,26 @@ bool GeometryVehicle::GetArt( const char* name)
             EnableLights( false );
         }
     }        
+#ifdef RAD_LINUX
+    // Linux port: mods' CustomHeadlights: per level (0-6; bonus game tracks 8-14) head and tail light brightness
+    if( shar_ModHackRequired( "CustomHeadlights" ) )
+    {
+        char key[ 8 ], value[ 32 ];
+        sprintf( key, "%d", static_cast< int >( GetGameplayManager()->GetCurrentLevelIndex() ) );
+        if( shar_ModConfigValue( "CustomHeadlights.ini", "CustomHeadlights", key, value, sizeof( value ) ) &&
+            value[ 0 ] != '\0' )
+        {
+            mHeadLightScale = static_cast< float >( atof( value ) );
+        }
+        // the docs spell the section both ways
+        if( ( shar_ModConfigValue( "CustomHeadlights.ini", "CustomTaillights", key, value, sizeof( value ) ) ||
+              shar_ModConfigValue( "CustomHeadlights.ini", "CustomTailights", key, value, sizeof( value ) ) ) &&
+            value[ 0 ] != '\0' )
+        {
+            mBrakeLightScale = static_cast< float >( atof( value ) );
+        }
+    }
+#endif
 
 
 
@@ -3406,3 +3487,19 @@ void GeometryVehicle::AdvanceAnimationControllers( float deltaTime )
     }
 }
 
+#ifdef RAD_LINUX
+//=============================================================================
+// GeometryVehicle::SetModDrawableVisible
+//=============================================================================
+void GeometryVehicle::SetModDrawableVisible( tUID uid, bool visible )
+{
+    for( int i = 0; mCompositeDrawable != NULL && i < mCompositeDrawable->GetNumDrawableElement(); i++ )
+    {
+        tCompositeDrawable::DrawableElement* element = mCompositeDrawable->GetDrawableElement( i );
+        if( element != NULL && element->GetDrawable() != NULL && element->GetUID() == uid )
+        {
+            element->SetVisibility( visible );
+        }
+    }
+}
+#endif

@@ -80,7 +80,7 @@ public:
     // before anything else is done.
     static bool InitializeWindow( HINSTANCE hInstance );
 #ifdef RAD_LINUX
-    static struct SDL_Window* CreateGameWindow();
+    static struct SDL_Window* CreateGameWindow( bool vulkan );
 #endif
     static void InitializeFoundation();
     static void InitializeMemory();
@@ -180,6 +180,26 @@ public:
     void SetBorderless( bool borderless ) { mBorderless = borderless; }
     bool IsBorderless() const { return mBorderless; }
     static void GetResolutionSize( Resolution res, int& x, int& y ) { TranslateResolution( res, x, y ); }
+
+    // Graphics settings (CGuiScreenGraphics; simpsons.ini antialiasing=, shaders=, renderer=, shadows=). Anti-aliasing,
+    // the user's shaders (shaders/) and shadows change at once; the renderer is read at start-up. Shadows: the sun's
+    // (Vulkan only; pddi/vk/vksun.hpp), 0 off (default), 1 low (shadow map, any GPU), 2 high (ray traced; low
+    // without ray queries).
+    enum Renderer
+    {
+        RENDERER_OPENGL,
+        RENDERER_VULKAN,        // the next start (the window is made for one); OpenGL if Vulkan cannot draw
+
+        NUM_RENDERERS
+    };
+    void SetAntialiasing( int samples );
+    int GetAntialiasing() const { return mAntialiasing; }
+    void SetUserShaders( bool on );
+    bool GetUserShaders() const;
+    void SetRenderer( Renderer renderer ) { mRenderer = renderer; }
+    Renderer GetRenderer() const { return mRenderer; }
+    void SetShadows( int quality );
+    int GetShadows() const;
 private:
 #endif
 
@@ -208,6 +228,7 @@ private:
     int mAntialiasing;      // MSAA samples (simpsons.ini antialiasing=, 0 = off)
     bool mMipmaps;          // texture filtering (simpsons.ini mipmaps=yes/no, anisotropy=)
     int mAnisotropy;
+    Renderer mRenderer;     // simpsons.ini renderer=opengl/vulkan
 #endif
     int mScreenWidth;
     int mScreenHeight;

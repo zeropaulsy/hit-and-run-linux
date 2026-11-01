@@ -71,6 +71,10 @@ class Text
         // Linux port: append a value (FeText already had this; exposed for extra menu choices)
         virtual void AddHardCodedString( const char* string ) = 0;
 
+        // Linux port: a new text with this one's position, transform, style and colours and the given string, added
+        // to the same parent (menu items the page doesn't have). NULL if this text has no parent.
+        virtual Text* Clone( const char* name, const char* string ) = 0;
+
         // Switch how the text object handles text which is larger than the current bounding box
         virtual Scrooby::TextMode GetTextMode() = 0;
         virtual void SetTextMode( Scrooby::TextMode mode ) = 0;

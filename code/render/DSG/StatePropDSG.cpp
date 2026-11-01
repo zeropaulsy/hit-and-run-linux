@@ -826,9 +826,19 @@ StatePropDSG::CastsShadow()
     return retVal;
 }
 
+#ifdef RAD_LINUX
+bool pvkSunRaysOn();    // pddi/vk/vksun.cpp: the sun's ray-traced shadows (Shadows High; low: animated props are not in its map)
+#endif
+
 void 
 StatePropDSG::DisplaySimpleShadow()
 {
+#ifdef RAD_LINUX
+    if( pvkSunRaysOn() )
+    {
+        return; // Linux port: the sun's shadows replace the blob
+    }
+#endif
     BEGIN_PROFILE("DisplaySimpleShadow")
     p3d::pddi->SetZWrite(false);
     if ( mpShadowMatrix != NULL )

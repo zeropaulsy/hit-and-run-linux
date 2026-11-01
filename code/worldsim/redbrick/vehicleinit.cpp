@@ -76,6 +76,7 @@
 #include <gameflow/gameflow.h>
 #ifdef RAD_LINUX
 #include <shar_modcars.h>
+#include <mission/modscript.h>
 #endif
 
 using namespace sim;
@@ -101,6 +102,12 @@ Vehicle::Vehicle() :
 #ifdef RAD_LINUX
     mModCar( NULL ),
     mModHusk( false ),
+    mModAbductable( -1 ),
+    mModReset( -1 ),
+    mModNoDestroyedJumpOut( false ),
+    mNumModCharacters( 0 ),
+    mNumModConditionals( 0 ),
+    mModWheelieXOffset( 0.0f ),
     mNumFakeWheelDrivers( 0 ),
 #endif
     mTerrainType( TT_Road),
@@ -1391,6 +1398,9 @@ void Vehicle::SetupRadDebugWatchStuff()
 //=============================================================================
 Vehicle::~Vehicle()
 {
+#ifdef RAD_LINUX
+    ModScript::OnVehicleRemoved( this, true );    // a mod's passengers leave it
+#endif
     if(GetGameplayManager()->GetCurrentVehicle() == this)
     {
         GetGameplayManager()->UnregisterVehicleHUDIcon();

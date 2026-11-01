@@ -12,6 +12,8 @@
 #define _GLPIPELINE_HPP_
 
 #include <pddi/gl/display_linux/gl.hpp>
+#include <pddi/gl/glshaders.hpp>
+#include <pddi/gl/glcustom.hpp>
 
 class pglProgram
 {
@@ -59,15 +61,8 @@ const int pglMaxCustomPrograms = 32;       // user material shaders (glcustom.cp
 // consistent, so there is no "reverse": shaders tell faces apart by their normals instead.
 enum { PGL_CULL_GAME, PGL_CULL_NONE };
 
-// the programs, one per kind of pddi shader (glmat.cpp)
-enum pglProgramType
-{
-    PGL_PROGRAM_SIMPLE,         // "simple": diffuse * texture
-    PGL_PROGRAM_REFLECTION,     // "environment", "spheremap": diffuse * texture + envBlend * reflection map
-    PGL_PROGRAM_COUNT
-};
 
-class pglPipeline
+class pglPipeline : public pglCustomTarget
 {
 public:
     // what the material sets for a draw (pglMat::SetDevPass); textures are bound to units 0 and 1 by the material
@@ -87,6 +82,9 @@ public:
         float emissive[4];
         float shininess;            // 0: no specular, as D3D8 (SPECULARENABLE = shininess > 0)
         float envBlend[4];          // reflection map multiplier
+        float refractColour[4];     // refraction: multiplier of the screen behind
+        float refractIndex;         // refraction: offset by the eye-space normal, in pixels of a 448 line screen
+        float refractBlend;         // refraction: 1 the screen behind only, 0 the material only
     };
 
     pglPipeline();
@@ -141,6 +139,10 @@ public:
     // not blend have their alpha raised with distance so they keep their coverage (fences, foliage would thin out)
     void SetTextureFiltering(bool mipmaps, float anisotropy);
 
+    // refraction: copies the frame drawn so far, on the frame's first call (later refracting draws see the same copy,
+    // as on the PS2) or the first after pglRecaptureScreen, and binds the copy to texture unit 2
+    void CaptureScreen();
+
     // after GL calls outside the pipeline that change the program or vertex array object (the gamma pass)
     void Unbind() { bound = 0; }
 
@@ -156,16 +158,6 @@ public:
 private:
     // state groups; each program keeps the version of each it last received
     enum { GROUP_MATRICES, GROUP_LIGHTS, GROUP_FOG, GROUP_MATERIAL, GROUP_COUNT };
-
-    enum
-    {
-        U_PROJECTION, U_MODELVIEW, U_NORMALMATRIX,
-        U_LIT, U_MATAMBIENT, U_MATDIFFUSE, U_MATSPECULAR, U_MATEMISSIVE, U_SHININESS,
-        U_GLOBALAMBIENT, U_LIGHTCOUNT, U_LIGHTPOSITION, U_LIGHTCOLOUR, U_LIGHTATTEN, U_LIGHTRANGE,
-        U_TEXTURED, U_TEXTURE, U_FOG, U_FOGCOLOUR, U_FOGEND, U_FOGSCALE, U_ALPHACOMPARE, U_ALPHAREF,
-        U_REFLECTIONTEXTURED, U_REFLECTION, U_ENVBLEND, U_ALPHATOCOVERAGE, U_TIME, U_RESOLUTION, U_MIPALPHA,
-        U_COUNT
-    };
 
     struct Program
     {
@@ -193,6 +185,11 @@ private:
     Program* bound;             // the program in use, NULL when unknown
     unsigned version[GROUP_COUNT];
     GLuint vao;
+
+    // CaptureScreen's copy
+    GLuint screenTexture, screenFbo;
+    int screenWidth, screenHeight;
+    unsigned screenFrame;
 
     // streamed vertices: CPU staging, then a ring buffer on the GPU
     pglVertex* streamVerts;
@@ -225,5 +222,8 @@ private:
 void pglDeleteTexture(GLuint texture);
 void pglDeleteBuffer(GLuint buffer);
 void pglFlushPendingDeletes();      // render thread
+
+// the next refracting draw copies the frame again (HoverCarRefraction's per car screen capture, geometryvehicle.cpp)
+void pglRecaptureScreen();
 
 #endif

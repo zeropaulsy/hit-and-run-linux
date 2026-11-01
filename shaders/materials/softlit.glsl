@@ -13,9 +13,9 @@
 
 const float WRAP = 0.6;                 // 0 = the game's fall-off, 1 = light reaches all the way round
 const float SMOOTHING = 0.35;           // 0 = the model's normals, 1 = every point lit as if facing the camera
-const float BRIGHTNESS = 0.80;          // wrapped light is brighter overall; this pulls it back (0.8: as bright as the game)
-const float RIM = 0.0;                  // rim light strength (0 = off, 0.3 = noticeable, 0.6 = strong)
-const float RIM_WIDTH = 3.0;            // how thin the rim is (higher = thinner, only the very edge)
+const float BRIGHTNESS = 0.8;          // wrapped light is brighter overall; this pulls it back (0.8: as bright as the game)
+const float RIM = 0.2;                  // rim light strength (0 = off, 0.3 = noticeable, 0.6 = strong)
+const float RIM_WIDTH = 6.0;            // how thin the rim is (higher = thinner, only the very edge)
 
 vec4 ShadeMaterial()
 {

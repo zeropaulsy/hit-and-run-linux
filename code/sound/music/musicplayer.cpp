@@ -38,6 +38,8 @@
 #include <interiors/interiormanager.h>
 
 #include <shar_modaudio.h>
+#include <shar_mods.h>
+#include <mission/modscript.h>
 
 #include <radload/radload.hpp>
 
@@ -612,6 +614,33 @@ void MusicPlayer::HandleEvent( EventEnum id, void* pEventData )
     }
     */
 
+#ifdef RAD_LINUX
+    // Linux port: mods' NoHitAndRunMusic hack: the music playing carries on through a Hit & Run
+    static const bool s_noHitAndRunMusic = shar_ModHackRequired( "NoHitAndRunMusic" ) != 0;
+    if( s_noHitAndRunMusic &&
+        ( id == EVENT_HIT_AND_RUN_START || id == EVENT_HIT_AND_RUN_CAUGHT || id == EVENT_HIT_AND_RUN_EVADED ) )
+    {
+        return;
+    }
+    // SetNoHitAndRunMusicForStage (AdditionalScriptFunctionality): the same for a Hit & Run starting in such a stage,
+    // to its end (a stage changing meanwhile does not bring the music in or cut it off)
+    static bool s_modStageSkipped = false;
+    if( id == EVENT_HIT_AND_RUN_START && !s_HitAndRun && ModScript::NoHitAndRunMusic() )
+    {
+        s_modStageSkipped = true;
+        return;
+    }
+    if( id == EVENT_HIT_AND_RUN_CAUGHT || id == EVENT_HIT_AND_RUN_EVADED )
+    {
+        bool skipped = s_modStageSkipped;
+        s_modStageSkipped = false;
+        if( skipped )
+        {
+            return;
+        }
+    }
+#endif
+
     switch( id )
     {
         case EVENT_FE_START_GAME_SELECTED:
@@ -828,6 +857,13 @@ void MusicPlayer::HandleEvent( EventEnum id, void* pEventData )
             break;
 
         case EVENT_HIT_AND_RUN_CAUGHT:
+#ifdef RAD_LINUX
+            // Linux port: mods' NoBustedHitAndRunMeterReset hack: the Hit & Run music carries on
+            if( shar_ModHackRequired( "NoBustedHitAndRunMeterReset" ) )
+            {
+                break;
+            }
+#endif
             TriggerMusicEvent( MEVENT_HIT_AND_RUN_CAUGHT );
             s_HitAndRun = false;
             // begin counter -- (x) ticks until startMusic call...

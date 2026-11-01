@@ -118,6 +118,9 @@ CollectDumpedObjective::CollectDumpedObjective() :
     mDumpLifetime ( 0 ),
     mTerminalDump ( false ),
     mAnimatedIcon ( NULL )
+#ifdef RAD_LINUX
+    , mModFailDistance( 200.0f )
+#endif
 {
     mCondition = NULL;
 }
@@ -705,7 +708,11 @@ void CollectDumpedObjective::OnUpdateCollectibleObjective( unsigned int elapsedT
                 mCollectibles[ i ].pLocator->GetPosition(&pos);
                 GetAvatarManager()->GetAvatarForPlayer(0)->GetPosition(charPos);
                 pos.Sub(charPos);
+#ifdef RAD_LINUX
+                if(mModFailDistance > 0.0f && pos.Magnitude() > mModFailDistance)
+#else
                 if(pos.Magnitude() > 200)
+#endif
                 {
                     if(mCondition)
                     {

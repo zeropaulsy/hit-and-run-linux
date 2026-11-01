@@ -46,6 +46,9 @@ mFadeAlpha( 255 ),
 mpShockedDrawable( NULL ),
 mIsShocked( false ),
 mDisplayingSkeletonShock( false )
+#ifdef RAD_LINUX
+, mModBlendModeSupport( false )
+#endif
 {
     int i;
     for ( i = 0; i < MAX_LOD; i++ )
@@ -199,6 +202,10 @@ int CharacterRenderable::CastsShadow()
     return 1;
 }
 
+#ifdef RAD_LINUX
+bool pvkSunRaysOn();    // pddi/vk/vksun.cpp: the sun's ray-traced shadows (Shadows High; low keeps the blobs)
+#endif
+
 /*
 ==============================================================================
 CharacterRenderable::DisplayShadow
@@ -213,6 +220,12 @@ Return:         void
 */
 void CharacterRenderable::DisplayShadow( tPose* pose, const BlobShadowParams* BlobParams )
 {
+#ifdef RAD_LINUX
+    if( BlobParams && pvkSunRaysOn() && ::GetGameplayManager()->GetGameType() != GameplayManager::GT_SUPERSPRINT )
+    {
+        return; // Linux port: the sun's shadows replace the blob
+    }
+#endif
 	if( BlobParams )
 	{
         BEGIN_PROFILE("Char Blobby Shadow");
@@ -536,6 +549,22 @@ void CharacterRenderable::SetShadowColour( tColour colour )
     mShadowColour = colour;
 }
 
+#ifdef RAD_LINUX
+// alpha blending for every shader but the additive and subtractive ones (CustomCharacterSupport BlendModeSupport)
+class ModBlendAlpha : public tDrawable::ShaderCallback
+{
+public:
+    virtual tShader* Process( tShader* s )
+    {
+        if( s->mFileBlendMode != PDDI_BLEND_ADD && s->mFileBlendMode != PDDI_BLEND_SUBTRACT )
+        {
+            s->SetInt( PDDI_SP_BLENDMODE, PDDI_BLEND_ALPHA );
+        }
+        return s;
+    }
+};
+#endif
+
 void CharacterRenderable::DisplayModel( tPose* pose )
 {
     tDrawablePose* draw = GetDrawable();
@@ -548,8 +577,18 @@ void CharacterRenderable::DisplayModel( tPose* pose )
                 mpSwatchShader->SetTexture( PDDI_SP_BASETEX, mpSwatchTexture );
             }
         }
+#ifdef RAD_LINUX
+        if( mModBlendModeSupport )
+        {
+            ModBlendAlpha blendAlpha;
+            draw->ProcessShaders( blendAlpha );
+        }
+        else
+#endif
+        {
         tShaderIntBroadcast blendAlpha( PDDI_SP_BLENDMODE, PDDI_BLEND_ALPHA );
         draw->ProcessShaders( blendAlpha );
+        }
         tShaderIntBroadcast emissiveFade( PDDI_SP_EMISSIVEALPHA, mFadeAlpha );
         draw->ProcessShaders( emissiveFade );
         draw->Display( pose );

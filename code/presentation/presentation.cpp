@@ -63,6 +63,9 @@
 #include <mission/gameplaymanager.h>
 #include <mission/objectives/missionobjective.h>
 #include <Screen.h>
+#ifdef RAD_LINUX
+#include <shar_modbonus.h>
+#endif
 //******************************************************************************
 //
 // Global Data, Local Data, Local Classes
@@ -1347,6 +1350,24 @@ void PresentationManager::ReplaceMissionBriefingBitmap( const tName& conversatio
 {
     const tName& name = conversationCharacterName;
 
+#ifdef RAD_LINUX
+    // Linux port: mods' CustomBonusMissionSupport [StartBitmaps] / [StartBitmapsL<n>]
+    const char* modBitmap = NULL;
+    const char* modHost = NULL;
+    for( int i = 0; ( modBitmap = shar_ModBonusStartBitmapAt( GetGameplayManager()->GetCurrentLevelIndex(), i, &modHost ) ) != NULL; i++ )
+    {
+        if( tName::MakeUID( modHost ) == name.GetUID() )
+        {
+            break;
+        }
+    }
+    if( modBitmap != NULL )
+    {
+        CGuiScreenMissionLoad::SetBitmapName( modBitmap );
+        CGuiScreenMissionLoad::ClearBitmap();
+    }
+    else
+#endif
     //
     // These are for the race missions
     //

@@ -39,6 +39,13 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--version-script=${CMA
 add_library(lua STATIC port/third_party/lua/lapi.c port/third_party/lua/lauxlib.c port/third_party/lua/lbaselib.c port/third_party/lua/lcode.c port/third_party/lua/lcorolib.c port/third_party/lua/lctype.c port/third_party/lua/ldblib.c port/third_party/lua/ldebug.c port/third_party/lua/ldo.c port/third_party/lua/ldump.c port/third_party/lua/lfunc.c port/third_party/lua/lgc.c port/third_party/lua/linit.c port/third_party/lua/liolib.c port/third_party/lua/llex.c port/third_party/lua/lmathlib.c port/third_party/lua/lmem.c port/third_party/lua/loadlib.c port/third_party/lua/lobject.c port/third_party/lua/lopcodes.c port/third_party/lua/loslib.c port/third_party/lua/lparser.c port/third_party/lua/lstate.c port/third_party/lua/lstring.c port/third_party/lua/lstrlib.c port/third_party/lua/ltable.c port/third_party/lua/ltablib.c port/third_party/lua/ltm.c port/third_party/lua/lundump.c port/third_party/lua/lutf8lib.c port/third_party/lua/lvm.c port/third_party/lua/lzio.c)
 target_compile_options(lua PRIVATE -O2)
 target_compile_definitions(lua PRIVATE LUA_USE_POSIX)
+# glslang (GLSL -> SPIR-V for the Vulkan renderer): a shared library with its own C++ runtime and allocator, out
+# of reach of the game's operator new (port/third_party/glslang/shar_glslang.h)
+add_library(shar_glslang SHARED port/third_party/glslang/SPIRV/GlslangToSpv.cpp port/third_party/glslang/SPIRV/InReadableOrder.cpp port/third_party/glslang/SPIRV/Logger.cpp port/third_party/glslang/SPIRV/SpvBuilder.cpp port/third_party/glslang/SPIRV/SpvPostProcess.cpp port/third_party/glslang/SPIRV/SpvTools.cpp port/third_party/glslang/SPIRV/disassemble.cpp port/third_party/glslang/SPIRV/doc.cpp port/third_party/glslang/glslang/GenericCodeGen/CodeGen.cpp port/third_party/glslang/glslang/GenericCodeGen/Link.cpp port/third_party/glslang/glslang/MachineIndependent/Constant.cpp port/third_party/glslang/glslang/MachineIndependent/InfoSink.cpp port/third_party/glslang/glslang/MachineIndependent/Initialize.cpp port/third_party/glslang/glslang/MachineIndependent/IntermTraverse.cpp port/third_party/glslang/glslang/MachineIndependent/Intermediate.cpp port/third_party/glslang/glslang/MachineIndependent/ParseContextBase.cpp port/third_party/glslang/glslang/MachineIndependent/ParseHelper.cpp port/third_party/glslang/glslang/MachineIndependent/PoolAlloc.cpp port/third_party/glslang/glslang/MachineIndependent/RemoveTree.cpp port/third_party/glslang/glslang/MachineIndependent/Scan.cpp port/third_party/glslang/glslang/MachineIndependent/ShaderLang.cpp port/third_party/glslang/glslang/MachineIndependent/SpirvIntrinsics.cpp port/third_party/glslang/glslang/MachineIndependent/SymbolTable.cpp port/third_party/glslang/glslang/MachineIndependent/Versions.cpp port/third_party/glslang/glslang/MachineIndependent/attribute.cpp port/third_party/glslang/glslang/MachineIndependent/glslang_tab.cpp port/third_party/glslang/glslang/MachineIndependent/intermOut.cpp port/third_party/glslang/glslang/MachineIndependent/iomapper.cpp port/third_party/glslang/glslang/MachineIndependent/limits.cpp port/third_party/glslang/glslang/MachineIndependent/linkValidate.cpp port/third_party/glslang/glslang/MachineIndependent/parseConst.cpp port/third_party/glslang/glslang/MachineIndependent/preprocessor/Pp.cpp port/third_party/glslang/glslang/MachineIndependent/preprocessor/PpAtom.cpp port/third_party/glslang/glslang/MachineIndependent/preprocessor/PpContext.cpp port/third_party/glslang/glslang/MachineIndependent/preprocessor/PpScanner.cpp port/third_party/glslang/glslang/MachineIndependent/preprocessor/PpTokens.cpp port/third_party/glslang/glslang/MachineIndependent/propagateNoContraction.cpp port/third_party/glslang/glslang/MachineIndependent/reflection.cpp port/third_party/glslang/glslang/OSDependent/Unix/ossource.cpp port/third_party/glslang/glslang/ResourceLimits/ResourceLimits.cpp port/third_party/glslang/shar_glslang.cpp)
+target_compile_options(shar_glslang PRIVATE -std=c++17 -O2 -g0 -w -fvisibility=hidden)
+target_include_directories(shar_glslang PRIVATE port/third_party/glslang port/third_party/glslang/generated)
+target_link_options(shar_glslang PRIVATE ${SHAR_ARCH} -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL -Wl,--version-script=${CMAKE_SOURCE_DIR}/port/third_party/glslang/shar_glslang.map)
+target_link_libraries(shar_glslang PRIVATE pthread)
 add_compile_definitions(RAD_WIN32 RAD_LINUX LINUX RAD_PC PDDI_NO_ASM)
 # MSVC built-ins/CRT names -> GCC/POSIX, and a types-only windows.h (searched after the source dirs)
 add_compile_options("SHELL:-include ${CMAKE_SOURCE_DIR}/port/compat/msvc_compat.h")
@@ -567,7 +574,9 @@ add_executable(srr2
   code/mission/objectives/modobjectives.cpp
   code/mission/conditions/modconditions.cpp
   code/mission/charactersheet/modstatstotals.cpp
+  code/mission/rewards/modrewardquests.cpp
   code/meta/modtriggeractions.cpp
+  code/presentation/gui/frontend/guiscreengraphics.cpp
 )
 target_include_directories(srr2 PRIVATE libs code libs/radcore/inc libs/radmovie/inc libs/radsound/inc libs/radscript/inc libs/radmusic/inc libs/pure3d libs/scrooby/inc libs/scrooby/src libs/radmath libs/sim libs/poser/inc libs/choreo/inc libs/radcontent/inc libs/radcontent)
 if(SHAR_RAD_DEBUG)
@@ -653,9 +662,20 @@ add_library(pddigl STATIC
   libs/pure3d/pddi/gl/glpipeline.cpp
   libs/pure3d/pddi/gl/glpost.cpp
   libs/pure3d/pddi/gl/glcustom.cpp
+  libs/pure3d/pddi/gl/glshaders.cpp
   libs/pure3d/pddi/gl/display_linux/gldisplay.cpp
+  libs/pure3d/pddi/vk/vkfuncs.cpp
+  libs/pure3d/pddi/vk/vkcore.cpp
+  libs/pure3d/pddi/vk/vkpipeline.cpp
+  libs/pure3d/pddi/vk/vktex.cpp
+  libs/pure3d/pddi/vk/vkcon.cpp
+  libs/pure3d/pddi/vk/vkmat.cpp
+  libs/pure3d/pddi/vk/vkdisplay.cpp
+  libs/pure3d/pddi/vk/vkdev.cpp
+  libs/pure3d/pddi/vk/vkpost.cpp
+  libs/pure3d/pddi/vk/vksun.cpp
 )
-target_include_directories(pddigl PRIVATE libs libs/radmath libs/pure3d libs/pure3d/lib/libpng libs/pure3d/lib/zlib)
+target_include_directories(pddigl PRIVATE libs libs/radmath libs/pure3d libs/pure3d/lib/libpng libs/pure3d/lib/zlib port/third_party/glslang)
 if(SHAR_RAD_DEBUG)
   target_compile_definitions(pddigl PRIVATE RAD_DEBUG _DEBUG)
 else()
@@ -904,6 +924,7 @@ add_library(radmovie STATIC
   libs/radmovie/src/common/binkrenderstrategy.cpp
   libs/radmovie/src/pch/pch.cpp
   libs/radmovie/src/linux/binkffmpeg.cpp
+  libs/radmovie/src/linux/binkvideotexture.cpp
 )
 target_include_directories(radmovie PRIVATE libs/radmovie/src/linux libs libs/radmovie/inc libs/radcore/inc libs/radsound/inc libs/pure3d/p3d libs/pure3d libs/radmath libs/radmath/radmath libs/radcontent/inc code libs/radmovie/src/pch)
 if(SHAR_RAD_DEBUG)
@@ -1107,7 +1128,7 @@ else()
 endif()
 
 # Win32 API subset implemented on POSIX (threads/sync/timers); linked after the libraries using it
-add_library(shar_compat STATIC port/compat/win32_threads.cpp port/compat/win32_misc.cpp port/compat/pddi_heap.cpp port/compat/shar_mods.cpp port/compat/shar_modlua.cpp port/compat/shar_modshops.cpp port/compat/shar_modcars.cpp port/compat/shar_modinteriors.cpp port/compat/shar_modroads.cpp port/compat/shar_modaudio.cpp port/compat/shar_modtraffic.cpp port/compat/shar_crash.cpp)
+add_library(shar_compat STATIC port/compat/win32_threads.cpp port/compat/win32_misc.cpp port/compat/pddi_heap.cpp port/compat/shar_mods.cpp port/compat/shar_modlua.cpp port/compat/shar_modshops.cpp port/compat/shar_modcars.cpp port/compat/shar_modinteriors.cpp port/compat/shar_modroads.cpp port/compat/shar_modaudio.cpp port/compat/shar_modbonus.cpp port/compat/shar_modshaders.cpp port/compat/shar_modcharacters.cpp port/compat/shar_modtraffic.cpp port/compat/shar_modcards.cpp port/compat/shar_moddutch.cpp port/compat/shar_crash.cpp)
 # the renderer allocates from its own heap, as pddidx8.dll did on Windows (port/compat/pddi_heap.cpp)
 if(SHAR_64BIT)
   set(SHAR_NEW_SYM m)
@@ -1116,4 +1137,4 @@ else()
 endif()
 add_custom_command(TARGET pddigl POST_BUILD COMMAND objcopy --redefine-sym _Znw${SHAR_NEW_SYM}=pddi_heap_new --redefine-sym _Zna${SHAR_NEW_SYM}=pddi_heap_new_array --redefine-sym _ZdlPv=pddi_heap_delete --redefine-sym _ZdaPv=pddi_heap_delete_array $<TARGET_FILE:pddigl> VERBATIM)
 target_include_directories(shar_compat PRIVATE port/compat port/third_party/lua)
-target_link_libraries(srr2 PRIVATE -Wl,--start-group choreo libpng pddigl pure3d zlib radcontent radcore radmath radmovie radscript radsound scrooby sim poser radmusic shar_compat lua -Wl,--end-group SDL2 GL openal avformat avcodec swscale swresample avutil pthread dl)
+target_link_libraries(srr2 PRIVATE -Wl,--start-group choreo libpng pddigl pure3d zlib radcontent radcore radmath radmovie radscript radsound scrooby sim poser radmusic shar_compat lua -Wl,--end-group shar_glslang SDL2 GL openal avformat avcodec swscale swresample avutil pthread dl)

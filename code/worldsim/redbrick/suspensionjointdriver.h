@@ -80,6 +80,9 @@ public:
     virtual void Advance( float dt ) {}
     virtual void Update( poser::Pose* pose );
 
+    const SharModFakeWheel* GetConfig() const { return mConfig; }
+    const rmt::Vector& GetRestPoint() const { return mRestPoint; }
+
 private:
     Vehicle* mVehicle;
     const SharModFakeWheel* mConfig;

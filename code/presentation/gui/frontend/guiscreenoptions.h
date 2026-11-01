@@ -60,6 +60,9 @@ private:
 #ifdef RAD_WIN32
         MENU_ITEM_DISPLAY,
 #endif
+#ifdef RAD_LINUX
+        MENU_ITEM_GRAPHICS,
+#endif
         MENU_ITEM_CONTROLLER,
         MENU_ITEM_SOUND,
         MENU_ITEM_VIEW_MOVIES,

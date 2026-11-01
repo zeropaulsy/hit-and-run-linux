@@ -308,6 +308,12 @@ static void BuildPass(Pass& p)
     p.mtime = FileTime(path);
     p.program.Release();
     p.ok = false;
+    size_t length = strlen(p.file);
+    if(length > 4 && strcmp(p.file + length - 4, ".spv") == 0)
+    {
+        fprintf(stderr, "PDDI: post-processing: %s is SPIR-V, for the Vulkan renderer only: skipped\n", p.file);
+        return;
+    }
 
     char* source = ReadFile(path);
     if(!source)

@@ -13,8 +13,9 @@
 #include <strings.h>
 #include <sys/stat.h>
 
-// port/compat/shar_mods.h: the files in the first mod's root subfolder that has any
-extern "C" int shar_ModConfigFolder(const char* folder, char** texts, size_t* sizes, char** names, int max);
+// port/compat/shar_mods.h: the files in the nth mod's root subfolder that has any
+extern "C" int shar_ModConfigFolderNth(const char* folder, int nth, char** texts, size_t* sizes, char** names, int max,
+                                       const char** modName);
 
 const int MAX_RULES = 256;
 const int MAX_FILES = pglMaxCustomPrograms;
@@ -32,7 +33,7 @@ struct Rule
 
 struct ShaderFile
 {
-    char name[300];             // the user's path, or "mod:<file>"
+    char name[300];             // the user's path, or "<mod>:<file>"
     char path[600];             // on disk (user files), "" for a mod's
     time_t mtime;
     int slot;                   // pipeline program slot, -1 when it does not build
@@ -55,7 +56,8 @@ static time_t FileTime(const char* path)
     return stat(path, &st) == 0 ? st.st_mtime : 0;
 }
 
-static char* ReadFile(const char* path)
+// NUL-terminated; size (if given) gets the bytes read
+static char* ReadFile(const char* path, size_t* sizeOut = NULL)
 {
     FILE* f = fopen(path, "rb");
     if(!f)
@@ -68,6 +70,8 @@ static char* ReadFile(const char* path)
     {
         size = (long)fread(text, 1, size, f);
         text[size] = 0;
+        if(sizeOut)
+            *sizeOut = size;
     }
     fclose(f);
     return text;
@@ -83,8 +87,22 @@ static char* Trim(char* s)
     return s;
 }
 
-// the file's index in s_files, building it the first time; -1 when there is no room
-static int AddFile(pglPipeline* pipeline, const char* name, const char* path, const char* source)
+int pglCustomTarget::BuildCustomSpirv(const char* name, const unsigned*, size_t, const char*)
+{
+    fprintf(stderr, "PDDI: material shaders: %s is SPIR-V, for the Vulkan renderer only: skipped\n", name);
+    return -1;
+}
+
+static bool IsSpirv(const char* name)
+{
+    size_t length = strlen(name);
+    return length > 4 && strcasecmp(name + length - 4, ".spv") == 0;
+}
+
+// the file's index in s_files, building it the first time; -1 when there is no room. size: source's bytes;
+// pragmas: a SPIR-V file's .frag beside it, or NULL
+static int AddFile(pglCustomTarget* pipeline, const char* name, const char* path, const char* source, size_t size,
+                   const char* pragmas)
 {
     for(int i = 0; i < s_fileCount; i++)
     {
@@ -101,7 +119,9 @@ static int AddFile(pglPipeline* pipeline, const char* name, const char* path, co
     snprintf(f.path, sizeof(f.path), "%s", path ? path : "");
     f.mtime = path ? FileTime(path) : 0;
     f.slot = -1;
-    if(source)
+    if(source && IsSpirv(name))
+        f.slot = pipeline->BuildCustomSpirv(name, (const unsigned*)source, size / 4, pragmas ? pragmas : "");
+    else if(source)
         f.slot = pipeline->BuildCustomProgram(name, source);
     else
         fprintf(stderr, "PDDI: material shaders: can't read %s\n", path ? path : name);
@@ -110,8 +130,10 @@ static int AddFile(pglPipeline* pipeline, const char* name, const char* path, co
 
 // materials.ini: "[types]", "[files]" and "[materials]" sections of "pattern = file" lines; '#' or ';' starts a
 // comment.
-// files[] / texts[] are a mod's Shaders/ folder (NULL for the user's folder, whose files are read from disk).
-static void ParseRules(pglPipeline* pipeline, char* text, const char* source, char** names, char** texts, int count)
+// files[] / texts[] are the mod's Shaders/ folder (mod and names NULL for the user's folder, whose files are read
+// from disk).
+static void ParseRules(pglCustomTarget* pipeline, char* text, const char* source, const char* mod, char** names,
+                       char** texts, size_t* sizes, int count)
 {
     int kind = RULE_TYPE;
     bool inSection = false;
@@ -166,21 +188,39 @@ static void ParseRules(pglPipeline* pipeline, char* text, const char* source, ch
             {
                 char path[800];
                 snprintf(path, sizeof(path), "%s/%s", s_folder, file);
-                char* shader = ReadFile(path);
-                index = AddFile(pipeline, file, path, shader);
+                size_t size = 0;
+                char* shader = ReadFile(path, &size);
+                char* pragmas = NULL;
+                if(IsSpirv(file))
+                {
+                    char sidecar[800];
+                    snprintf(sidecar, sizeof(sidecar), "%.*s.frag", (int)strlen(path) - 4, path);
+                    pragmas = ReadFile(sidecar);
+                }
+                index = AddFile(pipeline, file, path, shader, size, pragmas);
                 free(shader);
+                free(pragmas);
             }
             else if(*file)
             {
                 char name[300];
-                snprintf(name, sizeof(name), "mod:%s", file);
+                snprintf(name, sizeof(name), "%s:%s", mod, file);
                 const char* shader = NULL;
+                const char* pragmas = NULL;
+                size_t size = 0;
+                char sidecar[300];
+                snprintf(sidecar, sizeof(sidecar), "%.*s.frag", (int)strlen(file) - 4, file);
                 for(int i = 0; i < count; i++)
                 {
                     if(strcasecmp(names[i], file) == 0)
+                    {
                         shader = texts[i];
+                        size = sizes[i];
+                    }
+                    if(IsSpirv(file) && strcasecmp(names[i], sidecar) == 0)
+                        pragmas = texts[i];
                 }
-                index = AddFile(pipeline, name, NULL, shader);
+                index = AddFile(pipeline, name, NULL, shader, size, pragmas);
             }
             if(index >= 0)
                 r.files[r.passes++] = index;
@@ -191,7 +231,7 @@ static void ParseRules(pglPipeline* pipeline, char* text, const char* source, ch
     }
 }
 
-static void Load(pglPipeline* pipeline)
+static void Load(pglCustomTarget* pipeline)
 {
     pipeline->ReleaseCustomPrograms();
     s_ruleCount = 0;
@@ -203,24 +243,32 @@ static void Load(pglPipeline* pipeline)
     char* text = ReadFile(s_iniPath);
     if(text)
     {
-        ParseRules(pipeline, text, s_iniPath, NULL, NULL, 0);
+        ParseRules(pipeline, text, s_iniPath, NULL, NULL, NULL, NULL, 0);
         free(text);
     }
 
-    // then the mod's Shaders/ folder
-    char* texts[MAX_MOD_FILES];
-    char* names[MAX_MOD_FILES];
-    size_t sizes[MAX_MOD_FILES];
-    int count = shar_ModConfigFolder("Shaders", texts, sizes, names, MAX_MOD_FILES);
-    for(int i = 0; i < count; i++)
+    // then each mod's Shaders/ folder, in load order: an earlier mod's rules win
+    for(int nth = 0; ; nth++)
     {
-        if(strcasecmp(names[i], "materials.ini") == 0)
-            ParseRules(pipeline, texts[i], "mod Shaders/materials.ini", names, texts, count);
-    }
-    for(int i = 0; i < count; i++)
-    {
-        free(texts[i]);
-        free(names[i]);
+        char* texts[MAX_MOD_FILES];
+        char* names[MAX_MOD_FILES];
+        size_t sizes[MAX_MOD_FILES];
+        const char* mod = NULL;
+        int count = shar_ModConfigFolderNth("Shaders", nth, texts, sizes, names, MAX_MOD_FILES, &mod);
+        if(count == 0)
+            break;
+        char source[300];
+        snprintf(source, sizeof(source), "%s Shaders/materials.ini", mod);
+        for(int i = 0; i < count; i++)
+        {
+            if(strcasecmp(names[i], "materials.ini") == 0)
+                ParseRules(pipeline, texts[i], source, mod, names, texts, sizes, count);
+        }
+        for(int i = 0; i < count; i++)
+        {
+            free(texts[i]);
+            free(names[i]);
+        }
     }
 
     if(s_ruleCount)
@@ -240,7 +288,7 @@ static void Load(pglPipeline* pipeline)
     }
 }
 
-void pglCustomUpdate(pglPipeline* pipeline)
+void pglCustomUpdate(pglCustomTarget* pipeline)
 {
     if(!s_loaded)
     {
@@ -275,11 +323,23 @@ unsigned pglCustomGeneration()
 
 bool g_pglUserShaders = true;
 
-void pglToggleUserShaders()
+void pglSetUserShaders(bool on)
 {
-    g_pglUserShaders = !g_pglUserShaders;
+    if(on == g_pglUserShaders)
+        return;
+    g_pglUserShaders = on;
     s_generation++;         // materials look their shaders up again (none while off)
     fprintf(stderr, "PDDI: your shaders %s (M toggles)\n", g_pglUserShaders ? "on" : "off");
+}
+
+bool pglGetUserShaders()
+{
+    return g_pglUserShaders;
+}
+
+void pglToggleUserShaders()
+{
+    pglSetUserShaders(!g_pglUserShaders);
 }
 
 int pglCustomShadersFor(const char* type, const char* material, const char* file, int* slots)

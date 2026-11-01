@@ -31,6 +31,9 @@
 #include <presentation/gui/guimanager.h>
 #include <presentation/gui/ingame/guimanageringame.h>
 #include <presentation/gui/ingame/guiscreenhud.h>
+#ifdef RAD_LINUX
+#include <presentation/gui/ingame/guiscreenmissionsuccess.h>
+#endif
 
 #include <worldsim/character/charactermanager.h>
 #include <worldsim/character/character.h>
@@ -78,6 +81,7 @@
 #ifdef RAD_LINUX
 #include <mission/modscript.h>
 #include <shar_mods.h>
+#include <shar_modbonus.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -168,9 +172,14 @@ Mission::Mission() :
     , mModSpawnsDisabled( false )
     , mModTrafficGroup( -1 )
     , mModRestartTrafficGroup( -1 )
+    , mModStageDynaLoad( NULL )
+    , mModHudMapPending( false )
 #endif
 {
     strcpy( mcName, "" );
+#ifdef RAD_LINUX
+    mModHudMap[ 0 ] = '\0';
+#endif
     mbCarryOverOutOfCarCondition = false;
 
     unsigned int i;
@@ -209,6 +218,9 @@ Mission::~Mission()
     {
         mDynaloadLoc->Release();
     }
+#ifdef RAD_LINUX
+    tRefCounted::Release( mModStageDynaLoad );
+#endif
 
     unsigned int k;
     for ( k = 0; k < mNumBonusObjectives; ++k )
@@ -441,7 +453,7 @@ void Mission::Finalize()
 {
     SetToStage( -1 );
 #ifdef RAD_LINUX
-    ModScript::RemoveVehicleCharacters();   // Linux port: mods' passengers leave with the mission
+    ModScript::OnMissionFinalize();     // Linux port: mods' passengers leave with the mission
 #endif
 
     //chuck adding draw synch I hope to fix the level 5 m1 crash when user aborts missions.
@@ -1051,6 +1063,9 @@ BEGIN_PROFILE( "Mission Update" );
 
                     if ( mbTriggerPattyAndSelmaScreen == true)
                     {
+#ifdef RAD_LINUX
+                        CGuiScreenMissionSuccess::SetModMissionName( mcName );
+#endif
                         GetGuiSystem()->HandleMessage( GUI_MSG_GOTO_SCREEN,
                                             CGuiWindow::GUI_SCREEN_ID_MISSION_SUCCESS,
                                             CLEAR_WINDOW_HISTORY );
@@ -1525,7 +1540,11 @@ void Mission::ResetPlayer()
     }
 
     //if ( mPlayerRestart == NULL || IsForcedCar() || IsRaceMission() )
+#ifdef RAD_LINUX
+    if ( mPlayerRestart == NULL || ModForcePlayerInCar() )
+#else
     if ( mPlayerRestart == NULL || IsRaceMission() )
+#endif
     {
         rmt::Vector pos;
         mVehicleRestart->GetLocation( &pos );
@@ -1734,6 +1753,20 @@ bool Mission::IsRaceMission()
     }
     return false;
 }
+
+#ifdef RAD_LINUX
+bool Mission::ModResetPlayerOnLoad()
+{
+    return shar_ModBonusResetPlayer( GetGameplayManager()->GetCurrentLevelIndex(), mcName, IsRaceMission() ) != 0;
+}
+
+bool Mission::ModForcePlayerInCar()
+{
+    // the car's restart locator is where the player goes
+    return mVehicleRestart != NULL &&
+           shar_ModBonusForcePlayerInCar( GetGameplayManager()->GetCurrentLevelIndex(), mcName, IsRaceMission() ) != 0;
+}
+#endif
 
 //=============================================================================
 // Mission::IsWagerMission

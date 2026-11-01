@@ -38,6 +38,7 @@
 
 #include <string.h>
 #ifdef RAD_LINUX
+#include <mission/rewards/modrewardquests.h>
 #include <shar_mods.h>
 #include <shar_modshops.h>
 #include <meta/actioneventlocator.h>
@@ -250,9 +251,9 @@ IGuiScreenRewards::ApplyModShop( PreviewObject* previewObjects,
         RewardsManager* rm = GetRewardsManager();
         for( int level = 0; level < RenderEnums::numLevels && gameReward == NULL; level++ )
         {
-            for( int q = Reward::eBlank + 1; q < Reward::NUM_QUESTS && gameReward == NULL; q++ )
+            for( int q = 0; q < rm->GetNumRewards( level ) && gameReward == NULL; q++ )
             {
-                Reward* r = rm->GetReward( level, static_cast< Reward::eQuestType >( q ) );
+                Reward* r = rm->GetRewardAt( level, q );
                 if( r != NULL && strcasecmp( r->GetName(), item.name ) == 0 )
                 {
                     gameReward = r;
@@ -328,6 +329,27 @@ IGuiScreenRewards::ApplyModShop( PreviewObject* previewObjects,
 }
 #endif
 
+#ifdef RAD_LINUX
+int
+IGuiScreenRewards::PreviewLimit( const PreviewObject* previewObjects ) const
+{
+    static int s_carLimit = -1, s_skinLimit = -1;
+    if( s_carLimit < 0 )
+    {
+        bool increased = shar_ModHackRequired( "IncreasedRewardLimits" ) != 0;
+        s_carLimit = increased ? shar_ModConfigInt( "IncreasedRewardLimits.ini", "Previews", "CarLimit", 64 ) : 64;
+        s_skinLimit = increased ? shar_ModConfigInt( "IncreasedRewardLimits.ini", "Previews", "SkinLimit", 64 ) : 16;
+        s_carLimit = s_carLimit < 1 ? 1 : s_carLimit > MAX_NUM_PREVIEW_VEHICLES ? MAX_NUM_PREVIEW_VEHICLES : s_carLimit;
+        s_skinLimit = s_skinLimit < 1 ? 1 : s_skinLimit > MAX_NUM_PREVIEW_CLOTHING ? MAX_NUM_PREVIEW_CLOTHING : s_skinLimit;
+    }
+    if( previewObjects == m_previewClothing )
+    {
+        return s_skinLimit;
+    }
+    return s_carLimit;      // the vehicle list, or a copy of it (ApplyModShop)
+}
+#endif
+
 //===========================================================================
 // IGuiScreenRewards::
 //===========================================================================
@@ -355,6 +377,11 @@ IGuiScreenRewards::IGuiScreenRewards( Scrooby::Screen* pScreen,
     m_lockedOverlay( NULL ),
     m_lockedLevel( NULL ),
     m_rewardPrice( NULL ),
+#ifdef RAD_LINUX
+    m_completeQuest( NULL ),
+    m_toPurchase( NULL ),
+    m_toUnlockIndex( -1 ),
+#endif
     m_statsOverlay( NULL ),
     m_statsOverlayButton( NULL ),
     m_statsOverlayButtonLabel( NULL ),
@@ -456,7 +483,31 @@ IGuiScreenRewards::IGuiScreenRewards( Scrooby::Screen* pScreen,
         {
             toPurchase->SetDisplayOutline( true );
         }
+#ifdef RAD_LINUX
+        m_toPurchase = toPurchase;
+#endif
     }
+#ifdef RAD_LINUX
+    if( ModRewardQuests::Active() )
+    {
+        m_completeQuest = m_lockedOverlay->GetText( "CompleteQuest" );
+        if( m_completeQuest != NULL )
+        {
+            UnicodeString text;
+            ModRewardQuests::CompleteQuestText( NULL, text );
+            m_completeQuest->SetString( 0, text );
+            m_completeQuest->SetVisible( false );
+        }
+        if( m_toPurchase != NULL )
+        {
+            UnicodeString text;
+            ModRewardQuests::ToUnlockText( text );
+            m_toUnlockIndex = m_toPurchase->GetNumOfStrings();
+            m_toPurchase->AddHardCodedString( " " );
+            m_toPurchase->SetString( m_toUnlockIndex, text );
+        }
+    }
+#endif
 
     // get stats overlay and button label
     //
@@ -659,6 +710,13 @@ IGuiScreenRewards::InsertPreviewObject( PreviewObject* previewObjects,
     rAssert( previewObjects != NULL );
     rAssert( pReward != NULL );
 
+#ifdef RAD_LINUX
+    // Linux port: the list is full (was written past its end)
+    if( numPreviewObjects >= this->PreviewLimit( previewObjects ) )
+    {
+        return numPreviewObjects;
+    }
+#endif
     int newSlot = numPreviewObjects;
 
     if( isSorted )
@@ -937,6 +995,22 @@ IGuiScreenRewards::On3DModelSelectionChange( const PreviewObject* nextModel )
         //
         rAssert( m_lockedOverlay );
         m_lockedOverlay->SetVisible( !nextModel->isUnlocked );
+#ifdef RAD_LINUX
+        // Mod Launcher CustomRewardQuestSupport: how to unlock a locked quest reward
+        if( m_completeQuest != NULL )
+        {
+            bool quest = !nextModel->isUnlocked && ModRewardQuests::IsQuestReward( nextModel->pReward );
+            m_completeQuest->SetVisible( quest );
+            if( quest )
+            {
+                UnicodeString text;
+                ModRewardQuests::CompleteQuestText( nextModel->pReward, text );
+                HeapMgr()->PushHeap( GMA_LEVEL_HUD );
+                m_completeQuest->SetString( 0, text );
+                HeapMgr()->PopHeap( GMA_LEVEL_HUD );
+            }
+        }
+#endif
 
         if( m_ID == GUI_SCREEN_ID_PHONE_BOOTH )
         {

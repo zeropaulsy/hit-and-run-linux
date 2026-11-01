@@ -365,6 +365,10 @@ private:
     rmt::Vector mNormalizedHeading;
 
     float mSCTwist;
+#ifdef RAD_LINUX
+    tCamera* mDrunkCamera;      // Linux port: mods' DrunkCamera offset last added to this camera's twist
+    float mDrunkTwist;
+#endif
     float mOldTwist;
     float mTwistDelta;
     float mTwistLag;

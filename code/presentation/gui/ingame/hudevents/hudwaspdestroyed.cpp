@@ -21,6 +21,8 @@
 #include <mission/rewards/rewardsmanager.h>
 #ifdef RAD_LINUX
 #include <mission/charactersheet/modstatstotals.h>
+#include <mission/rewards/modrewardquests.h>
+#include <memory/srrmemory.h>
 #endif
 
 // Scrooby
@@ -44,6 +46,15 @@ HudWaspDestroyed::HudWaspDestroyed( Scrooby::Page* pPage )
 {
     m_itemsComplete = m_drawableGroup->GetText( "WaspsComplete" );
     rAssert( m_itemsComplete != NULL );
+#ifdef RAD_LINUX
+    m_isModMessage = false;
+    m_modMessageIndex = -1;
+    if( ModRewardQuests::Active() && m_itemsComplete != NULL )
+    {
+        m_modMessageIndex = m_itemsComplete->GetNumOfStrings();
+        m_itemsComplete->AddHardCodedString( " " );
+    }
+#endif
 }
 
 HudWaspDestroyed::~HudWaspDestroyed()
@@ -70,8 +81,18 @@ HudWaspDestroyed::Start()
     }
 #endif
 
+#ifdef RAD_LINUX
+    if( isComplete && m_isModMessage && this->IsActive() )
+    {
+        return;     // a quest complete message takes precedence
+    }
+#endif
+
     if( isComplete )
     {
+#ifdef RAD_LINUX
+        m_isModMessage = false;
+#endif
         this->OnStart();
 
         m_currentSubState = STATE_WASP_TRANSITION_IN;
@@ -84,6 +105,28 @@ HudWaspDestroyed::Start()
         m_itemsComplete->SetIndex( m_isGagInsteadOfWasp ? 1 : 0 );
     }
 }
+
+#ifdef RAD_LINUX
+void
+HudWaspDestroyed::StartModMessage( UnicodeString& text )
+{
+    if( m_modMessageIndex < 0 )
+    {
+        return;
+    }
+    HeapMgr()->PushHeap( GMA_LEVEL_HUD );
+    m_itemsComplete->SetString( m_modMessageIndex, text );
+    HeapMgr()->PopHeap( GMA_LEVEL_HUD );
+
+    this->OnStart();
+    m_elapsedTime = 0.0f;   // replacing a running wasp / gag message
+    m_isModMessage = true;
+    m_currentSubState = STATE_WASP_TRANSITION_IN;
+    m_itemsComplete->ResetTransformation();
+    m_itemsComplete->SetAlpha( 1.0f );
+    m_itemsComplete->SetIndex( m_modMessageIndex );
+}
+#endif
 
 void
 HudWaspDestroyed::Stop()

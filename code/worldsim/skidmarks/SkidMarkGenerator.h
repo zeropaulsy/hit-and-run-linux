@@ -66,7 +66,14 @@ class SkidMarkGenerator
 
 		enum Constants
 		{
-			MAX_NUM_WHEELS = 4
+			MAX_NUM_WHEELS = 4,
+#ifdef RAD_LINUX
+            // Linux port: CustomCarSupport [FakeWheel] CopySkidMarks: a fake wheel's skids after the four wheels
+            // (port/compat/shar_modcars.h SHAR_MODCAR_MAX_FAKE_WHEELS)
+            MAX_SKIDS = MAX_NUM_WHEELS + 8
+#else
+            MAX_SKIDS = MAX_NUM_WHEELS
+#endif
 		};
 
 		// Data for a single tire
@@ -142,6 +149,9 @@ class SkidMarkGenerator
             m_CurrentSkidData[ wheel ].halfWidth = width / 2.0f;
         }
 		void GenerateSkid( int wheel, const SkidData& );
+#ifdef RAD_LINUX
+        bool IsExtendedThisFrame( int wheel ) const { return m_CurrentSkidData[ wheel ].skidExtendedThisFrame; }
+#endif
 
         void Update(  );
 
@@ -172,7 +182,7 @@ class SkidMarkGenerator
             eTerrainType terrainType;
         };
 
-        TireGeneratorData m_CurrentSkidData[4];
+        TireGeneratorData m_CurrentSkidData[MAX_SKIDS];
 
 
 

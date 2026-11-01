@@ -22,6 +22,74 @@
 #include <mission/rewards/rewardsmanager.h>
 #ifdef RAD_LINUX
 #include <mission/charactersheet/modstatstotals.h>
+#include <mission/rewards/modrewardquests.h>
+#include <shar_mods.h>
+#include <stdio.h>
+
+// Linux port: rewards past the saved CharacterSheet's arrays (see ModCarRecord)
+static const int MOD_EXTRA_CARS = 1024;
+static const int MOD_EXTRA_PURCHASES = 256;
+static CarCharacterSheet s_modExtraCars[ MOD_EXTRA_CARS ];
+static bool s_modExtraPurchased[ MAX_LEVELS ][ MOD_EXTRA_PURCHASES ];
+
+// Linux port: mods' PerLevelCoinCount: a coin count per wallet; s_walletOf[ level ] is the wallet's first level
+static int s_wallets[ MAX_LEVELS ];
+static int s_walletOf[ MAX_LEVELS ];
+static int s_perLevelCoins = -1;
+static int s_walletFirst;         // the [SharedWallet] being read: its first level, -1 before one
+static int s_walletAssigned;      // levels already in a SharedWallet (bit per level)
+
+static void OnWalletIni( const char* section, const char* key, const char* value, void* )
+{
+    if( strcasecmp( section, "SharedWallet" ) != 0 )
+    {
+        return;
+    }
+    if( key == NULL )
+    {
+        s_walletFirst = -1;
+        return;
+    }
+    int level = atoi( value ) - 1;
+    if( strcasecmp( key, "Level" ) != 0 || level < 0 || level >= MAX_LEVELS )
+    {
+        return;
+    }
+    if( s_walletAssigned & ( 1 << level ) )
+    {
+        fprintf( stderr, "mods: PerLevelCoinCount.ini: level %d is in more than one SharedWallet\n", level + 1 );
+        return;
+    }
+    s_walletAssigned |= 1 << level;
+    if( s_walletFirst < 0 )
+    {
+        s_walletFirst = level;
+    }
+    s_walletOf[ level ] = s_walletFirst;
+}
+
+static bool PerLevelCoins()
+{
+    if( s_perLevelCoins < 0 )
+    {
+        s_perLevelCoins = shar_ModHackRequired( "PerLevelCoinCount" ) ? 1 : 0;
+        for( int l = 0; l < MAX_LEVELS; l++ )
+        {
+            s_walletOf[ l ] = l;
+        }
+        if( s_perLevelCoins )
+        {
+            s_walletFirst = -1;
+            s_walletAssigned = 0;
+            shar_ModConfigIni( "PerLevelCoinCount.ini", OnWalletIni, NULL, NULL );
+        }
+        memset( s_wallets, 0, sizeof( s_wallets ) );
+    }
+    return s_perLevelCoins != 0;
+}
+#define CAR_RECORD( i ) ( *ModCarRecord( i ) )
+#else
+#define CAR_RECORD( i ) ( mCharacterSheet.mCarInventory.mCars[ i ] )
 #endif
 
 #include <cards/cardgallery.h>
@@ -178,6 +246,9 @@ void CharacterSheetManager::SetMissionComplete(RenderEnums::LevelEnum level,char
                 Reward* pReward=GetRewardsManager()->GetReward(level,Reward::eStreetRace);
                 //assert if we there isnt a reward for the streetrace.
                 rTuneAssert(pReward != NULL);
+#ifdef RAD_LINUX
+                if( !ModRewardQuests::Active() )    // CustomRewardQuestSupport: ModRewardQuests::Update
+#endif
                 pReward->UnlockReward();
                 GetEventManager()->TriggerEvent(EVENT_COMPLETED_ALLSTREETRACES);
             }
@@ -196,6 +267,9 @@ void CharacterSheetManager::SetMissionComplete(RenderEnums::LevelEnum level,char
                 Reward* pReward=GetRewardsManager()->GetReward(level,Reward::eBonusMission);
                 //assert if we there isnt a reward for the BonusMission.
                 rTuneAssert(pReward != NULL);
+#ifdef RAD_LINUX
+                if( !ModRewardQuests::Active() )    // CustomRewardQuestSupport: ModRewardQuests::Update
+#endif
                 pReward->UnlockReward();
                 GetEventManager()->TriggerEvent(EVENT_COMPLETED_BONUSMISSIONS);
             }
@@ -492,6 +566,9 @@ void CharacterSheetManager::InitCharacterSheet()
             strcpy(mCharacterSheet.mCarInventory.mCars[i].mName,"n/a");
         }
         mCharacterSheet.mCarInventory.mCounter=0;
+#ifdef RAD_LINUX
+        ModExtraClear();
+#endif
 
 
 /*        
@@ -784,7 +861,173 @@ void CharacterSheetManager::SaveData(GameDataByte* dataBuffer,unsigned int numBy
         {
             memcpy(dataBuffer,&mCharacterSheet,sizeof(CharacterSheet));
         }
+#ifdef RAD_LINUX
+        // Linux port: the saved count stays within the saved array; the rest go to the sidecar (ModExtraWrite)
+        CharacterSheet* saved = reinterpret_cast< CharacterSheet* >( dataBuffer );
+        if( saved->mCarInventory.mCounter > MAX_CARS_OWNED )
+        {
+            saved->mCarInventory.mCounter = MAX_CARS_OWNED;
+        }
+        if( PerLevelCoins() )
+        {
+            saved->mNumberOfTokens = *ModWallet( mCharacterSheet.mCurrentMissionInfo.mLevel );   // the rest: sidecar
+        }
+#endif
     }
+
+#ifdef RAD_LINUX
+CarCharacterSheet* CharacterSheetManager::ModCarRecord( int index )
+{
+    if( index >= 0 && index < MAX_CARS_OWNED )
+    {
+        return &mCharacterSheet.mCarInventory.mCars[ index ];
+    }
+    if( index >= MAX_CARS_OWNED && index < MAX_CARS_OWNED + MOD_EXTRA_CARS )
+    {
+        return &s_modExtraCars[ index - MAX_CARS_OWNED ];
+    }
+    static CarCharacterSheet s_none;       // out of range (GetCarCharacterSheet reads one past the count)
+    strcpy( s_none.mName, "n/a" );
+    s_none.mCurrentHealth = s_none.mMaxHealth = -1.0f;
+    return &s_none;
+}
+
+int* CharacterSheetManager::ModWallet( int level )
+{
+    if( level < 0 || level >= MAX_LEVELS )
+    {
+        level = mCharacterSheet.mCurrentMissionInfo.mLevel;    // bonus game tracks: the story level's
+        if( level < 0 || level >= MAX_LEVELS )
+        {
+            level = 0;
+        }
+    }
+    return &s_wallets[ s_walletOf[ level ] ];
+}
+
+void CharacterSheetManager::ModExtraClear()
+{
+    for( int i = 0; i < MOD_EXTRA_CARS; i++ )
+    {
+        strcpy( s_modExtraCars[ i ].mName, "n/a" );
+        s_modExtraCars[ i ].mCurrentHealth = s_modExtraCars[ i ].mMaxHealth = -1.0f;
+    }
+    memset( s_modExtraPurchased, 0, sizeof( s_modExtraPurchased ) );
+    ModRewardQuests::Clear();
+    if( PerLevelCoins() )
+    {
+        // a new game: every wallet starts with the game's coins (a loaded save: ModExtraRead)
+        for( int l = 0; l < MAX_LEVELS; l++ )
+        {
+            s_wallets[ l ] = mCharacterSheet.mNumberOfTokens;
+        }
+    }
+    if( mCharacterSheet.mCarInventory.mCounter > MAX_CARS_OWNED )
+    {
+        mCharacterSheet.mCarInventory.mCounter = MAX_CARS_OWNED;
+    }
+}
+
+bool CharacterSheetManager::ModExtraWrite( const char* path )
+{
+    bool any = mCharacterSheet.mCarInventory.mCounter > MAX_CARS_OWNED || PerLevelCoins() ||
+               ModRewardQuests::HasSaveData();
+    for( int l = 0; l < MAX_LEVELS && !any; l++ )
+    {
+        for( int i = 0; i < MOD_EXTRA_PURCHASES && !any; i++ )
+        {
+            any = s_modExtraPurchased[ l ][ i ];
+        }
+    }
+    if( !any )
+    {
+        return false;
+    }
+    FILE* file = fopen( path, "w" );
+    if( file == NULL )
+    {
+        rReleasePrintf( "Could not write %s\n", path );
+        return false;
+    }
+    fprintf( file, "cars %d\n", mCharacterSheet.mCarInventory.mCounter );
+    for( int l = 0; l < MAX_LEVELS && PerLevelCoins(); l++ )
+    {
+        if( s_walletOf[ l ] == l )
+        {
+            fprintf( file, "wallet %d %d\n", l, s_wallets[ l ] );
+        }
+    }
+    for( int i = MAX_CARS_OWNED; i < mCharacterSheet.mCarInventory.mCounter; i++ )
+    {
+        const CarCharacterSheet* car = ModCarRecord( i );
+        fprintf( file, "car %d %s %g %g\n", i, car->mName, car->mCurrentHealth, car->mMaxHealth );
+    }
+    for( int l = 0; l < MAX_LEVELS; l++ )
+    {
+        for( int i = 0; i < MOD_EXTRA_PURCHASES; i++ )
+        {
+            if( s_modExtraPurchased[ l ][ i ] )
+            {
+                fprintf( file, "purchased %d %d\n", l, i + MAX_PURCHASED_ITEMS );
+            }
+        }
+    }
+    ModRewardQuests::Write( file );
+    fclose( file );
+    return true;
+}
+
+void CharacterSheetManager::ModExtraRead( const char* path )
+{
+    ModExtraClear();
+    if( PerLevelCoins() )
+    {
+        for( int l = 0; l < MAX_LEVELS; l++ )
+        {
+            s_wallets[ l ] = 0;
+        }
+        *ModWallet( mCharacterSheet.mCurrentMissionInfo.mLevel ) = mCharacterSheet.mNumberOfTokens;
+    }
+    FILE* file = fopen( path, "r" );
+    if( file == NULL )
+    {
+        return;
+    }
+    char line[ 128 ];
+    while( fgets( line, sizeof( line ), file ) != NULL )
+    {
+        int a, b;
+        char name[ 32 ];
+        float current, max;
+        if( sscanf( line, "cars %d", &a ) == 1 && a > MAX_CARS_OWNED && a <= MAX_CARS_OWNED + MOD_EXTRA_CARS )
+        {
+            mCharacterSheet.mCarInventory.mCounter = a;
+        }
+        else if( sscanf( line, "car %d %31s %f %f", &a, name, &current, &max ) == 4 &&
+                 a >= MAX_CARS_OWNED && a < MAX_CARS_OWNED + MOD_EXTRA_CARS )
+        {
+            CarCharacterSheet* car = ModCarRecord( a );
+            snprintf( car->mName, sizeof( car->mName ), "%s", name );
+            car->mCurrentHealth = current;
+            car->mMaxHealth = max;
+        }
+        else if( sscanf( line, "wallet %d %d", &a, &b ) == 2 && a >= 0 && a < MAX_LEVELS && PerLevelCoins() )
+        {
+            *ModWallet( a ) = b < 0 ? 0 : b;
+        }
+        else if( sscanf( line, "purchased %d %d", &a, &b ) == 2 && a >= 0 && a < MAX_LEVELS &&
+                 b >= MAX_PURCHASED_ITEMS && b - MAX_PURCHASED_ITEMS < MOD_EXTRA_PURCHASES )
+        {
+            s_modExtraPurchased[ a ][ b - MAX_PURCHASED_ITEMS ] = true;
+        }
+        else
+        {
+            ModRewardQuests::ReadLine( line );
+        }
+    }
+    fclose( file );
+}
+#endif
    
 
 //updates the charactersheets current mission struct
@@ -835,6 +1078,9 @@ void CharacterSheetManager::SaveData(GameDataByte* dataBuffer,unsigned int numBy
             Reward* pReward = GetRewardsManager()->GetReward(level,Reward::eCards);
             //Assert if no reward found
             rTuneAssert(pReward != NULL);
+#ifdef RAD_LINUX
+            if( !ModRewardQuests::Active() )    // CustomRewardQuestSupport: ModRewardQuests::Update
+#endif
             pReward->UnlockReward();
             GetEventManager()->TriggerEvent(EVENT_COLLECTED_ALLCARDS);
         }
@@ -854,6 +1100,9 @@ void CharacterSheetManager::SaveData(GameDataByte* dataBuffer,unsigned int numBy
             Reward* pReward = GetRewardsManager()->GetReward(level,Reward::eCards);
             //Assert if no reward found
             rTuneAssert(pReward != NULL);
+#ifdef RAD_LINUX
+            if( !ModRewardQuests::Active() )    // CustomRewardQuestSupport: ModRewardQuests::Update
+#endif
             pReward->UnlockReward();
             GetEventManager()->TriggerEvent(EVENT_COLLECTED_ALLCARDS);
         }
@@ -864,6 +1113,12 @@ void CharacterSheetManager::SaveData(GameDataByte* dataBuffer,unsigned int numBy
     //Returns the number of tokens that the character has in their inventory for that level
     int CharacterSheetManager::GetNumberOfTokens(RenderEnums::LevelEnum level)
     {
+#ifdef RAD_LINUX
+        if( PerLevelCoins() )
+        {
+            return *spInstance->ModWallet( level );
+        }
+#endif
         return spInstance->mCharacterSheet.mNumberOfTokens;
     }
 
@@ -879,6 +1134,15 @@ void CharacterSheetManager::SaveData(GameDataByte* dataBuffer,unsigned int numBy
     //add number to the current number of tokens
     void CharacterSheetManager::AddTokens(RenderEnums::LevelEnum level,int number)
     {
+#ifdef RAD_LINUX
+        int* tokens = PerLevelCoins() ? spInstance->ModWallet( level ) : &spInstance->mCharacterSheet.mNumberOfTokens;
+        *tokens += number;
+        if( *tokens < 0 )
+        {
+            *tokens = 0;
+        }
+        return;
+#endif
         spInstance->mCharacterSheet.mNumberOfTokens += number;
 
         if( spInstance->mCharacterSheet.mNumberOfTokens < 0 )
@@ -890,6 +1154,15 @@ void CharacterSheetManager::SaveData(GameDataByte* dataBuffer,unsigned int numBy
     //subtracts the number from the current number of tokens
     void CharacterSheetManager::SubtractTokens(RenderEnums::LevelEnum level,int number)
     {
+#ifdef RAD_LINUX
+        int* tokens = PerLevelCoins() ? spInstance->ModWallet( level ) : &spInstance->mCharacterSheet.mNumberOfTokens;
+        *tokens -= number;
+        if( *tokens < 0 )
+        {
+            *tokens = 0;
+        }
+        return;
+#endif
         spInstance->mCharacterSheet.mNumberOfTokens -= number;
 
         if( spInstance->mCharacterSheet.mNumberOfTokens < 0 )
@@ -1074,6 +1347,17 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
     //Called from the Rewards Manager, basically records which reward the player has purchased from the RewardManager's token store 
     void CharacterSheetManager::SetPurchasedRewards(RenderEnums::LevelEnum level,int index)
     {
+#ifdef RAD_LINUX
+        // Linux port: past the saved array (was written past it), in the sidecar
+        if( index >= MAX_PURCHASED_ITEMS )
+        {
+            if( index - MAX_PURCHASED_ITEMS < MOD_EXTRA_PURCHASES )
+            {
+                s_modExtraPurchased[ level ][ index - MAX_PURCHASED_ITEMS ] = true;
+            }
+        }
+        else
+#endif
         mCharacterSheet.mLevelList[level].mPurchasedRewards[index] = true;
         
         Merchandise* pmerchandise = NULL;
@@ -1108,6 +1392,12 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
         {
             return  mCharacterSheet.mLevelList[level].mPurchasedRewards[index] != 0;
         }
+#ifdef RAD_LINUX
+        else if( index >= MAX_PURCHASED_ITEMS && index - MAX_PURCHASED_ITEMS < MOD_EXTRA_PURCHASES )
+        {
+            return s_modExtraPurchased[ level ][ index - MAX_PURCHASED_ITEMS ];
+        }
+#endif
         else
         {
             //invalid index as input
@@ -1119,17 +1409,25 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
     //add a car to carinventory to the charactersheet
     int CharacterSheetManager::AddCarToInventory( const char* Name )
     {
+#ifdef RAD_LINUX
+        if( mCharacterSheet.mCarInventory.mCounter >= MAX_CARS_OWNED + MOD_EXTRA_CARS )
+        {
+            rReleasePrintf( "Car inventory is full: %s not added\n", Name );
+            return mCharacterSheet.mCarInventory.mCounter - 1;
+        }
+#else
         rAssertMsg( mCharacterSheet.mCarInventory.mCounter < MAX_CARS_OWNED, "Car inventory is full.\n" );
+#endif
         int i = 0;
         Vehicle* pVehicle = NULL;
         for( i = 0; i < mCharacterSheet.mCarInventory.mCounter; ++i )
         {
-            if( strcmp( mCharacterSheet.mCarInventory.mCars[ i ].mName, Name ) == 0 )
+            if( strcmp( CAR_RECORD( i ).mName, Name ) == 0 )
             {
                 return i;
             }
         }
-        mCharacterSheet.mCarInventory.mCars[ i ].mCurrentHealth = 1.0f;
+        CAR_RECORD( i ).mCurrentHealth = 1.0f;
         
         pVehicle = GetVehicleCentral()->GetVehicleByName(Name);
 
@@ -1138,9 +1436,9 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
         //check if vehicle is intialized already.
         if ( pVehicle != NULL)
         {
-            mCharacterSheet.mCarInventory.mCars[ i ].mMaxHealth = pVehicle->mDesignerParams.mHitPoints;
+            CAR_RECORD( i ).mMaxHealth = pVehicle->mDesignerParams.mHitPoints;
         }
-        strcpy( mCharacterSheet.mCarInventory.mCars[ i ].mName, Name );
+        strcpy( CAR_RECORD( i ).mName, Name );
         ++mCharacterSheet.mCarInventory.mCounter;
         return i;
     }
@@ -1150,7 +1448,7 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
         // Simple sequential search.
         for( int i = 0; i < mCharacterSheet.mCarInventory.mCounter; ++i )
         {
-            if( strcmp( mCharacterSheet.mCarInventory.mCars[ i ].mName, Name ) == 0 )
+            if( strcmp( CAR_RECORD( i ).mName, Name ) == 0 )
             {
                 return i;
             }
@@ -1172,11 +1470,11 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
         {
             return eNull;
         }
-        else if( mCharacterSheet.mCarInventory.mCars[ CarIndex ].mCurrentHealth >= 1.0f )
+        else if( CAR_RECORD( CarIndex ).mCurrentHealth >= 1.0f )
         {
             return eNoDamage;
         }
-        else if( mCharacterSheet.mCarInventory.mCars[ CarIndex ].mCurrentHealth <= 0.0f )
+        else if( CAR_RECORD( CarIndex ).mCurrentHealth <= 0.0f )
         {
             return eHusk;
         }
@@ -1193,14 +1491,14 @@ CurrentMissionStruct CharacterSheetManager::QueryHighestMission()
         {
             return -1.0f;
         }
-        return mCharacterSheet.mCarInventory.mCars[ CarIndex ].mCurrentHealth;
+        return CAR_RECORD( CarIndex ).mCurrentHealth;
     }
 
      void CharacterSheetManager::UpdateCarHealth( int CarIndex, float Health )
     {
         if( CarIndex >= 0 && CarIndex < mCharacterSheet.mCarInventory.mCounter )
         {
-            mCharacterSheet.mCarInventory.mCars[ CarIndex ].mCurrentHealth = Health;
+            CAR_RECORD( CarIndex ).mCurrentHealth = Health;
         }
     }
 
@@ -1650,9 +1948,9 @@ CarCharacterSheet* CharacterSheetManager::GetCarCharacterSheet(char* name)
 {
     for (int i=0;i<=mCharacterSheet.mCarInventory.mCounter;i++)
     {
-        if ( strcmp(name,mCharacterSheet.mCarInventory.mCars[i].mName) ==0)
+        if ( strcmp(name,CAR_RECORD( i ).mName) ==0)
         {        
-            return (&mCharacterSheet.mCarInventory.mCars[i]);
+            return (&CAR_RECORD( i ));
         }
     }
     return NULL;
@@ -1808,8 +2106,17 @@ CharacterSheetManager::IsAllStoryMissionsCompleted()
 
     int CharacterSheetManager::UpdateRewardsManager()
     {
+#ifdef RAD_LINUX
+        // Mod Launcher CustomRewardQuestSupport: every quest reward, the game's included
+        ModRewardQuests::Synch();
+        const bool gameQuests = !ModRewardQuests::Active();
+#endif
         for (int i = 0; i<MAX_LEVELS;i++)
         {
+#ifdef RAD_LINUX
+          if( gameQuests )
+          {
+#endif
             //update default vehicle
             if( static_cast<int>( QueryHighestMission().mLevel ) >= i )
             {
@@ -1849,6 +2156,9 @@ CharacterSheetManager::IsAllStoryMissionsCompleted()
             {
                 GetRewardsManager()->GetReward((RenderEnums::LevelEnum) i,Reward::eBonusMission)->LockReward();
             }
+#ifdef RAD_LINUX
+          }
+#endif
 
             //update the purchase rewards now
 
@@ -1882,6 +2192,17 @@ CharacterSheetManager::IsAllStoryMissionsCompleted()
 
     bool CharacterSheetManager::IsMiniGameUnlocked() const
     {
+#ifdef RAD_LINUX
+        // Linux port: mods' NoBonusGame and UnlockBonusGame hacks
+        if( shar_ModHackRequired( "NoBonusGame" ) )
+        {
+            return false;
+        }
+        if( shar_ModHackRequired( "UnlockBonusGame" ) )
+        {
+            return true;
+        }
+#endif
         return( GetCardGallery()->GetNumCardDecksCompleted() > 0 );
     }
 

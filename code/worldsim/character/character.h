@@ -13,6 +13,9 @@
 
 #include <ai/sequencer/task.h>
 #include <p3d/p3dtypes.hpp>
+#ifdef RAD_LINUX
+#include <worldsim/character/modseat.h>
+#endif
 #include <events/eventenum.h>
 #include <events/eventmanager.h>
 #include <radmath/radmath.hpp>
@@ -371,6 +374,11 @@ public: // MEMBERS
     bool HasModSeat() const { return mHasModSeat; }
     const rmt::Vector& GetModSeatPosition() const { return mModSeatPosition; }
     float GetModSeatFacing() const { return mModSeatFacing; }
+    // its animation, scale, ... (modseat.h)
+    typedef ::ModSeatSettings ModSeatSettings;
+    void SetModSeatSettings( const ModSeatSettings& settings ) { mModSeatSettings = settings; }
+    const ModSeatSettings& GetModSeatSettings() const { return mModSeatSettings; }
+    float& ModSeatLastVelocityY() { return mModSeatLastVelocityY; }    // the car's, for bobbing
 #endif
 
     void SnapToGround(void);
@@ -620,6 +628,8 @@ private: // MEMBERS
     bool mHasModSeat;
     rmt::Vector mModSeatPosition;
     float mModSeatFacing;
+    ModSeatSettings mModSeatSettings;
+    float mModSeatLastVelocityY;
 #endif
 
     rmt::Vector mLastGoodPosOverStatic;

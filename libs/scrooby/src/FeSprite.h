@@ -67,6 +67,7 @@ public:
     virtual void Display();
     virtual void ResizeToBoundingBox();
     virtual void SetStretchToWindow( bool stretch ) { mStretchToWindow = stretch; }
+    virtual Scrooby::Sprite* Clone( const char* name );
 
 #ifdef BITMAP_TEXT_SUPPORT
     // display/render bitmap text

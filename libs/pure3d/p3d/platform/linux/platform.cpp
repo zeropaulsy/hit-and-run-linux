@@ -17,6 +17,8 @@
 #include <stdlib.h>
 #include <SDL2/SDL.h>
 
+int pddiCreateVulkan(int versionMajor, int versionMinor, pddiDevice** device);     // pddi/vk/vkdev.cpp
+
 tContextInitData::tContextInitData()
 {
     hwnd           = 0;
@@ -76,7 +78,10 @@ tContext* tPlatform::CreateContext(tContextInitData* d)
 
     p3d::UsePermanentMem( true );
 
-    int success = pddiCreate(PDDI_VERSION_MAJOR, PDDI_VERSION_MINOR, &device);   // static GL PDDI
+    // static PDDIs: Vulkan when the platform layer made a Vulkan window and started Vulkan on it, else OpenGL
+    bool vulkan = (SDL_GetWindowFlags((SDL_Window*)d->hwnd) & SDL_WINDOW_VULKAN) != 0;
+    int success = vulkan ? pddiCreateVulkan(PDDI_VERSION_MAJOR, PDDI_VERSION_MINOR, &device)
+                         : pddiCreate(PDDI_VERSION_MAJOR, PDDI_VERSION_MINOR, &device);
     if(success != PDDI_OK)
     {
         if(success == PDDI_VERSION_ERROR)
@@ -97,7 +102,9 @@ tContext* tPlatform::CreateContext(tContextInitData* d)
     {
         // Linux port: without a GL context every later GL call (loader threads included) crashed inside libGL.
         // Seen when the GPU's video memory was nearly full. Stop with a message instead.
-        const char* msg = "The Simpsons: Hit & Run could not create its OpenGL context.\n\n"
+        const char* msg = vulkan ? "The Simpsons: Hit & Run could not start its Vulkan renderer.\n\n"
+                                   "Set renderer=opengl in simpsons.ini to use OpenGL." :
+                          "The Simpsons: Hit & Run could not create its OpenGL context.\n\n"
                           "The graphics card may be out of video memory: close other programs using the GPU, "
                           "log out and back in, or lower the resolution in simpsons.ini.";
         fprintf( stderr, "%s\n", msg );

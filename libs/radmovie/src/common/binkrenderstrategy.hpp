@@ -121,6 +121,9 @@ class radMovieRenderStrategyBink
         Tile m_pTile[ RMV_MAX_NUM_TILES ];
 
         bool m_DestLocked;
+#ifdef RAD_LINUX
+        pddiLockInfo * m_pLockInfo;     // Linux port: of the locked tile, for UnlockDestination's padding
+#endif
 };
 
 #endif // RAD_MOVIEPLAYER_USE_BINK

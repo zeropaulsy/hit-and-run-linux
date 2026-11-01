@@ -51,6 +51,9 @@
 #include <mission/objectives/missionobjective.h>
 #include <mission/rewards/rewardsmanager.h>
 #include <mission/rewards/reward.h>
+#ifdef RAD_LINUX
+#include <mission/rewards/modrewardquests.h>
+#endif
 #include <presentation/gui/ingame/guiscreenhud.h>
 #include <presentation/gui/guisystem.h>
 #include <presentation/gui/backend/guimanagerbackend.h>
@@ -295,6 +298,11 @@ void MissionManager::Update( int elapsedTime )
     }
 #endif
 
+#ifdef RAD_LINUX
+    // Mod Launcher CustomRewardQuestSupport: quests done while playing
+    ModRewardQuests::Update( GetCurrentLevelIndex() );
+#endif
+
     if( mLoadingState != STATE_INVALID )
     {
         PerformLoading();
@@ -326,7 +334,11 @@ void MissionManager::Update( int elapsedTime )
             DisableBonusMissions();
         }
 
+#ifdef RAD_LINUX
+        if ( mResetting || currentMission->IsForcedCar() || currentMission->ModResetPlayerOnLoad() )
+#else
         if ( mResetting || currentMission->IsForcedCar() || currentMission->IsRaceMission() )
+#endif
         {
             if ( mResetting || mMissionState != MISSION_RUNNING )
             {
@@ -768,7 +780,11 @@ MEMTRACK_PUSH_GROUP( "MissionManager - Loading" );
                 }
 
 
+#ifdef RAD_LINUX
+                if ( mResetting || mission->IsForcedCar() || mission->ModResetPlayerOnLoad() )
+#else
                 if ( mResetting || mission->IsForcedCar() || mission->IsRaceMission() )
+#endif
                 {
                     GetCurrentMission()->ResetPlayer();
 //					GetCharacterManager()->Update(0.033f);

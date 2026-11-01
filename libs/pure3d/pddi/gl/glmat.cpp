@@ -59,6 +59,8 @@ pddiShadeFloatTable pglMat::floatTable[] =
 {
     {PDDI_SP_SHININESS , SHADE_FLOAT(&pglMat::SetShininess)},
     {PDDI_SP_ALPHACOMPARE_THRESHOLD , SHADE_FLOAT(&pglMat::SetAlphaRef)},   // Linux port: as the D3D8 pddi
+    {PDDI_SP_REFRACTINDEX , SHADE_FLOAT(&pglMat::SetHoverRefractionIndex)}, // Linux port: HoverCarRefraction
+    {PDDI_SP_REFRACTBLEND , SHADE_FLOAT(&pglMat::SetHoverRefractionBlend)},
     {PDDI_SP_NULL , NULL}
 };
 
@@ -73,6 +75,22 @@ pddiShadeTextureTable pglReflectionMat::textureTable[] =
 {
     {PDDI_SP_BASETEX , SHADE_TEXTURE(&pglMat::SetTexture)},
     {PDDI_SP_REFLMAP , SHADE_TEXTURE(&pglReflectionMat::SetReflectionMap)},
+    {PDDI_SP_NULL , NULL}
+};
+
+pddiShadeColourTable pglRefractionMat::colourTable[] = 
+{
+    PGL_STDSHADERPARAM_COLOUR,
+    {PDDI_SP_REFRACTCOLOUR , SHADE_COLOUR(&pglRefractionMat::SetRefractionColour)},
+    {PDDI_SP_NULL , NULL}
+};
+
+pddiShadeFloatTable pglRefractionMat::floatTable[] = 
+{
+    {PDDI_SP_SHININESS , SHADE_FLOAT(&pglMat::SetShininess)},
+    {PDDI_SP_ALPHACOMPARE_THRESHOLD , SHADE_FLOAT(&pglMat::SetAlphaRef)},
+    {PDDI_SP_REFRACTINDEX , SHADE_FLOAT(&pglRefractionMat::SetRefractionIndex)},
+    {PDDI_SP_REFRACTBLEND , SHADE_FLOAT(&pglRefractionMat::SetRefractionBlend)},
     {PDDI_SP_NULL , NULL}
 };
 
@@ -166,6 +184,8 @@ pglMat::pglMat(pglContext* c, int prog)
     }
     texEnv[0].enabled = true;
     pass = 0;
+    hoverRefractIndex = 10.0f;      // the Xbox's default
+    hoverRefractBlend = -1.0f;
 }
 
 pglMat::~pglMat() 
@@ -295,11 +315,36 @@ int pglMat::CountDevPasses(void)
     return 1;
 }
 
+void pglMat::SetHoverRefractionIndex(float index)
+{
+    hoverRefractIndex = index;
+}
+
+void pglMat::SetHoverRefractionBlend(float blend)
+{
+    hoverRefractBlend = blend;
+}
+
 void pglMat::SetDevPass(unsigned pass)
 {
     pglPipeline::Material m;
     SetupStandard(m, pass);
-    context->GetDisplay()->GetPipeline()->SetMaterial(m);
+    pglPipeline* pipeline = context->GetDisplay()->GetPipeline();
+    if(hoverRefractBlend >= 0.0f)
+    {
+        // the Xbox's d3dRefractVertexShader: the lit, textured material crossfaded with the frame drawn so far, offset
+        // by the normal times the index in pixels of a 480 line screen; opaque, no alpha test, no custom shader
+        m.program = PGL_PROGRAM_REFRACTION;
+        m.custom = -1;
+        m.alphaCompare = -1;
+        m.blended = false;
+        glDisable(GL_BLEND);
+        m.refractColour[0] = m.refractColour[1] = m.refractColour[2] = m.refractColour[3] = 1.0f;
+        m.refractIndex = hoverRefractIndex * 448.0f / 480.0f;
+        m.refractBlend = hoverRefractBlend;
+        pipeline->CaptureScreen();
+    }
+    pipeline->SetMaterial(m);
 }
 
 void pglMat::LookUpCustomShaders(void)
@@ -430,6 +475,51 @@ void pglReflectionMat::SetDevPass(unsigned pass)
 }
 
 //-------------------------------------------------------------------
+// refraction (ps2RefractionShader)
+//-------------------------------------------------------------------
+
+pglRefractionMat::pglRefractionMat(pglContext* c) : pglMat(c, PGL_PROGRAM_REFRACTION)
+{
+    refractColour.Set(255,255,255,255);     // the PS2's defaults
+    refractIndex = 10.0f;
+    refractBlend = 0.0f;
+}
+
+const char* pglRefractionMat::GetType(void)
+{
+    static char type[] = "refract";
+    return type;
+}
+
+void pglRefractionMat::SetRefractionColour(pddiColour c)
+{
+    refractColour = c;
+}
+
+void pglRefractionMat::SetRefractionIndex(float index)
+{
+    refractIndex = index;
+}
+
+void pglRefractionMat::SetRefractionBlend(float blend)
+{
+    refractBlend = blend;
+}
+
+void pglRefractionMat::SetDevPass(unsigned pass)
+{
+    pglPipeline::Material m;
+    SetupStandard(m, pass);
+    FillGLColour(refractColour, m.refractColour);
+    m.refractIndex = refractIndex;
+    m.refractBlend = 1.0f;
+
+    pglPipeline* pipeline = context->GetDisplay()->GetPipeline();
+    pipeline->CaptureScreen();
+    pipeline->SetMaterial(m);
+}
+
+//-------------------------------------------------------------------
 // error (d3dErrorShader)
 //-------------------------------------------------------------------
 
@@ -486,8 +576,13 @@ void pglMat::SetMaterialName(const char* name, const char* file)
 }
 
 // for p3d's shader loader (tShaderLoader): the material's name and the art file it is in
+void pvkSetMaterialName(pddiShader* shader, const char* name, const char* file);     // vk/vkmat.cpp
+bool pvkActive();
+
 void pglSetMaterialName(pddiShader* shader, const char* name, const char* file)
 {
-    if(shader)
+    if(pvkActive())
+        pvkSetMaterialName(shader, name, file);
+    else if(shader)
         ((pglMat*)shader)->SetMaterialName(name, file);
 }

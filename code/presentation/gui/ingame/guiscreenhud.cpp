@@ -1487,7 +1487,13 @@ CGuiScreenHud::UpdateNumCoinsDisplay( int numCoins, bool show )
     if( show )
     {
         char buffer[ MAX_NUM_COIN_DIGITS ];
+#ifdef RAD_LINUX
+        // Linux port: 8+ digits overflowed the buffer (the Mod Launcher's BugFixes FixHighCoinCountCrash); shown capped
+        int maxCoins = 9999999, minCoins = -999999;
+        snprintf( buffer, sizeof( buffer ), "%d", numCoins > maxCoins ? maxCoins : numCoins < minCoins ? minCoins : numCoins );
+#else
         sprintf( buffer, "%d", numCoins );
+#endif
         s_numCoinsDisplay->SetBitmapText( buffer );
     }
 }

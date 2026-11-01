@@ -67,6 +67,10 @@ class Sprite
         // Linux port: draw across the whole window instead of the centred 4:3 page area (e.g. the
         // front end's TV frame over the full-window 3D room)
         virtual void SetStretchToWindow( bool stretch ) = 0;
+
+        // Linux port: a new sprite with this one's images, position, transform and colours, added to the same parent
+        // (menu items the page doesn't have, as Text::Clone). NULL if this sprite has no parent.
+        virtual Sprite* Clone( const char* name ) = 0;
     
 #ifdef BITMAP_TEXT_SUPPORT
         // set current sprite mode

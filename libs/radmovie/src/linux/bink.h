@@ -25,6 +25,7 @@ typedef unsigned char U8;
 #define BINKNOTHREADEDIO  0x08000000L
 #define BINKCOPYALL       0x80000000L
 #define BINKSURFACE32     3
+#define BINKLINUXNOAUDIO  0x00080000L     // Linux port: open no audio track (mods' video textures, bink_videotexture.cpp)
 
 struct BINKIO;
 typedef S32 ( RADLINK PTR4* BINKIOOPEN )( struct BINKIO PTR4* Bnkio, const char PTR4* name, U32 flags );
@@ -58,7 +59,7 @@ typedef void  ( RADLINK PTR4* RADMEMFREE )( void PTR4* ptr );
 
 void  RADSetMemory( RADMEMALLOC a, RADMEMFREE f );     // ignored: FFmpeg allocates with malloc
 
-HBINK BinkOpen( const char* name, U32 flags );
+HBINK BinkOpen( const char* name, U32 flags );           // name may be a mods' virtual path ("/GameData/...")
 void  BinkClose( HBINK bnk );
 S32   BinkDoFrame( HBINK bnk );                        // 0 = decoded
 void  BinkNextFrame( HBINK bnk );

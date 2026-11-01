@@ -87,6 +87,11 @@ public:
     void SetAlphaCompare(int compare);
     void SetAlphaRef(float ref);
 
+    // Linux port: HoverCarRefraction (geometryvehicle.cpp) sets these on the hover car's simple materials, as on the
+    // Xbox's refract ones: a blend >= 0 draws them refracting (the Xbox's d3dRefractVertexShader)
+    void SetHoverRefractionIndex(float index);
+    void SetHoverRefractionBlend(float blend);
+
     int  CountDevPasses(void);
     virtual void SetDevPass(unsigned);
 
@@ -111,6 +116,8 @@ protected:
     int customPasses;
     unsigned customGeneration;
     pglTextureEnv texEnv[pglMaxPasses];
+    float hoverRefractIndex;
+    float hoverRefractBlend;    // < 0: not refracting
 };
 
 // "environment", "spheremap" (d3dReflShader): the base texture plus a reflection map looked up with the camera-space
@@ -136,6 +143,32 @@ public:
 private:
     pglTexture* reflectionMap;
     pddiColour envBlend;
+};
+
+// "refract" (the PS2 pddi's ps2RefractionShader; installed for mods' RefractionShaderSupport): the frame drawn so
+// far, looked up where the surface's normal bends it to, times the refraction colour; the base texture is unused
+class pglRefractionMat : public pglMat
+{
+public:
+    pglRefractionMat(pglContext*);
+
+    static pddiShadeColourTable colourTable[];
+    static pddiShadeFloatTable floatTable[];
+
+    const char* GetType(void);
+    pddiShadeColourTable* GetColourTable(void) { return colourTable;}
+    pddiShadeFloatTable*  GetFloatTable(void)  { return floatTable;}
+
+    void SetRefractionColour(pddiColour colour);
+    void SetRefractionIndex(float index);
+    void SetRefractionBlend(float blend);   // the PS2's simple-shader fallback only: kept, unused
+
+    void SetDevPass(unsigned);
+
+private:
+    pddiColour refractColour;
+    float refractIndex;
+    float refractBlend;
 };
 
 // "error" (d3dErrorShader): drawn for shaders a file names but does not contain; lit, pink emissive, no texture

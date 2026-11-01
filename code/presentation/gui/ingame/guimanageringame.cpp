@@ -34,6 +34,9 @@
 #include <presentation/gui/ingame/guiscreenpauseoptions.h>
 #ifdef RAD_WIN32
 #include <presentation/gui/ingame/guiscreenpausedisplay.h>
+#ifdef RAD_LINUX
+#include <presentation/gui/frontend/guiscreengraphics.h>
+#endif
 #endif
 #include <presentation/gui/ingame/guiscreenpausecontroller.h>
 #include <presentation/gui/ingame/guiscreenpausesound.h>
@@ -88,6 +91,9 @@
 #include <Layer.h>
 #include <Page.h>
 #include <Screen.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //===========================================================================
 // Global Data, Local Data, Local Classes
@@ -380,6 +386,12 @@ MEMTRACK_PUSH_GROUP( "CGUIManagerInGame" );
     pScroobyScreen = m_pScroobyProject->GetScreen( "PauseDisplay" );
     if( pScroobyScreen != NULL )
     {
+#ifdef RAD_LINUX
+        // Linux port: Graphics, on the Display page (first: it copies the rows' texts before the Display menu
+        // highlights one)
+        pScreen = new CGuiScreenGraphics( pScroobyScreen, this, true );
+        this->AddWindow( CGuiWindow::GUI_SCREEN_ID_GRAPHICS, pScreen );
+#endif
         pScreen = new CGuiScreenPauseDisplay( pScroobyScreen, this );
         this->AddWindow( CGuiWindow::GUI_SCREEN_ID_DISPLAY, pScreen );
     }
@@ -578,12 +590,24 @@ void CGuiManagerInGame::HandleMessage
                 m_promptSaveBeforeQuit = false;
                 m_quitAndReload = false;
 #else
+#ifdef RAD_LINUX
+                // Linux port: mods' NoSavedGames hack: on to the next level without asking to save
+                if( shar_ModHackRequired( "NoSavedGames" ) )
+                {
+                    m_promptSaveBeforeQuit = false;
+                }
+                else
+                {
+#endif
                 this->DisplayPrompt( PROMPT_CONFIRM_SAVE_BEFORE_QUIT,
                                      this,
                                      PROMPT_TYPE_YES_NO,
                                      false );
 
                 break;
+#ifdef RAD_LINUX
+                }
+#endif
 #endif // RAD_DEMO
             }
             else
@@ -795,6 +819,9 @@ void CGuiManagerInGame::HandleMessage
             GetGameplayContext()->PauseAllButPresentation( true );
 
             m_promptSaveBeforeQuit = true;
+#ifdef RAD_LINUX
+            m_promptSaveBeforeQuit = !shar_ModHackRequired( "NoSavedGames" );    // Linux port: mods' NoSavedGames hack
+#endif
 
             break;
         }

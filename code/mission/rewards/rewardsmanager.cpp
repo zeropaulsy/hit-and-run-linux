@@ -26,6 +26,9 @@
 #include <mission/missionscriptloader.h>
 
 #include <string.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //******************************************************************************
 //
@@ -132,6 +135,9 @@ void RewardsManager::InitRewards()
         mRewardsList[i].mMaxTokensInLevel = 200;
         mRewardsList[i].mTotalGagsInLevel = 10;
         mRewardsList[i].mTotalWaspsInLevel = 20;
+#ifdef RAD_LINUX
+        mNumModRewards[i] = 0;
+#endif
     }
 
     HeapMgr()->PopHeap( GMA_PERSISTENT );
@@ -149,6 +155,12 @@ void RewardsManager::ClearRewards()
         mRewardsList[i].mDefaultCar->LockReward();
         mRewardsList[i].mDefaultSkin->LockReward();
         mRewardsList[i].mGoldCards->LockReward();
+#ifdef RAD_LINUX
+        for( int r = 0; r < mNumModRewards[i]; r++ )
+        {
+            mModRewards[i][r]->LockReward();
+        }
+#endif
     }
 
     //relock items from the tokenstore
@@ -156,6 +168,12 @@ void RewardsManager::ClearRewards()
     {
         for (int k=0;k<MAX_INVENTORY;k++)
         {
+#ifdef RAD_LINUX
+            if( mLevelTokenStoreList[j].mInventoryList[k] == NULL )
+            {
+                continue;   // not added (IncreasedRewardLimits)
+            }
+#endif
             mLevelTokenStoreList[j].mInventoryList[k]->LockReward();
         }
     }
@@ -257,6 +275,86 @@ int RewardsManager::BindReward(char* name,char* filename, Reward::eRewardType rt
 }
 
 
+#ifdef RAD_LINUX
+int RewardsManager::BindModReward( const char* name, const char* filename, Reward::eRewardType rtype,
+                                   Reward::eQuestType qtype, int level, const char* arg )
+{
+    if( !LevelCheck( level ) )
+    {
+        return -1;
+    }
+    char nameCopy[ 16 ];
+    char fileCopy[ 64 ];
+    strncpy( nameCopy, name, sizeof( nameCopy ) - 1 );
+    nameCopy[ sizeof( nameCopy ) - 1 ] = '\0';
+    strncpy( fileCopy, filename, sizeof( fileCopy ) - 1 );
+    fileCopy[ sizeof( fileCopy ) - 1 ] = '\0';
+
+    // the same binding again (the rewards script loaded again): update it
+    Reward* reward = NULL;
+    for( int i = 0; i < GetNumRewards( level ) && reward == NULL; i++ )
+    {
+        Reward* r = GetRewardAt( level, i );
+        if( r != NULL && r->GetQuestType() == qtype && strcmp( r->GetName(), nameCopy ) == 0 &&
+            strcmp( r->GetModQuestArg(), arg != NULL ? arg : "" ) == 0 )
+        {
+            reward = r;
+        }
+    }
+    if( reward == NULL && qtype > Reward::eBlank && qtype < Reward::NUM_QUESTS )
+    {
+        Reward* slot = GetReward( level, qtype );
+        if( slot != NULL && slot->GetRewardType() == Reward::eNULL )
+        {
+            reward = slot;
+        }
+    }
+    if( reward == NULL )
+    {
+        if( mNumModRewards[ level ] >= MAX_MOD_REWARDS )
+        {
+            rReleasePrintf( "mods: CustomRewardQuestSupport: more than %d rewards in level %d, %s dropped\n",
+                            MAX_MOD_REWARDS, level + 1, nameCopy );
+            return -1;
+        }
+        HeapMgr()->PushHeap( GMA_PERSISTENT );
+        reward = new Reward;
+        HeapMgr()->PopHeap( GMA_PERSISTENT );
+        mModRewards[ level ][ mNumModRewards[ level ]++ ] = reward;
+    }
+    reward->SetName( nameCopy );
+    reward->SetLevel( level );
+    reward->SetFilename( fileCopy );
+    reward->SetRewardType( rtype );
+    reward->SetQuestType( qtype );
+    reward->SetModQuestArg( arg );
+    return 0;
+}
+
+int RewardsManager::GetNumRewards( int level ) const
+{
+    if( level < 0 || level > MAX_LEVELS )
+    {
+        return 0;
+    }
+    return ( Reward::NUM_QUESTS - Reward::eBlank - 1 ) + mNumModRewards[ level ];
+}
+
+Reward* RewardsManager::GetRewardAt( int level, int index )
+{
+    const int numSlots = Reward::NUM_QUESTS - Reward::eBlank - 1;
+    if( index < 0 || index >= GetNumRewards( level ) )
+    {
+        return NULL;
+    }
+    if( index < numSlots )
+    {
+        return GetReward( level, static_cast<Reward::eQuestType>( Reward::eBlank + 1 + index ) );
+    }
+    return mModRewards[ level ][ index - numSlots ];
+}
+#endif
+
 Reward* RewardsManager::GetReward(int level, Reward::eQuestType qtype)
 {
     rAssert( mScriptLoaded );
@@ -329,6 +427,15 @@ Reward* RewardsManager::GetReward( int level, tUID id )
             return pReward;
         }
     }
+#ifdef RAD_LINUX
+    for( int i = 0; LevelCheck( level ) && i < mNumModRewards[ level ]; i++ )
+    {
+        if( mModRewards[ level ][ i ]->GetUID() == id )
+        {
+            return mModRewards[ level ][ i ];
+        }
+    }
+#endif
 
     return NULL;
 }
@@ -336,7 +443,12 @@ Reward* RewardsManager::GetReward( int level, tUID id )
 int RewardsManager::SetCarAttributes(char* carname,float speed,float acceleration,float toughness,float stability)
 {
     //check if the array is full
+#ifdef RAD_LINUX
+    static const int limit = shar_ModHackRequired( "IncreasedRewardLimits" ) ? MAX_CAR_ATTRIBUTE_RECORDS : 50;
+    if (mCarAttributeRecordIndex >= limit)
+#else
     if (mCarAttributeRecordIndex >= MAX_CAR_ATTRIBUTE_RECORDS)
+#endif
     {
         rTuneAssertMsg(0,"Cant Set any more Car Attributes the Records Array  is FULL!!!\n");
         return -1;
@@ -419,6 +531,13 @@ void RewardsManager::InitTokenStore()
         mLevelTokenStoreList[i].mCounter =0;
         for (int j=0;j<MAX_INVENTORY;j++)
         {
+#ifdef RAD_LINUX
+            if( j >= VANILLA_MAX_INVENTORY )
+            {
+                mLevelTokenStoreList[i].mInventoryList[j] = NULL;   // allocated in AddMerchandise
+                continue;
+            }
+#endif
             mLevelTokenStoreList[i].mInventoryList[j] = new (GMA_PERSISTENT) Merchandise;
         }
 
@@ -431,7 +550,17 @@ int RewardsManager::AddMerchandise(char* name,char* filename,Reward::eRewardType
 {
 
     //check if the array of merchandise is full
+#ifdef RAD_LINUX
+   static const int limit = shar_ModHackRequired( "IncreasedRewardLimits" ) ? MAX_INVENTORY : VANILLA_MAX_INVENTORY;
+   if( mLevelTokenStoreList[level].mCounter < limit &&
+       mLevelTokenStoreList[level].mInventoryList[mLevelTokenStoreList[level].mCounter] == NULL )
+   {
+        mLevelTokenStoreList[level].mInventoryList[mLevelTokenStoreList[level].mCounter] = new (GMA_PERSISTENT) Merchandise;
+   }
+   if(mLevelTokenStoreList[level].mCounter < limit)
+#else
    if(mLevelTokenStoreList[level].mCounter < MAX_INVENTORY)
+#endif
    {
         mLevelTokenStoreList[level].mInventoryList[mLevelTokenStoreList[level].mCounter]->SetName(name);
         mLevelTokenStoreList[level].mInventoryList[mLevelTokenStoreList[level].mCounter]->SetLevel(level);
@@ -652,6 +781,14 @@ RewardsManager::~RewardsManager()
         delete mRewardsList[i].mCards;       
         delete mRewardsList[i].mDefaultCar;
         delete mRewardsList[i].mDefaultSkin;
+#ifdef RAD_LINUX
+        delete mRewardsList[i].mGoldCards;
+        for( int r = 0; r < mNumModRewards[i]; r++ )
+        {
+            delete mModRewards[i][r];
+        }
+        mNumModRewards[i] = 0;
+#endif
     }
     
     for (int i =0; i<MAX_LEVELS;i++)

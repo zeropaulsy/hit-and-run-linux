@@ -42,6 +42,15 @@
 #include <mission/modscript.h>
 #include <mission/objectives/modobjectives.h>
 #include <mission/conditions/modconditions.h>
+#include <shar_mods.h>
+#include <mission/rewards/modrewardquests.h>
+
+// Linux port: mods' NoMissionStartCameras hack: the scripts' mission start cameras are ignored
+static bool NoMissionStartCameras()
+{
+    static const bool s_noCameras = shar_ModHackRequired( "NoMissionStartCameras" ) != 0;
+    return s_noCameras;
+}
 #endif
 #include <mission/missionstage.h>
 #include <mission/nodamagebonusobjective.h>
@@ -3295,6 +3304,12 @@ void MissionScriptLoader::SetPresentationBitmap( int argc, char** argv )
 void MissionScriptLoader::SetAnimatedCameraMulticontrollerName( int argc, char** argv )
 {
     rAssert( argc > 1 );
+#ifdef RAD_LINUX
+    if( NoMissionStartCameras() )
+    {
+        return;
+    }
+#endif
     AnimatedCam::SetMulticontroller( argv[ 1 ] );
 }
 
@@ -3311,6 +3326,12 @@ void MissionScriptLoader::SetAnimatedCameraMulticontrollerName( int argc, char**
 void MissionScriptLoader::SetAnimatedCameraName( int argc, char** argv )
 {
     rAssert( argc > 1 );
+#ifdef RAD_LINUX
+    if( NoMissionStartCameras() )
+    {
+        return;
+    }
+#endif
     AnimatedCam::ClearCamera();
     AnimatedCam::SetCamera( argv[ 1 ] );
 }
@@ -3328,6 +3349,12 @@ void MissionScriptLoader::SetAnimatedCameraName( int argc, char** argv )
 void MissionScriptLoader::SetMissionStartMulticontrollerName( int argc, char** argv )
 {
     rAssert( argc > 1 );
+#ifdef RAD_LINUX
+    if( NoMissionStartCameras() )
+    {
+        return;
+    }
+#endif
     AnimatedCam::SetMissionStartMulticontroller( argv[ 1 ] );
 }
 
@@ -3344,6 +3371,12 @@ void MissionScriptLoader::SetMissionStartMulticontrollerName( int argc, char** a
 void MissionScriptLoader::SetMissionStartCameraName ( int argc, char** argv )
 {
     rAssert( argc > 1 );
+#ifdef RAD_LINUX
+    if( NoMissionStartCameras() )
+    {
+        return;
+    }
+#endif
     AnimatedCam::SetMissionStartCamera( argv[ 1 ] );
 }
 
@@ -3852,6 +3885,11 @@ void MissionScriptLoader::SetStageTime( int argc, char** argv )
 {
     rTuneAssertMsg( spInstance->mpStage != NULL, "No stage active\n" );
     int factor = GetCheatInputSystem()->IsCheatEnabled(CHEAT_ID_EXTRA_TIME) ? 5 : 1;
+#ifdef RAD_LINUX
+    // SetStageEnabledCheats( "x5StageTime" ) (mods), if it comes first in the stage
+    ModStage* mod = spInstance->mpStage->GetModStage();
+    if( mod != NULL && ( mod->cheats & ( 1u << CHEAT_ID_EXTRA_TIME ) ) ) factor = 5;
+#endif
     spInstance->mpStage->SetStageTime( MissionStage::STAGETIME_SET, atoi( argv[ 1 ] ) * factor);
 }
 
@@ -3869,6 +3907,11 @@ void MissionScriptLoader::AddStageTime( int argc, char** argv )
 {
     rTuneAssertMsg( spInstance->mpStage != NULL, "No stage active\n" );
     int factor = GetCheatInputSystem()->IsCheatEnabled(CHEAT_ID_EXTRA_TIME) ? 5 : 1;
+#ifdef RAD_LINUX
+    // SetStageEnabledCheats( "x5StageTime" ) (mods), if it comes first in the stage
+    ModStage* mod = spInstance->mpStage->GetModStage();
+    if( mod != NULL && ( mod->cheats & ( 1u << CHEAT_ID_EXTRA_TIME ) ) ) factor = 5;
+#endif
     spInstance->mpStage->SetStageTime( MissionStage::STAGETIME_ADD, atoi( argv[ 1 ] ) * factor);
 }
 
@@ -4988,10 +5031,41 @@ void MissionScriptLoader::BindReward (int argc,char** argv)
         {
             qtype = Reward::eDefaultSkin;
         }
+#ifdef RAD_LINUX
+        else if( ModRewardQuests::Active() && ModRewardQuests::QuestType( argv[ 4 ] ) != Reward::eBlank )
+        {
+            qtype = ModRewardQuests::QuestType( argv[ 4 ] );
+        }
+#endif
         else
         {
             printf("ERROR: Unknown Quest type %s !\n",argv[4]);
         }
+
+#ifdef RAD_LINUX
+        // Mod Launcher CustomRewardQuestSupport: every binding kept, with its extra argument (card / race /
+        // mission number, time, coins, count, car or doorbell name); skins for any quest but defaultcar
+        if( !isMerchandise && ModRewardQuests::Active() )
+        {
+            if( qtype == Reward::eGoldCards )
+            {
+                qtype = Reward::eCards;     // the game stored goldcards in the cards slot
+            }
+            if( qtype == Reward::eBlank || ( qtype == Reward::eDefaultCar && rtype != Reward::ALT_PLAYERCAR ) )
+            {
+                rReleasePrintf( "mods: CustomRewardQuestSupport: BindReward %s %s %s ignored\n", name, argv[ 3 ],
+                                argv[ 4 ] );
+                return;
+            }
+            if( level < 0 || level >= RenderEnums::numLevels )
+            {
+                rReleasePrintf( "mods: CustomRewardQuestSupport: BindReward %s: no level %d\n", name, level + 1 );
+                return;
+            }
+            GetRewardsManager()->BindModReward( name, filename, rtype, qtype, level, argc > 6 ? argv[ 6 ] : "" );
+            return;
+        }
+#endif
         
         if( isMerchandise )
         {

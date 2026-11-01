@@ -4,6 +4,9 @@
 #include "p3d/anim/skeleton.hpp"
 #include <string.h>
 #include "simcommon/simutility.hpp"
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 using namespace RadicalMathLibrary;
 
@@ -303,6 +306,15 @@ void ArticulatedPhysicsObject::SetClone(ArticulatedPhysicsObject* clone, SimStat
     
     clone->mTimeSinceComputeInertiaMatrix = 0.0f;
     clone->mTimeComputeInertiaMatrix = 0.0f; // uninit fix (Linux port): never copied; zero (as under MSVC) = every step
+#ifdef RAD_LINUX
+    // Linux port: mods' BugFixes "baby van tilt / wonky driving" fix: the source's interval, as intended
+    static const bool s_copyInterval = shar_ModBugFix( "Physics",
+        "FixUninitialisedArticulatedPhysicsObjectCloneRelativeCentreOfMassAndInertiaMatrixUpdateInterval", 1 ) != 0;
+    if( s_copyInterval )
+    {
+        clone->mTimeComputeInertiaMatrix = mTimeComputeInertiaMatrix;
+    }
+#endif
     clone->mPose = static_cast<SimStateArticulated*>(inSimState)->GetPose();
     clone->mPose->AddRef();
 

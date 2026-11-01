@@ -97,6 +97,43 @@ FeSprite::~FeSprite()
 #endif
 }
 
+// Linux port: see Scrooby::Sprite::Clone
+Scrooby::Sprite* FeSprite::Clone( const char* name )
+{
+    FeParent* parent = dynamic_cast< FeParent* >( mParent );
+    if( parent == NULL )
+    {
+        return NULL;
+    }
+
+    FeSprite* copy = new FeSprite( name, 0, 0 );
+    copy->mPosX = mPosX;
+    copy->mPosY = mPosY;
+    copy->m_matrix = m_matrix;
+    copy->m_clip = m_clip;
+    copy->m_layer = m_layer;
+    copy->SetBoundingBoxSize( m_width, m_height );
+    copy->SetHorizontalJustification( m_horizontalJustification );
+    copy->SetVerticalJustification( m_verticalJustification );
+    copy->SetColour( mColour );
+    copy->mAlpha = mAlpha;
+    copy->mStretchToWindow = mStretchToWindow;
+    for( int i = 0; i < mAliases.Size(); i++ )
+    {
+        copy->AddImage( *mAliases[ i ] );
+    }
+    if( mIndex >= 0 && mIndex < mAliases.Size() )
+    {
+        copy->mIndex = -1;
+        copy->SetIndex( mIndex );
+    }
+    copy->SetVisible( mVisible );
+
+    copy->SetParent( mParent );
+    parent->AddChild( copy );
+    return copy;
+}
+
 //===========================================================================
 // FeSprite::AddImage
 //===========================================================================

@@ -16,6 +16,9 @@
 // Includes
 //===========================================================================
 #include <presentation/gui/frontend/guiscreenoptions.h>
+#ifdef RAD_LINUX
+#include <presentation/gui/frontend/guiscreengraphics.h>
+#endif
 #include <presentation/gui/frontend/guiscreenplaymovie.h>
 #include <presentation/gui/guimenu.h>
 #include <presentation/gui/guisystem.h>
@@ -89,8 +92,16 @@ MEMTRACK_PUSH_GROUP( "CGUIScreenOptions" );
     Scrooby::Group* pGroup = pPage->GetGroup( "Menu" );
     rAssert( pGroup != NULL );
 
+#ifdef RAD_LINUX
+    // copied before the menu highlights Display (the copy takes its colour)
+    static const char* BELOW_GRAPHICS[] = { "Controller", "Sound", "ViewMovies", "ViewCredits" };
+    Scrooby::Text* graphics = AddGraphicsMenuItem( pGroup, "Display", BELOW_GRAPHICS, 4 );
+#endif
 #ifdef RAD_WIN32
     m_pMenu->AddMenuItem( pGroup->GetText( "Display" ) );
+#endif
+#ifdef RAD_LINUX
+    m_pMenu->AddMenuItem( graphics );
 #endif
     m_pMenu->AddMenuItem( pGroup->GetText( "Controller" ) );
     m_pMenu->AddMenuItem( pGroup->GetText( "Sound" ) );
@@ -380,6 +391,14 @@ void CGuiScreenOptions::HandleMessage
                     case MENU_ITEM_DISPLAY:
                     {
                         m_pParent->HandleMessage( GUI_MSG_GOTO_SCREEN, GUI_SCREEN_ID_DISPLAY );
+
+                        break;
+                    }
+#endif
+#ifdef RAD_LINUX
+                    case MENU_ITEM_GRAPHICS:
+                    {
+                        m_pParent->HandleMessage( GUI_MSG_GOTO_SCREEN, GUI_SCREEN_ID_GRAPHICS );
 
                         break;
                     }
