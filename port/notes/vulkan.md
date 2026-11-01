@@ -1,4 +1,4 @@
-# Vulkan renderer (`libs/pure3d/pddi/vk/`, branch `vulkan`)
+# Vulkan renderer (`libs/pure3d/pddi/vk/`)
 
 Third pddi beside GL (GL stays the default and the fallback). ini `renderer=vulkan` (Options > Graphics, next
 start); `SHAR_RENDERER=vulkan|opengl` overrides.
@@ -71,7 +71,7 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 - 32-bit: non-dispatchable handles are all uint64_t (no overloads on handle type).
 
 
-## Sun prototype (branch `vulkan-sun`, `vksun.cpp`)
+## Sun prototype (`vksun.cpp`)
 - Off by default: Options > Graphics Shadows Off/Low/High (ini `shadows=off|low|high`, old `yes` = high), F9 cycles
   (saved like the menu). Device made with ray queries + buffer device address where it has them, unless `SHAR_SUN=0`
   (so the menu applies at once) or `SHAR_SUN_RT=0` (Low only, as an iGPU: tests the no-ray-query programs on an RTX).

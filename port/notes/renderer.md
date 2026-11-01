@@ -78,7 +78,7 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
 
 ## Diagnostics
 - `SHAR_GL_DEBUG=1`, `SHAR_GL_STATS=1` (draws/uploads, CPU/GPU ms per 5 s), `SHAR_MATERIAL_LOG=1`.
-- Sun lighting on world: dropped (pre-lit world has no normals; needs shadow maps).
+- Sun shadows: Vulkan only (`port/notes/vulkan.md` Sun prototype). GL has none (pre-lit world has no normals; needs shadow maps).
 
 ## Vulkan
 See `vulkan.md`.

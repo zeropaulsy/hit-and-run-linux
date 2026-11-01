@@ -62,9 +62,9 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
 
 ### Renderer extras
 - [ ] Anti-aliasing entry in the display menu
-- [ ] Sun lighting on the world (needs shadow maps; prototyped and dropped)
-- [ ] **Vulkan renderer** (branch `vulkan`): a third pddi beside GL, GL kept as default and fallback; status, goals
-  and next steps in `port/notes/vulkan.md`
+- [ ] Sun shadows on GL (Vulkan only: ray queries or its baked shadow map; GL would need shadow maps)
+- [ ] **Vulkan renderer follow-ups**: long play-tests, Mesa (AMD/Intel) drivers, pipeline cache on disk; next steps in
+  `port/notes/vulkan.md`
 
 ### Other
 - [ ] **Steering-wheel force feedback**: springs and dampers; needs a wheel to test with
