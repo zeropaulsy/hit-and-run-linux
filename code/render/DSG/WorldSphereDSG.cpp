@@ -23,6 +23,11 @@
 #include <p3d/view.hpp>
 #include <render/animentitydsgmanager/animentitydsgmanager.h>
 
+#ifdef RAD_LINUX
+void pvkSunSetSkyDirection( const float* direction );   // pddi/vk/vksun.cpp: where the sky's sun is (NULL: none)
+static bool s_skyMoon = false;     // the sky's moon set the sun's direction (L7 has no lens flare)
+#endif
+
 #ifndef TRUE
 #define TRUE 1
 #endif
@@ -101,6 +106,13 @@ BEGIN_PROFILE( "WorldSphereDSG Destroy" );
    {
 	   mpFlare->Release();
    }
+#ifdef RAD_LINUX
+   if( s_skyMoon )
+   {
+       pvkSunSetSkyDirection( NULL );
+       s_skyMoon = false;
+   }
+#endif
 END_PROFILE( "WorldSphereDSG Destroy" );
 }
 //========================================================================
@@ -233,6 +245,30 @@ void WorldSphereDSG::SetCompositeDrawable( tCompositeDrawable* ipCompDraw )
     rmt::Sphere sphere;
     mpCompDraw->GetBoundingSphere( &sphere );
 	mPosn = sphere.centre;
+#ifdef RAD_LINUX
+    // the sky's painted moon (L7: no lens flare), relative to the camera: the shadow sun's direction
+    tPose* pose = mpCompDraw->GetPose();
+    pose->Evaluate();
+    for( int i = 0; i < mpCompDraw->GetNumDrawableElement(); i++ )
+    {
+        tCompositeDrawable::DrawableElement* elem = mpCompDraw->GetDrawableElement( i );
+        if( elem->GetType() != tCompositeDrawable::DrawableElement::PROP_ELEMENT )
+        {
+            continue;
+        }
+        tCompositeDrawable::DrawablePropElement* propElem = static_cast< tCompositeDrawable::DrawablePropElement* >( elem );
+        if( propElem->GetDrawable()->GetUID() == tEntity::MakeUID( "MoonShape" ) )
+        {
+            rmt::Sphere moon;
+            propElem->GetDrawable()->GetBoundingSphere( &moon );
+            moon.centre.Transform( pose->GetJoint( propElem->GetPoseIndex() )->worldMatrix );
+            float direction[3] = { moon.centre.x, moon.centre.y, moon.centre.z };
+            pvkSunSetSkyDirection( direction );
+            s_skyMoon = true;
+            break;
+        }
+    }
+#endif
 }
 
 //========================================================================
