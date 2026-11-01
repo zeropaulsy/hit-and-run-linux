@@ -44,8 +44,10 @@ const float CREDITS_SCROLL_RATE = 20.0f; // in pixels per second
 const float CREDITS_MANUAL_SCROLL_FACTOR = 5.0f;
 const float CREDITS_FGD_CORRECTION_SCALE = 2.0f;
 
-const int CREDITS_PARTITION_FOR_LOCALIZATION = 13;
-const int CREDITS_PARTITION_FOR_LOGITECH = 30;
+// Linux port: partitions as in the retail PC data and exe (two more VUG partitions before
+// localization; Logitech one shown, as the retail PC exe does)
+const int CREDITS_PARTITION_FOR_LOCALIZATION = 15;
+const int CREDITS_PARTITION_FOR_LOGITECH = 32;
 
 float CGuiScreenViewCredits::s_totalTranslateY = 0.0f;
 float CGuiScreenViewCredits::s_numPixelsPerLine = 0.0f;
@@ -111,7 +113,7 @@ CGuiScreenViewCredits::CGuiScreenViewCredits
             }
 #endif // !PAL
 
-#ifndef RAD_GAMECUBE
+#if !defined( RAD_GAMECUBE ) && !defined( RAD_LINUX )
     #ifndef RAD_PS2
             // hide logitech line from credits for non-GC and non-PS2 platforms
             //

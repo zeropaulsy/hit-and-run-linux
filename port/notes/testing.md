@@ -65,3 +65,7 @@
 - `l5_crate` state1 lacks SPAWN_10_COINS (l1-l4 crates have it): appended in `CStatePropDataLoader::LoadObject`.
   Dump stateprop state machines: parse chunk 0x08020000 (layout in that loader). Release builds don't keep entity
   names: compare the loaded string, not `GetName()`.
+- Retail can differ from the dump: check the retail `Simpsons.exe` (not packed; MSVC keeps initialised ints in .data
+  and `mov [addr], imm` in dynamic initialisers, so search for a string's VA to find its table). Credits: retail
+  frontend.p3d has 34 partitions (localization 15, hidden; Logitech 32, shown on PC) and its own K&K dialogue line
+  table (`soundfxlogic.cpp`); unhandled partitions draw unformatted at offset 0 over the first line.
