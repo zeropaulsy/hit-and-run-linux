@@ -16,8 +16,8 @@ layout(set = 0, binding = 1) uniform sampler2D uScene;
 
 const int CURVE = 1;                    // 0 = ACES (punchy, as films), 1 = Hable / Uncharted 2 (gentle), 2 = Reinhard
 const float EXPOSURE = 1.0;             // brightness before the curve (1 = mid grey unchanged)
-const float AMOUNT = 0.5;               // 0 = off, 1 = full curve (ACES at full strength lifts bright walls a lot)
-const float SATURATION = 0.0;           // the curve's colour boost: 0 = keep the original saturation, 1 = all of it
+const float AMOUNT = 1.0;               // 0 = off, 1 = full curve (ACES at full strength lifts bright walls a lot)
+const float SATURATION = 0.5;           // the curve's colour boost: 0 = keep the original saturation, 1 = all of it
 
 const float WIDEN = 0.6;                // how far the brightest parts go beyond white (fixed: the curves are set for it)
 
