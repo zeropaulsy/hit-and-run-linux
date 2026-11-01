@@ -72,9 +72,11 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
 
 
 ## Sun prototype (branch `vulkan-sun`, `vksun.cpp`)
-- Off by default: Options > Graphics Shadows (ini `shadows=`), F9 toggles (saved like the menu). Device made with ray
-  queries + buffer device address unless `SHAR_SUN=0` (so the menu applies at once); `SHAR_SUN=1` forces on. Off/unsupported: programs and
-  layout as before. `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_ELEVATION=deg`
+- Off by default: Options > Graphics Shadows Off/Low/High (ini `shadows=off|low|high`, old `yes` = high), F9 cycles
+  (saved like the menu). Device made with ray queries + buffer device address where it has them, unless `SHAR_SUN=0`
+  (so the menu applies at once) or `SHAR_SUN_RT=0` (Low only, as an iGPU: tests the no-ray-query programs on an RTX).
+  `SHAR_SUN=1` forces High, `SHAR_SUN=low` Low. High without ray queries runs Low. `SHAR_SUN=0`: programs and layout
+  as before. `SHAR_SUN_SHADOW/LIGHT/LIT_SHADOW` levels, `SHAR_SUN_DIR=x,y,z`, `SHAR_SUN_ELEVATION=deg`
   (every level), `SHAR_SUN_SOFT=deg` (sun disc radius, default 0.3; 0 = hard), `SHAR_SUN_RAYS` (default 8),
   `SHAR_SUN_LOG=1` (2: every caster named as built: id, material, file, size), `SHAR_SUN_DEBUG=1` (one ray;
   shadowed pixels coloured by the blocker's id: red = low byte, green = high, blue 255).
@@ -143,9 +145,28 @@ start); `SHAR_RENDERER=vulkan|opengl` overrides.
   skipped in `pvkContext::DrawPrimBuffer`). Kept: shadow-flagged world geometry
   (`StaticEntityDSG` IS_SHADOW: a few ~100 m chunks, rarely drawn).
 - Gaps: custom material shaders get no sun, additive-blended foliage never casts.
+- Map window follows `s_worldEye`, the camera of the last caster drawn: the frame's last LoadViewMatrix is the HUD
+  radar's (150 m up), which put level 0 off the player (coarse levels, faint shadows; High hid it under rays).
+
+## Low shadows (`Mode() == 1`, any Vulkan device)
+- Same map, strips, dirty tiles and SunMapShade; no structures, no rays. Casters: pre-lit (`keep`) only, as host-visible
+  meshes (`Blas::mesh`: positions, UVs if alpha-tested, uint32 triangles; `BuildMesh`). Lit things (cars, characters)
+  and StatePropDSG keep the game's blobs (`pvkSunRaysOn`); StaticPhys/InstStat blobs off in both (they are in the map).
+- Bake = `RasterRows`: chunk of <= 2048x512 texels, orthographic depth pass (D32, `s_rasterDepth`) of the world
+  instances whose footprint touches it (depth = (top - h) / 4000, the ray bake's), alpha-tested through the masks;
+  compute copy depth -> heights (`kCopySource`). Each chunk costs >= 1/16 of `SHAR_SUN_BAKE_BUDGET`. Matches the ray
+  bake texel for texel (dumped both). Baked after `kLowWorldStreak` (8) steady frames: nothing casts before that.
+- Programs: `PVK_SUN_RAYS` only with ray queries (else `#version 460` + PVK_SUN, layout without bindings 5/10);
+  `uSunMapInfo.w = 1` = map alone (Low on a ray-query device: scenes built with 0 instances; a count > 0 builds
+  from the instance buffers' stale rows = retired BLAS addresses after High: device lost). Taps 8 (`soft[1] = 4`).
+  `SHAR_SUN_DEBUG=1` in Low: the map's shade, red where High would trace.
+- Low <-> High: every caster released and rebuilt in the other form, map from scratch (`s_casterMode`).
+- Cost (RTX 5060, 2560x1600 8x, L1 start, uncapped): off 1.65 ms, Low 2.1, High 6.5. Mesa lavapipe draws it.
+- Edges: map only (1.5-texel filter at level 0 = 6 cm); small props near the ground slightly softer than High.
 
 ## Sun Defaults
-The sun is off by default (Options > Graphics Shadows, or SHAR_SUN=1). The defaults are SHAR_SUN_SOFT=0.3, SHAR_SUN_RAYS=8,
+The sun is off by default (Options > Graphics Shadows Low/High, or SHAR_SUN=low/1). Low ignores the ray settings
+(SOFT still sets the penumbra width from the map). The defaults are SHAR_SUN_SOFT=0.3, SHAR_SUN_RAYS=8,
 SHAR_SUN_NEAR=80, SHAR_SUN_FAR=320, SHAR_SUN_BAKE_BUDGET=4000000 and SHAR_SUN_SHADOW=0.68. These presets are good for comparing:
 
 Defaults (crisp, like a real sun):
@@ -189,6 +210,6 @@ What each setting does:
 - With a crisp sun (SOFT 0.3-0.5) every shadow edge is ray traced: RAYS=6-8 is enough and much cheaper than 16.
 
 Tips:
-- Press F9 to flip the sun off and on in the same spot. That's the easiest way to judge any of these.
+- Press F9 to step off, low, high in the same spot. That's the easiest way to judge any of these.
 - On L1 the sun comes from where it is painted in the sky, in front of the Simpsons' house, at 35 degrees. SHAR_SUN_ELEVATION=14 puts it exactly where the sky shows it (long shadows); 68 is a midday sun (short shadows, mostly under things, softness harder to see).
 - Good spots to look: the lamp posts and trees along the street, and Homer walking in and out of the house's shadow.

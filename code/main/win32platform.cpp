@@ -22,8 +22,8 @@ void pglSetAntialiasing( int samples );     // pddi/gl/display_linux/gldisplay.c
 void pglSetTextureFiltering( int mipmaps, int anisotropy );     // and texture filtering
 void pglSetUserShaders( bool on );          // pddi/gl/glcustom.cpp: the user's shaders (shaders/)
 bool pglGetUserShaders();
-void pvkSunSetEnabled( bool on );           // pddi/vk/vksun.cpp: the sun's shadows (Vulkan)
-bool pvkSunEnabled();
+void pvkSunSetQuality( int quality );       // pddi/vk/vksun.cpp: the sun's shadows (Vulkan): 0 off, 1 low, 2 high
+int pvkSunQuality();
 #endif
 // Pure 3D
 #include <p3d/anim/compositedrawable.hpp>
@@ -1214,10 +1214,11 @@ void Win32Platform::LoadConfig( ConfigString& config )
         }
         else if( _stricmp( property, "shadows" ) == 0 )
         {
-            // Linux port: the sun's shadows (Vulkan); SHAR_SUN=0/1 overrides
+            // Linux port: the sun's shadows (Vulkan): off, low or high (yes: high); SHAR_SUN=0/1/low overrides
             if( getenv( "SHAR_SUN" ) == NULL )
             {
-                pvkSunSetEnabled( _stricmp( value, "no" ) != 0 && strcmp( value, "0" ) != 0 );
+                bool off = _stricmp( value, "no" ) == 0 || _stricmp( value, "off" ) == 0 || strcmp( value, "0" ) == 0;
+                pvkSunSetQuality( off ? 0 : _stricmp( value, "low" ) == 0 ? 1 : 2 );
             }
         }
 #endif
@@ -1336,7 +1337,8 @@ void Win32Platform::SaveConfig( ConfigString& config )
     config.WriteProperty( "anisotropy", anisotropy );
     config.WriteProperty( "shaders", pglGetUserShaders() ? "yes" : "no" );
     config.WriteProperty( "renderer", mRenderer == RENDERER_VULKAN ? "vulkan" : "opengl" );
-    config.WriteProperty( "shadows", pvkSunEnabled() ? "yes" : "no" );
+    static const char* const SHADOWS[] = { "off", "low", "high" };
+    config.WriteProperty( "shadows", SHADOWS[ pvkSunQuality() ] );
 #endif
 }
 
@@ -1364,14 +1366,14 @@ bool Win32Platform::GetUserShaders() const
     return pglGetUserShaders();
 }
 
-void Win32Platform::SetShadows( bool on )
+void Win32Platform::SetShadows( int quality )
 {
-    pvkSunSetEnabled( on );
+    pvkSunSetQuality( quality );
 }
 
-bool Win32Platform::GetShadows() const
+int Win32Platform::GetShadows() const
 {
-    return pvkSunEnabled();
+    return pvkSunQuality();
 }
 #endif
 

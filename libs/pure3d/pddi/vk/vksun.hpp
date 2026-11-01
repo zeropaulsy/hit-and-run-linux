@@ -12,6 +12,9 @@
 // table) and a 64x64 copy of their texture's alpha (the masks) and goes through where the alpha test would discard.
 // Baked (default): the static world's shadow is baked into a map round the camera as seen from the sun (pvkSunMap),
 // and the draws' rays only meet what it does not hold (cars, characters, moving things).
+// Low (Options > Graphics Shadows Low; the only kind without ray queries): no rays at all. The map is rasterised
+// from the static world's triangles (an orthographic depth pass per chunk of texels, vksun.cpp RasterRows) and the
+// draws read only the map; cars and characters keep the game's blob shadows.
 // Fragments of perspective, depth-writing, unblended draws trace one ray towards the sun (glshaders.cpp, PVK_SUN):
 // pre-lit draws are scaled between a shadow and a sunlit level by n.l and the ray, lit ones (cars, characters) only
 // darkened when the ray is blocked. Normals: smooth ones made from the positions (vkcon.cpp), the polygon's own at
@@ -24,12 +27,18 @@
 
 class pvkTexture;
 
-bool pvkSunWanted();            // not SHAR_SUN=0: the device is made with ray queries
-bool pvkSunReady();             // ray queries on the device: programs are built with the sun's code
-bool pvkSunOn();                // shading with it now (the setting, on a device that can)
-void pvkSunToggle();            // F9
-void pvkSunSetEnabled(bool on); // the setting (Options > Graphics Shadows, simpsons.ini shadows=; off by default)
-bool pvkSunEnabled();
+bool pvkSunWanted();            // not SHAR_SUN=0: programs are built with the sun's code
+bool pvkSunWantRays();          // ... and the device is made with ray queries where it has them (not SHAR_SUN_RT=0)
+bool pvkSunReady();             // wanted, on a Vulkan device: programs are built with the sun's code
+bool pvkSunRays();              // ray queries on the device: the programs' rays (PVK_SUN_RAYS) and scenes
+bool pvkSunPrepare();           // the buffers (and scenes) made; false when they cannot be
+bool pvkSunOn();                // shading with it now (the setting, low or high)
+bool pvkSunRaysOn();            // high: ray traced, lit things (cars, characters) cast too
+void pvkSunToggle();            // F9: off, low, high
+// the setting (Options > Graphics Shadows, simpsons.ini shadows=; off by default): 0 off, 1 low, 2 high (low on a
+// device without ray queries)
+void pvkSunSetQuality(int quality);
+int pvkSunQuality();
 
 // p3d's camera (row vectors, translation in row 3)
 void pvkSetViewMatrix(const float* cameraToWorld);
@@ -69,11 +78,11 @@ bool pvkSunBuffers(VkDescriptorBufferInfo* buffers);
 // the baked map (SHAR_SUN_BAKE, on by default): the static world's shadow, as heights towards the sun of the first
 // surface on each texel of planes facing it round the camera (vksun.cpp). windows: per level, the texels baked (x0,
 // y0, x1, y1, ends past); info: level 0's texel (m), texels across a level, 1 when the map is used (0: every shadow
-// ray traced per pixel through the whole scene)
+// ray traced per pixel through the whole scene), 1 when it is all there is (low: no rays)
 void pvkSunMap(float* windows, float* info);
 
 // the scene the frame's draws trace (built by pvkSunEndFrame, before them): with the map, only what is not in it
-// (cars, characters, moving things, static ones not baked yet)
+// (cars, characters, moving things, static ones not baked yet). None without ray queries; empty in low.
 VkAccelerationStructureKHR pvkSunScene();
 // with the map, the static world (traced where the map cannot draw an edge); else the draws' scene
 VkAccelerationStructureKHR pvkSunWorldScene();

@@ -40,6 +40,7 @@ static const char* ANTIALIASING_VALUES[] = { "Off", "2x", "4x", "8x" };
 static const int NUM_ANTIALIASING_VALUES = sizeof( ANTIALIASING_SAMPLES ) / sizeof( ANTIALIASING_SAMPLES[ 0 ] );
 
 static const char* ON_OFF_VALUES[] = { "Off", "On" };
+static const char* SHADOW_VALUES[] = { "Off", "Low", "High" };     // Win32Platform::SetShadows
 
 static const char* RENDERER_VALUES[ Win32Platform::NUM_RENDERERS ] = { "OpenGL", "Vulkan" };
 
@@ -186,8 +187,8 @@ MEMTRACK_PUSH_GROUP( "CGuiScreenGraphics" );
             case MENU_ITEM_SHADOWS:
             {
                 label = "Shadows";
-                values = ON_OFF_VALUES;
-                numValues = 2;
+                values = SHADOW_VALUES;
+                numValues = 3;
                 break;
             }
         }
@@ -300,7 +301,7 @@ void CGuiScreenGraphics::HandleMessage
                     }
                     case MENU_ITEM_SHADOWS:
                     {
-                        plat->SetShadows( value != 0 );
+                        plat->SetShadows( value );
                         break;
                     }
                 }
@@ -345,7 +346,7 @@ void CGuiScreenGraphics::InitIntro()
     m_pMenu->SetSelectionValue( MENU_ITEM_RENDERER, plat->GetRenderer() == Win32Platform::RENDERER_VULKAN ? 1 : 0 );
     m_pMenu->SetSelectionValue( MENU_ITEM_ANTIALIASING, aa );
     m_pMenu->SetSelectionValue( MENU_ITEM_SHADERS, plat->GetUserShaders() ? 1 : 0 );
-    m_pMenu->SetSelectionValue( MENU_ITEM_SHADOWS, plat->GetShadows() ? 1 : 0 );
+    m_pMenu->SetSelectionValue( MENU_ITEM_SHADOWS, plat->GetShadows() );
 
     this->ShowPage( true );
 }

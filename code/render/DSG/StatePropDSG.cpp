@@ -827,14 +827,14 @@ StatePropDSG::CastsShadow()
 }
 
 #ifdef RAD_LINUX
-bool pvkSunOn();    // pddi/vk/vksun.cpp: the sun's shadows are drawn (Vulkan, Options > Graphics Shadows, F9)
+bool pvkSunRaysOn();    // pddi/vk/vksun.cpp: the sun's ray-traced shadows (Shadows High; low: animated props are not in its map)
 #endif
 
 void 
 StatePropDSG::DisplaySimpleShadow()
 {
 #ifdef RAD_LINUX
-    if( pvkSunOn() )
+    if( pvkSunRaysOn() )
     {
         return; // Linux port: the sun's shadows replace the blob
     }

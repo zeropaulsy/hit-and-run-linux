@@ -203,7 +203,7 @@ int CharacterRenderable::CastsShadow()
 }
 
 #ifdef RAD_LINUX
-bool pvkSunOn();    // pddi/vk/vksun.cpp: the sun's shadows are drawn (Vulkan, Options > Graphics Shadows, F9)
+bool pvkSunRaysOn();    // pddi/vk/vksun.cpp: the sun's ray-traced shadows (Shadows High; low keeps the blobs)
 #endif
 
 /*
@@ -221,7 +221,7 @@ Return:         void
 void CharacterRenderable::DisplayShadow( tPose* pose, const BlobShadowParams* BlobParams )
 {
 #ifdef RAD_LINUX
-    if( BlobParams && pvkSunOn() && ::GetGameplayManager()->GetGameType() != GameplayManager::GT_SUPERSPRINT )
+    if( BlobParams && pvkSunRaysOn() && ::GetGameplayManager()->GetGameType() != GameplayManager::GT_SUPERSPRINT )
     {
         return; // Linux port: the sun's shadows replace the blob
     }

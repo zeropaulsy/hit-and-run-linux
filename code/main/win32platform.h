@@ -183,7 +183,8 @@ public:
 
     // Graphics settings (CGuiScreenGraphics; simpsons.ini antialiasing=, shaders=, renderer=, shadows=). Anti-aliasing,
     // the user's shaders (shaders/) and shadows change at once; the renderer is read at start-up. Shadows: the sun's
-    // ray-traced shadows (Vulkan with ray queries only; pddi/vk/vksun.hpp), off by default.
+    // (Vulkan only; pddi/vk/vksun.hpp), 0 off (default), 1 low (shadow map, any GPU), 2 high (ray traced; low
+    // without ray queries).
     enum Renderer
     {
         RENDERER_OPENGL,
@@ -197,8 +198,8 @@ public:
     bool GetUserShaders() const;
     void SetRenderer( Renderer renderer ) { mRenderer = renderer; }
     Renderer GetRenderer() const { return mRenderer; }
-    void SetShadows( bool on );
-    bool GetShadows() const;
+    void SetShadows( int quality );
+    int GetShadows() const;
 private:
 #endif
 

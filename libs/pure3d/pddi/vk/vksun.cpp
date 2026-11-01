@@ -26,9 +26,13 @@ static const unsigned kWorldKeepMs = 600000;    // a baked caster not drawn for 
 static const unsigned kMissingFrames = 30;      // ... or when it is in view, near, and not drawn for this many frames
 static const float kMissingRange = 60.0f;
 static const unsigned kWorldStreak = 30;        // frames running with the same transform before it is baked
+static const unsigned kLowWorldStreak = 8;      // low: nothing else casts meanwhile
 
 static int s_wanted = -1;
-static bool s_enabled = false;     // Options > Graphics Shadows (simpsons.ini shadows=), F9, SHAR_SUN=1
+static bool s_wantRays = true;     // SHAR_SUN_RT=0: the device made without ray queries (Low only, as on an iGPU)
+static int s_quality = 0;          // Options > Graphics Shadows (simpsons.ini shadows=), F9, SHAR_SUN=1/low: 0 off,
+                                   // 1 low (the map rasterised), 2 high (ray traced; low without ray queries)
+static int s_casterMode = 0;       // what the casters were built for (1 meshes, 2 acceleration structures)
 static float s_eyeToWorld[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
 static unsigned s_version = 1;
 static float s_direction[3] = { 0.36f, 0.80f, 0.48f };
@@ -43,6 +47,10 @@ static unsigned s_bakeBudget = 4000000;    // SHAR_SUN_BAKE_BUDGET: texels baked
 static const float* s_projectionSource;
 static float s_viewProjection[16];
 static bool s_viewProjectionSet = false;
+// the world's camera: the one the last caster was drawn with (the frame's last camera can be another view's, the HUD
+// radar's 150 m up): the map is placed round it, its baked casters checked against its view
+static float s_worldEye[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+static float s_worldProjection[16];
 static unsigned s_notInView;
 static bool s_log = false;
 static int s_logLevel = 0;
@@ -87,8 +95,12 @@ bool pvkSunWanted()
     {
         const char* e = getenv("SHAR_SUN");
         s_wanted = !e || e[0] != '0';      // ray queries on the device unless SHAR_SUN=0 (the menu can turn it on)
-        if(e && e[0] == '1')
-            s_enabled = true;
+        if(e && (e[0] == '1' || e[0] == 'h'))
+            s_quality = 2;
+        else if(e && e[0] == 'l')
+            s_quality = 1;
+        const char* rt = getenv("SHAR_SUN_RT");
+        s_wantRays = !(rt && rt[0] == '0');
         s_levels[0] = EnvFloat("SHAR_SUN_SHADOW", s_levels[0]);
         s_levels[1] = EnvFloat("SHAR_SUN_LIGHT", s_levels[1]);
         s_levels[2] = EnvFloat("SHAR_SUN_LIT_SHADOW", s_levels[2]);
@@ -154,35 +166,61 @@ static void Elevate(float* d)
     d[1] = sinf(e);
 }
 
+bool pvkSunWantRays()
+{
+    return pvkSunWanted() && s_wantRays;
+}
+
 bool pvkSunReady()
 {
-    return g_pvk && g_pvk->rayQuery && pvkSunWanted();
+    return g_pvk && pvkSunWanted();
+}
+
+bool pvkSunRays()
+{
+    return pvkSunReady() && g_pvk->rayQuery;
+}
+
+// what shades now: 0 off, 1 the map rasterised, 2 rays
+static int Mode()
+{
+    if(!pvkSunReady() || s_quality == 0)
+        return 0;
+    return s_quality >= 2 && g_pvk->rayQuery ? 2 : 1;
 }
 
 bool pvkSunOn()
 {
-    return s_enabled && pvkSunReady();
+    return Mode() > 0;
 }
 
-void pvkSunSetEnabled(bool on)
+bool pvkSunRaysOn()
 {
-    if(on != s_enabled)
+    return Mode() == 2;
+}
+
+void pvkSunSetQuality(int quality)
+{
+    quality = quality < 0 ? 0 : quality > 2 ? 2 : quality;
+    if(quality != s_quality)
         s_version++;
-    s_enabled = on;
+    s_quality = quality;
 }
 
-bool pvkSunEnabled()
+int pvkSunQuality()
 {
-    return s_enabled;
+    return s_quality;
 }
 
 void pvkSunToggle()
 {
     if(!pvkSunReady())
         return;
-    s_enabled = !s_enabled;
+    // off, low, high (without ray queries: off, low)
+    s_quality = s_quality == 0 ? 1 : s_quality == 1 && g_pvk->rayQuery ? 2 : 0;
     s_version++;
-    fprintf(stderr, "PDDI: sun %s\n", s_enabled ? "on" : "off");
+    static const char* const kNames[3] = { "off", "low", "high" };
+    fprintf(stderr, "PDDI: sun %s\n", kNames[s_quality]);
 }
 
 // GL eye space is p3d's camera space with z negated: eye -> world = diag(1, 1, -1, 1) * cameraToWorld
@@ -234,6 +272,8 @@ void pvkSunParameters(float* direction, float* levels, float* soft, float* range
     memcpy(levels, s_levels, sizeof(s_levels));
     soft[0] = s_softDegrees > 0.0f ? tanf(s_softDegrees * 3.14159265f / 180.0f) : 0.0f;
     soft[1] = s_softDegrees > 0.0f ? s_rays : 1.0f;
+    if(Mode() == 1)
+        soft[1] = 4.0f;         // low: no rays; the map's taps (twice this, 8 at least)
     if(s_debug)
         soft[1] = -1.0f;        // the shader's debug view: one ray, the blocker's id as the colour
 }
@@ -431,6 +471,12 @@ struct Blas
     int builds;
     bool live;
     bool huge;
+    // low (Mode 1): no structure, the triangles for rasterising the map: positions, UVs when alpha-tested, uint32
+    // triangles (host-visible)
+    pvkBuffer mesh;
+    unsigned meshVertices, meshTriangles;
+    int meshMask, meshCompare;  // the alpha test (meshMask >= 0: alpha-tested)
+    float meshRef;
 };
 
 static Blas* s_blas;
@@ -455,6 +501,7 @@ static void ReleaseBlas(Blas& b)
 {
     g_pvk->RetireAccel(b.as);
     g_pvk->Retire(b.storage);
+    g_pvk->Retire(b.mesh);
     if(b.alpha)
         GeometryFree(b.geometry, b.geometryWords);
     b.alpha = false;
@@ -592,18 +639,14 @@ bool pvkSunBuffers(VkDescriptorBufferInfo* buffers)
     return true;
 }
 
-// alphaSlot >= 0: alpha-tested (uvs, the mask and the test written to the table at id)
-static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float* uvs, unsigned vertexCount,
-                      const unsigned short* indices, unsigned count, bool strip, int alphaSlot, int alphaCompare,
-                      float alphaRef)
+// a caster's triangles as a list (those in range; NULL: none), its bounds into b; malloc'd
+static unsigned* CasterTriangles(Blas& b, const float* positions, unsigned vertexCount, const unsigned short* indices,
+                                 unsigned count, bool strip, unsigned* triangles)
 {
-    bool alpha = alphaSlot >= 0 && uvs && id < kMaxCasterIds && s_casterTable.memory.mapped;
-    b.alpha = false;
-    unsigned triangles;
-    unsigned* list = Triangles(indices, count, strip, &triangles);
+    unsigned* list = Triangles(indices, count, strip, triangles);
     float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
     unsigned kept = 0;
-    for(unsigned t = 0; t < triangles; t++)
+    for(unsigned t = 0; t < *triangles; t++)
     {
         unsigned* tri = &list[t * 3];
         if(tri[0] >= vertexCount || tri[1] >= vertexCount || tri[2] >= vertexCount)
@@ -618,17 +661,62 @@ static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float*
                 hi[k] = v > hi[k] ? v : hi[k];
             }
     }
-    triangles = kept;
-    if(triangles == 0)
+    *triangles = kept;
+    if(kept == 0)
     {
         free(list);
-        return false;
+        return NULL;
     }
     float d[3] = { hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2] };
     b.size = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
     memcpy(b.lo, lo, sizeof(lo));
     memcpy(b.hi, hi, sizeof(hi));
     b.huge = b.size > kHugeSize;
+    return list;
+}
+
+// low: the triangles kept for rasterising the map (alphaSlot >= 0: alpha-tested, with the UVs)
+static bool BuildMesh(Blas& b, const float* positions, const float* uvs, unsigned vertexCount,
+                      const unsigned short* indices, unsigned count, bool strip, int alphaSlot, int alphaCompare,
+                      float alphaRef)
+{
+    bool alpha = alphaSlot >= 0 && uvs;
+    unsigned triangles;
+    unsigned* list = CasterTriangles(b, positions, vertexCount, indices, count, strip, &triangles);
+    if(!list)
+        return false;
+    VkDeviceSize vertexBytes = (VkDeviceSize)vertexCount * 12, uvBytes = alpha ? (VkDeviceSize)vertexCount * 8 : 0;
+    if(!g_pvk->CreateBuffer(vertexBytes + uvBytes + (VkDeviceSize)triangles * 12,
+                            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, true, &b.mesh))
+    {
+        free(list);
+        return false;
+    }
+    memcpy(b.mesh.memory.mapped, positions, vertexBytes);
+    if(alpha)
+        memcpy(b.mesh.memory.mapped + vertexBytes, uvs, uvBytes);
+    memcpy(b.mesh.memory.mapped + vertexBytes + uvBytes, list, (size_t)triangles * 12);
+    free(list);
+    b.meshVertices = vertexCount;
+    b.meshTriangles = triangles;
+    b.meshMask = alpha ? alphaSlot : -1;
+    b.meshCompare = alphaCompare;
+    b.meshRef = alphaRef;
+    s_buildsThisFrame++;
+    return true;
+}
+
+// alphaSlot >= 0: alpha-tested (uvs, the mask and the test written to the table at id)
+static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float* uvs, unsigned vertexCount,
+                      const unsigned short* indices, unsigned count, bool strip, int alphaSlot, int alphaCompare,
+                      float alphaRef)
+{
+    bool alpha = alphaSlot >= 0 && uvs && id < kMaxCasterIds && s_casterTable.memory.mapped;
+    b.alpha = false;
+    unsigned triangles;
+    unsigned* list = CasterTriangles(b, positions, vertexCount, indices, count, strip, &triangles);
+    if(!list)
+        return false;
 
     // the input in host-visible memory, read by the build straight from there
     pvkBuffer input;
@@ -819,7 +907,9 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
                      const unsigned short* indices, unsigned count, bool strip, const float* mv, bool keep,
                      pvkTexture* alphaTexture, int alphaCompare, float alphaRef)
 {
-    if(!pvkSunOn() || vertexCount == 0)
+    int mode = Mode();
+    // low: only the static world casts (into the map); lit things (cars, characters) keep their blob shadows
+    if(mode == 0 || vertexCount == 0 || (mode == 1 && !keep) || mode != s_casterMode)
         return;
     if(!*id)
         *id = NewId();
@@ -829,7 +919,7 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
         // rebuilt every frame (skinned characters, animated things): a budget per frame, the old shape meanwhile
         if(s_buildsThisFrame >= kMaxBuildsPerFrame && b.builds > 3)
         {
-            if(!b.as)
+            if(!b.as && !b.mesh.buffer)
                 return;
         }
         else
@@ -841,14 +931,16 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
             int slot = alphaTexture ? MaskSlot(alphaTexture) : -1;
             if(alphaTexture && slot < 0)
                 return;         // no mask: it would cast as a solid card
-            if(!BuildBlas(b, *id, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare, alphaRef))
+            if(mode == 1 ? !BuildMesh(b, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare, alphaRef) :
+                           !BuildBlas(b, *id, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare,
+                                      alphaRef))
                 return;
             if(s_logLevel >= 2 && b.builds == 1)
                 fprintf(stderr, "PDDI sun: caster %u = %s (%s), %.1f m, %u vertices, %u indices, %s\n", *id,
                         s_drawingMaterial, s_drawingFile, b.size, vertexCount, count, keep ? "world" : "lit");
         }
     }
-    if(!b.as || b.huge)
+    if((!b.as && !b.mesh.buffer) || b.huge)
         return;
 
     // object -> world = model-view (GL eye) * eye -> world, row vectors; the instance's matrix is its transpose
@@ -884,6 +976,8 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
     }
     if(b.attached)
         return;
+    memcpy(s_worldEye, s_eyeToWorld, sizeof(s_worldEye));
+    memcpy(s_worldProjection, s_viewProjection, sizeof(s_worldProjection));
     Instance in;
     memset(&in, 0, sizeof(in));
     in.id = *id;
@@ -1024,8 +1118,20 @@ static void DestroyTlas(Tlas& t)
     memset(&t, 0, sizeof(t));
 }
 
+// the buffers the programs read (bindings 6-9), and with ray queries the scenes
 static bool MakeScenes()
 {
+    if(!g_pvk->CreateBuffer((VkDeviceSize)kMaxCasterIds * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, &s_casterTable) ||
+       !g_pvk->CreateBuffer((VkDeviceSize)kMaxMasks * kMaskSize * kMaskSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true,
+                            &s_masks) ||
+       !g_pvk->CreateBuffer((VkDeviceSize)kGeometryWords * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, &s_geometry) ||
+       !g_pvk->CreateBuffer((VkDeviceSize)kMapLevels * kMapSize * kMapSize * 4,
+                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false, &s_mapBuffer))
+        return false;
+    s_geometryFreeCount = 0;
+    GeometryFree(0, kGeometryWords);
+    if(!g_pvk->rayQuery)
+        return true;
     VkAccelerationStructureGeometryKHR geometry;
     VkAccelerationStructureBuildGeometryInfoKHR build;
     TopLevelGeometry(geometry, build, 0);
@@ -1033,26 +1139,16 @@ static bool MakeScenes()
     VkAccelerationStructureBuildSizesInfoKHR sizes = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
     vkGetAccelerationStructureBuildSizesKHR(g_pvk->device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &build, &max,
                                             &sizes);
-    if(!g_pvk->CreateBuffer((VkDeviceSize)kMaxCasterIds * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, &s_casterTable) ||
-       !g_pvk->CreateBuffer((VkDeviceSize)kMaxMasks * kMaskSize * kMaskSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true,
-                            &s_masks) ||
-       !g_pvk->CreateBuffer((VkDeviceSize)kGeometryWords * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, &s_geometry) ||
-       !g_pvk->CreateBuffer(s_bake ? (VkDeviceSize)kMapLevels * kMapSize * kMapSize * 4 : 16,
-                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false, &s_mapBuffer))
-        return false;
-    s_geometryFreeCount = 0;
-    GeometryFree(0, kGeometryWords);
     for(int f = 0; f < pvkFrames; f++)
         if(!MakeTlas(s_scenes[f].draws, sizes) || (s_bake && !MakeTlas(s_scenes[f].world, sizes)))
             return false;
     return true;
 }
 
-// the draws' scene
-VkAccelerationStructureKHR pvkSunScene()
+bool pvkSunPrepare()
 {
     if(!pvkSunReady() || s_scenesFailed)
-        return VK_NULL_HANDLE;
+        return false;
     if(!s_scenesMade)
     {
         s_scenesMade = true;
@@ -1060,9 +1156,17 @@ VkAccelerationStructureKHR pvkSunScene()
         {
             fprintf(stderr, "PDDI: cannot make the sun's scene\n");
             s_scenesFailed = true;
-            return VK_NULL_HANDLE;
+            return false;
         }
     }
+    return true;
+}
+
+// the draws' scene
+VkAccelerationStructureKHR pvkSunScene()
+{
+    if(!pvkSunPrepare() || !g_pvk->rayQuery)
+        return VK_NULL_HANDLE;
     return s_scenes[g_pvk->FrameSerial() % pvkFrames].draws.as;
 }
 
@@ -1125,6 +1229,8 @@ static VkDescriptorSetLayout s_bakeSetLayout;
 static VkPipelineLayout s_bakeLayout;
 static VkPipeline s_bakePipeline;
 static bool s_bakeFailed;
+static bool s_rasterFailed;        // low's map pass (RasterReady)
+static unsigned s_rasterDraws;     // SHAR_SUN_LOG: casters drawn into the map
 static unsigned s_bakedTexels;
 
 static const char* const kBakeSource =
@@ -1251,7 +1357,7 @@ static bool BakeReady()
 
 static bool Baking()
 {
-    return s_bake && !s_bakeFailed;
+    return Mode() == 1 ? !s_rasterFailed : s_bake && !s_bakeFailed;
 }
 
 static bool RectEmpty(const MapRect& r)
@@ -1326,10 +1432,432 @@ static unsigned MarkDirty(const Instance& in)
     return ++s_ticket;
 }
 
+//-----------------------------------------------------------------------------
+// Low (Mode 1): the map rasterised, for devices without ray queries
+//-----------------------------------------------------------------------------
+// The same map, strips and tiles as the bake above; a chunk of a level's texels (up to kRasterRows rows) is drawn as
+// the sun sees it: an orthographic depth pass of the world's instances whose footprint touches it (depth from the
+// rays' start height down, over the bake's ray length), then a compute pass turns the depth into the map's heights.
+// Alpha-tested casters discard where their mask does.
+
+static const int kRasterRows = 512;
+static const float kRasterLength = 4000.0f;     // as the bake's rays
+static const unsigned kRasterChunks = 16;       // chunks a frame at most (each draws the casters over it)
+static pvkImage s_rasterDepth;
+static VkSampler s_rasterSampler;
+static VkDescriptorSetLayout s_rasterSetLayout, s_copySetLayout;
+static VkPipelineLayout s_rasterLayout, s_copyLayout;
+static VkPipeline s_rasterPipelines[2];         // opaque, alpha-tested
+static VkPipeline s_copyPipeline;
+
+static const char* const kRasterVertex =
+    "// the sun's map rasterised (vksun.cpp): object -> the chunk's texels, depth down from the rays' start\n"
+    "layout(location = 0) in vec3 aPosition;\n"
+    "#ifdef ALPHA\n"
+    "layout(location = 1) in vec2 aUV;\n"
+    "layout(location = 0) out vec2 vUV;\n"
+    "#endif\n"
+    "layout(push_constant) uniform Raster { mat4 transform; uvec4 test; } raster;\n"
+    "void main()\n"
+    "{\n"
+    "#ifdef ALPHA\n"
+    "    vUV = aUV;\n"
+    "#endif\n"
+    "    gl_Position = raster.transform * vec4(aPosition, 1.0);\n"
+    "}\n";
+
+static const char* const kRasterFragment =
+    "#version 450\n"
+    "// an alpha-tested caster: through where its alpha test fails (test: mask, compare, alpha ref)\n"
+    "layout(location = 0) in vec2 vUV;\n"
+    "layout(std430, binding = 0) readonly buffer SunMasks { uint sunMask[]; };\n"
+    "layout(push_constant) uniform Raster { mat4 transform; uvec4 test; } raster;\n"
+    "void main()\n"
+    "{\n"
+    "    uvec2 texel = uvec2(ivec2(floor(fract(vUV) * 64.0)) & 63);\n"
+    "    uint i = raster.test.x * 4096u + texel.y * 64u + texel.x;\n"
+    "    float alpha = float((sunMask[i >> 2] >> ((i & 3u) * 8u)) & 255u) / 255.0;\n"
+    "    float ref = uintBitsToFloat(raster.test.z);\n"
+    "    if(!(raster.test.y == 4u ? alpha > ref : alpha >= ref))\n"
+    "        discard;\n"
+    "}\n";
+
+static const char* const kCopySource =
+    "#version 450\n"
+    "// the rasterised chunk's depth -> the map's heights (-1e30: nothing)\n"
+    "layout(local_size_x = 8, local_size_y = 8) in;\n"
+    "layout(binding = 0) uniform sampler2D depth;\n"
+    "layout(std430, binding = 1) writeonly buffer SunMap { float sunMap[]; };\n"
+    "layout(push_constant) uniform Copy\n"
+    "{\n"
+    "    ivec4 rect;         // first texel, texels across and down\n"
+    "    ivec2 level;        // level, texels across a level\n"
+    "    vec2 height;        // the rays' start height, depth 1's distance below it\n"
+    "} copy;\n"
+    "void main()\n"
+    "{\n"
+    "    uvec2 g = gl_GlobalInvocationID.xy;\n"
+    "    if(g.x >= uint(copy.rect.z) || g.y >= uint(copy.rect.w))\n"
+    "        return;\n"
+    "    float d = texelFetch(depth, ivec2(g), 0).r;\n"
+    "    ivec2 i = copy.rect.xy + ivec2(g);\n"
+    "    int n = copy.level.y;\n"
+    "    sunMap[(copy.level.x * n + (i.y & (n - 1))) * n + (i.x & (n - 1))] = d >= 1.0 ? -1e30 :\n"
+    "                                                                        copy.height.x - d * copy.height.y;\n"
+    "}\n";
+
+struct RasterPush
+{
+    float transform[16];        // column-major
+    unsigned test[4];           // mask, compare, alpha ref (bits)
+};
+
+struct CopyPush
+{
+    int rect[4];
+    int level[2];
+    float height[2];
+};
+
+static VkShaderModule Module(const char* name, int stage, const char* source)
+{
+    unsigned* words = NULL;
+    size_t count = 0;
+    char* log = NULL;
+    bool ok = shar_spirv_compile(name, stage, source, &words, &count, &log) != 0;
+    if(log)
+        fprintf(stderr, "PDDI: %s\n", log);
+    VkShaderModule module = ok ? pvkCreateShaderModule(words, count) : VK_NULL_HANDLE;
+    shar_spirv_free(words);
+    shar_spirv_free(log);
+    return module;
+}
+
+static bool PushLayout(VkDescriptorType* types, int count, VkShaderStageFlags stages, unsigned pushBytes,
+                       VkDescriptorSetLayout* set, VkPipelineLayout* layout)
+{
+    VkDescriptorSetLayoutBinding bindings[2];
+    memset(bindings, 0, sizeof(bindings));
+    for(int i = 0; i < count; i++)
+    {
+        bindings[i].binding = i;
+        bindings[i].descriptorType = types[i];
+        bindings[i].descriptorCount = 1;
+        bindings[i].stageFlags = stages;
+    }
+    VkDescriptorSetLayoutCreateInfo si = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+    si.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+    si.bindingCount = count;
+    si.pBindings = bindings;
+    if(vkCreateDescriptorSetLayout(g_pvk->device, &si, NULL, set) != VK_SUCCESS)
+        return false;
+    VkPushConstantRange range = { stages, 0, pushBytes };
+    VkPipelineLayoutCreateInfo pl = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    pl.setLayoutCount = 1;
+    pl.pSetLayouts = set;
+    pl.pushConstantRangeCount = 1;
+    pl.pPushConstantRanges = &range;
+    return vkCreatePipelineLayout(g_pvk->device, &pl, NULL, layout) == VK_SUCCESS;
+}
+
+static bool MakeRasterPipeline(bool alpha, VkPipeline* out)
+{
+    char source[2048];
+    snprintf(source, sizeof(source), "#version 450\n%s%s", alpha ? "#define ALPHA 1\n" : "", kRasterVertex);
+    VkShaderModule vertex = Module("sun map vertex", 0, source);
+    VkShaderModule fragment = alpha ? Module("sun map fragment", 1, kRasterFragment) : VK_NULL_HANDLE;
+    bool ok = vertex && (!alpha || fragment);
+    VkPipelineShaderStageCreateInfo stages[2];
+    memset(stages, 0, sizeof(stages));
+    for(int i = 0; i < 2; i++)
+    {
+        stages[i].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        stages[i].stage = i == 0 ? VK_SHADER_STAGE_VERTEX_BIT : VK_SHADER_STAGE_FRAGMENT_BIT;
+        stages[i].module = i == 0 ? vertex : fragment;
+        stages[i].pName = "main";
+    }
+    VkVertexInputBindingDescription vb[2] = { { 0, 12, VK_VERTEX_INPUT_RATE_VERTEX }, { 1, 8, VK_VERTEX_INPUT_RATE_VERTEX } };
+    VkVertexInputAttributeDescription va[2] = { { 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 }, { 1, 1, VK_FORMAT_R32G32_SFLOAT, 0 } };
+    VkPipelineVertexInputStateCreateInfo vi = { VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+    vi.vertexBindingDescriptionCount = alpha ? 2 : 1;
+    vi.pVertexBindingDescriptions = vb;
+    vi.vertexAttributeDescriptionCount = alpha ? 2 : 1;
+    vi.pVertexAttributeDescriptions = va;
+    VkPipelineInputAssemblyStateCreateInfo ia = { VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    VkPipelineViewportStateCreateInfo vp = { VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO };
+    vp.viewportCount = 1;
+    vp.scissorCount = 1;
+    VkPipelineRasterizationStateCreateInfo rs = { VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.cullMode = VK_CULL_MODE_NONE;
+    rs.lineWidth = 1.0f;
+    VkPipelineMultisampleStateCreateInfo ms = { VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineDepthStencilStateCreateInfo ds = { VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
+    ds.depthTestEnable = VK_TRUE;
+    ds.depthWriteEnable = VK_TRUE;
+    ds.depthCompareOp = VK_COMPARE_OP_LESS;
+    VkPipelineColorBlendStateCreateInfo cb = { VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
+    VkDynamicState dynamic[2] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dy = { VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
+    dy.dynamicStateCount = 2;
+    dy.pDynamicStates = dynamic;
+    VkPipelineRenderingCreateInfo rendering = { VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO };
+    rendering.depthAttachmentFormat = VK_FORMAT_D32_SFLOAT;
+    VkGraphicsPipelineCreateInfo info = { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
+    info.pNext = &rendering;
+    info.stageCount = alpha ? 2 : 1;
+    info.pStages = stages;
+    info.pVertexInputState = &vi;
+    info.pInputAssemblyState = &ia;
+    info.pViewportState = &vp;
+    info.pRasterizationState = &rs;
+    info.pMultisampleState = &ms;
+    info.pDepthStencilState = &ds;
+    info.pColorBlendState = &cb;
+    info.pDynamicState = &dy;
+    info.layout = s_rasterLayout;
+    ok = ok && vkCreateGraphicsPipelines(g_pvk->device, VK_NULL_HANDLE, 1, &info, NULL, out) == VK_SUCCESS;
+    if(vertex)
+        vkDestroyShaderModule(g_pvk->device, vertex, NULL);
+    if(fragment)
+        vkDestroyShaderModule(g_pvk->device, fragment, NULL);
+    return ok;
+}
+
+static bool MakeRaster()
+{
+    VkFormatProperties fp;
+    vkGetPhysicalDeviceFormatProperties(g_pvk->physical, VK_FORMAT_D32_SFLOAT, &fp);
+    VkFormatFeatureFlags need = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+    if((fp.optimalTilingFeatures & need) != need ||
+       !g_pvk->CreateImage(kMapSize, kRasterRows, 1, VK_FORMAT_D32_SFLOAT, VK_SAMPLE_COUNT_1_BIT,
+                           VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                           VK_IMAGE_ASPECT_DEPTH_BIT, &s_rasterDepth))
+        return false;
+    VkSamplerCreateInfo si = { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+    si.magFilter = si.minFilter = VK_FILTER_NEAREST;
+    si.addressModeU = si.addressModeV = si.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    if(vkCreateSampler(g_pvk->device, &si, NULL, &s_rasterSampler) != VK_SUCCESS)
+        return false;
+    VkDescriptorType rasterTypes[1] = { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER };
+    VkDescriptorType copyTypes[2] = { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER };
+    if(!PushLayout(rasterTypes, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(RasterPush),
+                   &s_rasterSetLayout, &s_rasterLayout) ||
+       !PushLayout(copyTypes, 2, VK_SHADER_STAGE_COMPUTE_BIT, sizeof(CopyPush), &s_copySetLayout, &s_copyLayout) ||
+       !MakeRasterPipeline(false, &s_rasterPipelines[0]) || !MakeRasterPipeline(true, &s_rasterPipelines[1]))
+        return false;
+    VkShaderModule copy = Module("sun map copy", 2, kCopySource);
+    if(!copy)
+        return false;
+    VkComputePipelineCreateInfo info = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+    info.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+    info.stage.module = copy;
+    info.stage.pName = "main";
+    info.layout = s_copyLayout;
+    bool ok = vkCreateComputePipelines(g_pvk->device, VK_NULL_HANDLE, 1, &info, NULL, &s_copyPipeline) == VK_SUCCESS;
+    vkDestroyShaderModule(g_pvk->device, copy, NULL);
+    return ok;
+}
+
+static bool RasterReady()
+{
+    if(!s_copyPipeline && !s_rasterFailed)
+    {
+        s_rasterFailed = !MakeRaster();
+        if(s_rasterFailed)
+            fprintf(stderr, "PDDI: cannot make the sun's map pass: no low shadows\n");
+    }
+    return s_copyPipeline != VK_NULL_HANDLE;
+}
+
+static void DestroyRaster()
+{
+    g_pvk->DestroyNow(s_rasterDepth);
+    for(int i = 0; i < 2; i++)
+        if(s_rasterPipelines[i])
+            vkDestroyPipeline(g_pvk->device, s_rasterPipelines[i], NULL);
+    if(s_copyPipeline)
+        vkDestroyPipeline(g_pvk->device, s_copyPipeline, NULL);
+    if(s_rasterSampler)
+        vkDestroySampler(g_pvk->device, s_rasterSampler, NULL);
+    VkPipelineLayout layouts[2] = { s_rasterLayout, s_copyLayout };
+    VkDescriptorSetLayout sets[2] = { s_rasterSetLayout, s_copySetLayout };
+    for(int i = 0; i < 2; i++)
+    {
+        if(layouts[i])
+            vkDestroyPipelineLayout(g_pvk->device, layouts[i], NULL);
+        if(sets[i])
+            vkDestroyDescriptorSetLayout(g_pvk->device, sets[i], NULL);
+    }
+    memset(s_rasterPipelines, 0, sizeof(s_rasterPipelines));
+    s_copyPipeline = VK_NULL_HANDLE;
+    s_rasterSampler = VK_NULL_HANDLE;
+    s_rasterLayout = s_copyLayout = VK_NULL_HANDLE;
+    s_rasterSetLayout = s_copySetLayout = VK_NULL_HANDLE;
+    s_rasterFailed = false;
+}
+
+static void DepthBarrier(VkCommandBuffer cmd, bool toAttachment)
+{
+    VkImageMemoryBarrier2 b = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+    if(toAttachment)
+    {
+        // the last chunk's copy has read it; cleared
+        b.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        b.dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+        b.dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        b.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        b.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    }
+    else
+    {
+        b.srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+        b.srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        b.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        b.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+        b.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        b.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+    }
+    b.srcQueueFamilyIndex = b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    b.image = s_rasterDepth.image;
+    b.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    b.subresourceRange.levelCount = 1;
+    b.subresourceRange.layerCount = 1;
+    VkDependencyInfo dep = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    dep.imageMemoryBarrierCount = 1;
+    dep.pImageMemoryBarriers = &b;
+    vkCmdPipelineBarrier2(cmd, &dep);
+}
+
+// rows from the top of r rasterised (up to the budget's texels, at least one row); they come off r. The budget used:
+// at least a kRasterChunks'th of the frame's, as each chunk draws every caster over it.
+static unsigned RasterRows(VkCommandBuffer cmd, int level, MapRect& r, unsigned budget, float top)
+{
+    VkDescriptorBufferInfo buffers[4];
+    if(!pvkSunBuffers(buffers))
+        return budget;
+    int across = r.x1 - r.x0;
+    int rows = (int)(budget / (unsigned)across);
+    rows = rows < 1 ? 1 : rows > r.y1 - r.y0 ? r.y1 - r.y0 : rows;
+    rows = rows > kRasterRows ? kRasterRows : rows;
+
+    DepthBarrier(cmd, true);
+    VkRenderingAttachmentInfo depth = { VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
+    depth.imageView = s_rasterDepth.view;
+    depth.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    depth.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    depth.clearValue.depthStencil.depth = 1.0f;
+    VkRenderingInfo ri = { VK_STRUCTURE_TYPE_RENDERING_INFO };
+    ri.renderArea.extent.width = (unsigned)across;
+    ri.renderArea.extent.height = (unsigned)rows;
+    ri.layerCount = 1;
+    ri.pDepthAttachment = &depth;
+    vkCmdBeginRendering(cmd, &ri);
+    VkViewport viewport = { 0.0f, 0.0f, (float)across, (float)rows, 0.0f, 1.0f };
+    VkRect2D scissor = ri.renderArea;
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+    VkWriteDescriptorSet write = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+    write.dstBinding = 0;
+    write.descriptorCount = 1;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write.pBufferInfo = &buffers[1];        // the masks
+    vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, s_rasterLayout, 0, 1, &write);
+
+    // world -> clip: x, y across the chunk's texels on the sun's plane, depth down from top
+    double texel = MapTexel(level);
+    double world[3][4];
+    for(int k = 0; k < 3; k++)
+    {
+        world[0][k] = s_basis[0][k] / (texel * across) * 2.0;
+        world[1][k] = s_basis[1][k] / (texel * rows) * 2.0;
+        world[2][k] = -s_direction[k] / kRasterLength;
+    }
+    world[0][3] = -(double)r.x0 * 2.0 / across - 1.0;
+    world[1][3] = -(double)r.y0 * 2.0 / rows - 1.0;
+    world[2][3] = top / kRasterLength;
+    // the chunk on the plane (m), for the casters' footprints
+    float u0 = (float)(r.x0 * texel), u1 = (float)((r.x0 + across) * texel);
+    float v0 = (float)(r.y0 * texel), v1 = (float)((r.y0 + rows) * texel);
+    int bound = -1;
+    for(unsigned i = 0; i < s_instanceCount; i++)
+    {
+        const Instance& in = s_instances[i];
+        const Blas& b = s_blas[in.id];
+        if(!in.world || !b.mesh.buffer)
+            continue;
+        float u = in.centre[0] * s_basis[0][0] + in.centre[1] * s_basis[0][1] + in.centre[2] * s_basis[0][2];
+        float v = in.centre[0] * s_basis[1][0] + in.centre[1] * s_basis[1][1] + in.centre[2] * s_basis[1][2];
+        if(u + in.radius < u0 || u - in.radius > u1 || v + in.radius < v0 || v - in.radius > v1)
+            continue;
+        bool alpha = b.meshMask >= 0;
+        if(bound != (int)alpha)
+        {
+            vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, s_rasterPipelines[alpha]);
+            bound = alpha;
+        }
+        RasterPush pc;
+        for(int row = 0; row < 3; row++)
+        {
+            for(int c = 0; c < 4; c++)
+            {
+                double sum = c == 3 ? world[row][3] : 0.0;
+                for(int k = 0; k < 3; k++)
+                    sum += world[row][k] * in.transform[k * 4 + c];
+                pc.transform[c * 4 + row] = (float)sum;
+            }
+        }
+        pc.transform[3] = pc.transform[7] = pc.transform[11] = 0.0f;
+        pc.transform[15] = 1.0f;
+        pc.test[0] = alpha ? (unsigned)b.meshMask : 0u;
+        pc.test[1] = (unsigned)b.meshCompare;
+        memcpy(&pc.test[2], &b.meshRef, 4);
+        pc.test[3] = 0;
+        vkCmdPushConstants(cmd, s_rasterLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                           sizeof(pc), &pc);
+        VkDeviceSize positions = (VkDeviceSize)b.meshVertices * 12, uvs = alpha ? (VkDeviceSize)b.meshVertices * 8 : 0;
+        VkBuffer vertexBuffers[2] = { b.mesh.buffer, b.mesh.buffer };
+        VkDeviceSize offsets[2] = { 0, positions };
+        vkCmdBindVertexBuffers2(cmd, 0, alpha ? 2 : 1, vertexBuffers, offsets, NULL, NULL);
+        vkCmdBindIndexBuffer(cmd, b.mesh.buffer, positions + uvs, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd, b.meshTriangles * 3, 1, 0, 0, 0);
+        s_rasterDraws++;
+    }
+    vkCmdEndRendering(cmd);
+    DepthBarrier(cmd, false);
+
+    VkDescriptorImageInfo image = { s_rasterSampler, s_rasterDepth.view, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL };
+    VkWriteDescriptorSet writes[2];
+    memset(writes, 0, sizeof(writes));
+    for(int i = 0; i < 2; i++)
+    {
+        writes[i].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[i].dstBinding = i;
+        writes[i].descriptorCount = 1;
+    }
+    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    writes[0].pImageInfo = &image;
+    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    writes[1].pBufferInfo = &buffers[3];    // the map
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, s_copyPipeline);
+    vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, s_copyLayout, 0, 2, writes);
+    CopyPush cp = { { r.x0, r.y0, across, rows }, { level, kMapSize }, { top, kRasterLength } };
+    vkCmdPushConstants(cmd, s_copyLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(cp), &cp);
+    vkCmdDispatch(cmd, (unsigned)(across + 7) / 8, (unsigned)(rows + 7) / 8, 1);
+    r.y0 += rows;
+    s_bakedTexels += (unsigned)(across * rows);
+    unsigned used = (unsigned)(across * rows), least = s_bakeBudget / kRasterChunks;
+    return used > least ? used : least;
+}
+
 // each level's window round the camera, moved when it is an eighth of the way off; what came in is to bake
 static void MapPlace()
 {
-    const float* e = s_eyeToWorld;
+    const float* e = s_worldEye;
     float u = e[12] * s_basis[0][0] + e[13] * s_basis[0][1] + e[14] * s_basis[0][2];
     float v = e[12] * s_basis[1][0] + e[13] * s_basis[1][1] + e[14] * s_basis[1][2];
     for(int l = 0; l < kMapLevels; l++)
@@ -1369,9 +1897,12 @@ static bool BakeWork()
     return s_dirtyTiles != 0;
 }
 
-// rows from the top of r, up to the budget's texels (at least one row); they come off r. Texels baked.
+// rows from the top of r, up to the budget's texels (at least one row); they come off r. Budget used (texels baked;
+// low: RasterRows's).
 static unsigned BakeRows(VkCommandBuffer cmd, int level, MapRect& r, unsigned budget, float top)
 {
+    if(Mode() == 1)
+        return RasterRows(cmd, level, r, budget, top);
     int across = r.x1 - r.x0;
     int rows = (int)(budget / (unsigned)across);
     rows = rows < 1 ? 1 : rows > r.y1 - r.y0 ? r.y1 - r.y0 : rows;
@@ -1399,11 +1930,8 @@ static unsigned BakeRows(VkCommandBuffer cmd, int level, MapRect& r, unsigned bu
     return (unsigned)(across * rows);
 }
 
-static void Bake(VkCommandBuffer cmd, VkAccelerationStructureKHR world)
+static void BindBake(VkCommandBuffer cmd, VkAccelerationStructureKHR world, const VkDescriptorBufferInfo* buffers)
 {
-    VkDescriptorBufferInfo buffers[4];
-    if(!pvkSunBuffers(buffers))
-        return;
     VkWriteDescriptorSetAccelerationStructureKHR sceneInfo = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
     sceneInfo.accelerationStructureCount = 1;
     sceneInfo.pAccelerationStructures = &world;
@@ -1422,9 +1950,31 @@ static void Bake(VkCommandBuffer cmd, VkAccelerationStructureKHR world)
     }
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, s_bakePipeline);
     vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, s_bakeLayout, 0, 5, writes);
+}
+
+// world: the static world's scene (rays); VK_NULL_HANDLE: low (rasterised)
+static void Bake(VkCommandBuffer cmd, VkAccelerationStructureKHR world)
+{
+    VkDescriptorBufferInfo buffers[4];
+    if(!pvkSunBuffers(buffers))
+        return;
+    if(world)
+        BindBake(cmd, world, buffers);
+    else
+    {
+        // the map's texels free of the draws of frames before (still running)
+        VkMemoryBarrier2 b = { VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
+        b.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+        b.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        b.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+        VkDependencyInfo dep = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+        dep.memoryBarrierCount = 1;
+        dep.pMemoryBarriers = &b;
+        vkCmdPipelineBarrier2(cmd, &dep);
+    }
 
     // the rays start well above the camera
-    const float* e = s_eyeToWorld;
+    const float* e = s_worldEye;
     float top = e[12] * s_direction[0] + e[13] * s_direction[1] + e[14] * s_direction[2] + 2000.0f;
     unsigned budget = s_bakeBudget;
     for(int l = 0; l < kMapLevels; l++)
@@ -1489,20 +2039,21 @@ static bool InView(const Instance& in)
 {
     if(!s_viewProjectionSet)
         return false;
-    const float* e = s_eyeToWorld;
+    const float* e = s_worldEye;
     float d[3] = { in.centre[0] - e[12], in.centre[1] - e[13], in.centre[2] - e[14] };
     float x = d[0] * e[0] + d[1] * e[1] + d[2] * e[2];
     float y = d[0] * e[4] + d[1] * e[5] + d[2] * e[6];
     float depth = -(d[0] * e[8] + d[1] * e[9] + d[2] * e[10]);     // GL eye space looks down -z
     if(depth < in.radius + 1.0f || depth > kMissingRange)
         return false;
-    float px = s_viewProjection[0], py = s_viewProjection[5];
+    float px = s_worldProjection[0], py = s_worldProjection[5];
     return (fabsf(x) + in.radius) * px < depth && (fabsf(y) + in.radius) * py < depth;
 }
 
 void pvkSunMap(float* windows, float* info)
 {
-    bool on = Baking() && s_bakePipeline;
+    bool low = Mode() == 1;
+    bool on = Baking() && (low ? s_copyPipeline : s_bakePipeline);
     for(int l = 0; l < kMapLevels; l++)
     {
         const MapRect& r = s_map[l].valid;
@@ -1514,7 +2065,7 @@ void pvkSunMap(float* windows, float* info)
     info[0] = s_mapTexel;
     info[1] = (float)kMapSize;
     info[2] = on ? 1.0f : 0.0f;
-    info[3] = 0.0f;
+    info[3] = low ? 1.0f : 0.0f;      // low: the map alone, no rays
 }
 
 static void BuildTlas(VkCommandBuffer cmd, Tlas& t, unsigned count)
@@ -1552,28 +2103,47 @@ void pvkSunEndFrame()
         s_blas[dead[i]].live = false;
     }
 
-    VkAccelerationStructureKHR scene = pvkSunScene();
+    int mode = Mode();
+    if(mode && mode != s_casterMode)
+    {
+        // low <-> high: the casters made again as meshes or structures, the map from scratch
+        for(unsigned i = 1; i <= s_blasCount; i++)
+        {
+            ReleaseBlas(s_blas[i]);
+            s_blas[i].live = false;
+        }
+        s_instanceCount = 0;
+        RebuildHash();
+        memset(s_map, 0, sizeof(s_map));
+        s_dirtyTiles = 0;
+        s_casterMode = mode;
+        s_version++;
+    }
+    bool low = mode == 1;
+    VkAccelerationStructureKHR scene = pvkSunScene();       // none without ray queries
     unsigned now = SDL_GetTicks();
-    bool on = pvkSunOn();
-    bool baking = scene && on && Baking() && BakeReady();
+    bool on = mode > 0 && pvkSunPrepare();
+    bool baking = on && Baking() && (low ? RasterReady() : scene && BakeReady());
     if(baking && !s_map[0].placed)
         MapReset();
     bool bake = baking && BakeWork();
-    unsigned kept = 0, used = 0, worldUsed = 0, current = 0;
+    unsigned kept = 0, used = 0, worldUsed = 0, current = 0, lowWorld = 0;
     Scene* sc = scene ? &s_scenes[g_pvk->FrameSerial() % pvkFrames] : NULL;
-    VkAccelerationStructureInstanceKHR* out = sc ? (VkAccelerationStructureInstanceKHR*)sc->draws.instances.memory.mapped : NULL;
-    VkAccelerationStructureInstanceKHR* worldOut = baking ?
+    // low: the scenes stay empty (the programs with ray queries still bind them)
+    VkAccelerationStructureInstanceKHR* out = sc && !low ?
+        (VkAccelerationStructureInstanceKHR*)sc->draws.instances.memory.mapped : NULL;
+    VkAccelerationStructureInstanceKHR* worldOut = baking && out ?
         (VkAccelerationStructureInstanceKHR*)sc->world.instances.memory.mapped : NULL;
     for(unsigned i = 0; i < s_instanceCount; i++)
     {
         Instance& in = s_instances[i];
         Blas& b = s_blas[in.id];
         bool thisFrame = in.lastFrame == s_frame;
-        bool alive = on && b.live && b.as && b.address;
+        bool alive = on && b.live && (low ? b.mesh.buffer != VK_NULL_HANDLE : b.as && b.address);
         if(!baking)
         {
             in.world = false;
-            if(!alive || !(thisFrame || (in.keep && in.streak >= 3 && now - in.lastMs < kKeepMs)))
+            if(!alive || low || !(thisFrame || (in.keep && in.streak >= 3 && now - in.lastMs < kKeepMs)))
                 continue;
             s_instances[kept++] = in;
             if(out && used < (unsigned)kMaxInstances)
@@ -1586,7 +2156,8 @@ void pvkSunEndFrame()
         if(!alive)
             continue;
         // the static world goes in the map (not things rebuilt often: animated; not things only paused a moment)
-        if(!in.world && in.keep && thisFrame && in.streak >= kWorldStreak && b.builds <= 3)
+        if(!in.world && in.keep && thisFrame && in.streak >= (low ? kLowWorldStreak : kWorldStreak) &&
+           b.builds <= 3)
         {
             in.world = true;
             in.builds = b.builds;
@@ -1607,13 +2178,15 @@ void pvkSunEndFrame()
             continue;
         }
         s_instances[kept++] = in;
-        if(thisFrame && (!in.world || in.ticket > s_bakedTicket) && used < (unsigned)kMaxInstances)
+        if(out && thisFrame && (!in.world || in.ticket > s_bakedTicket) && used < (unsigned)kMaxInstances)
         {
             FillInstance(out[used++], in);
             current++;
         }
         if(in.world && worldOut && worldUsed < (unsigned)kMaxInstances)
             FillInstance(worldOut[worldUsed++], in);
+        else if(in.world && low)
+            lowWorld++;         // (the log's; the world's scene stays empty)
     }
     s_instanceCount = kept;
     RebuildHash();
@@ -1669,7 +2242,7 @@ void pvkSunEndFrame()
         // the world's every frame (the draws trace it where the map cannot draw an edge; empty when not baking)
         if(sc->world.as)
             BuildTlas(cmd, sc->world, worldUsed);
-        if(bake)
+        if(bake && !low)
         {
             // the world's scene built; the map's texels free of the draws of frames before (still running)
             b.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
@@ -1681,6 +2254,8 @@ void pvkSunEndFrame()
         }
         // (pvkCore::Present's barrier after the uploads makes them visible to the draws)
     }
+    if(bake && low)
+        Bake(g_pvk->UploadCmd(), VK_NULL_HANDLE);
     // where the next frames' map is (after this frame's bake: its draws were recorded with the windows before)
     if(baking)
         MapPlace();
@@ -1693,13 +2268,14 @@ void pvkSunEndFrame()
         if(now - s_lastLog > 5000)
         {
             fprintf(stderr, "PDDI sun: %s, direction %.2f %.2f %.2f, %u instances drawn (%u this frame), %u baked, "
-                    "%u structures, %u built, %u draws not in the view, %u texels baked\n", on ? "on" : "off",
-                    s_direction[0], s_direction[1], s_direction[2], used, current, worldUsed,
-                    s_blasCount - s_freeCount, s_builds, s_notInView, s_bakedTexels);
+                    "%u structures, %u built, %u draws not in the view, %u texels baked (%u casters drawn)\n", on ? "on" : "off",
+                    s_direction[0], s_direction[1], s_direction[2], used, current, worldUsed + lowWorld,
+                    s_blasCount - s_freeCount, s_builds, s_notInView, s_bakedTexels, s_rasterDraws);
             s_notInView = 0;
             s_lastLog = now;
             s_builds = 0;
             s_bakedTexels = 0;
+            s_rasterDraws = 0;
         }
     }
     s_buildsThisFrame = 0;
@@ -1715,6 +2291,7 @@ void pvkSunShutdown()
         if(s_blas[i].as)
             vkDestroyAccelerationStructureKHR(g_pvk->device, s_blas[i].as, NULL);
         g_pvk->DestroyNow(s_blas[i].storage);
+        g_pvk->DestroyNow(s_blas[i].mesh);
     }
     g_pvk->DestroyNow(s_casterTable);
     g_pvk->DestroyNow(s_masks);
@@ -1744,6 +2321,8 @@ void pvkSunShutdown()
     s_bakeLayout = VK_NULL_HANDLE;
     s_bakeSetLayout = VK_NULL_HANDLE;
     s_bakeFailed = false;
+    DestroyRaster();
+    s_casterMode = 0;
     memset(s_map, 0, sizeof(s_map));
     s_dirtyTiles = 0;
     s_instanceCount = 0;

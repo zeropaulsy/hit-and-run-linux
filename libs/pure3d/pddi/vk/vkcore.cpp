@@ -230,12 +230,12 @@ bool pvkCore::CreateDevice()
         return false;
     }
 
-    // ray queries for the sun's shadows (vksun.cpp): only asked for with SHAR_SUN
+    // ray queries for the sun's high shadows (vksun.cpp): not asked for with SHAR_SUN=0 or SHAR_SUN_RT=0 (low only)
     rayQuery = false;
     VkPhysicalDeviceVulkan12Features f12 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
     VkPhysicalDeviceAccelerationStructureFeaturesKHR fas = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
     VkPhysicalDeviceRayQueryFeaturesKHR frq = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR };
-    if(pvkSunWanted() && HasExtension(physical, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME) &&
+    if(pvkSunWantRays() && HasExtension(physical, VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME) &&
        HasExtension(physical, VK_KHR_RAY_QUERY_EXTENSION_NAME) &&
        HasExtension(physical, VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME))
     {
@@ -257,7 +257,7 @@ bool pvkCore::CreateDevice()
                        (subgroup.supportedOperations & VK_SUBGROUP_FEATURE_QUAD_BIT) && !(q && q[0] == '0');
     }
     if(pvkSunWanted() && !rayQuery)
-        fprintf(stderr, "PDDI: %s has no ray queries: no sun shadows\n", properties.deviceName);
+        fprintf(stderr, "PDDI: %s: no ray queries: low sun shadows only\n", properties.deviceName);
 
     VkPhysicalDeviceVulkan13Features enable13 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
     enable13.dynamicRendering = VK_TRUE;
