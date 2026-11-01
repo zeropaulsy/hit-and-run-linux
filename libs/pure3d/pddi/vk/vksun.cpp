@@ -63,7 +63,7 @@ static const char* s_drawingFile = "-";
 // (SHAR_SUN_ELEVATION=0, SHAR_SUN_LOG=1): L1 14.2, L2 30, L3 1.7, L4 19.4, L5 30, L6 9.9, L7 20.
 static const float kLevelElevation[] = {
     35.0f,  // L1: the sky's sun (lens flare)
-    30.0f,  // L2: the key light (no sun in the sky)
+    50.0f,  // L2: the key light (no sun in the sky)
     10.0f,  // L3: the sky's sunset sun
     19.4f,  // L4: the sky's moon (MoonShape)
     30.0f,  // L5: the key light
