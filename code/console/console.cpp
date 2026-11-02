@@ -64,6 +64,9 @@ static char gConsoleEntry[Console::MAX_STRING_LENGTH];
 static char* gConsoleMsgBuffer[2] = {0};
 static char* gConsoleMsgBufferPtr = 0;
 static int gConsoleBufferIndex = 0;
+#ifdef RAD_LINUX
+static Console::OUTPUT_HOOK sOutputHook = NULL;  // Console::SetOutputHook (the developer console)
+#endif
 
 #ifdef RAD_GAMECUBE
 FBMemoryPool Console::FunctionTableEntry::sMemoryPool( sizeof(Console::FunctionTableEntry), Console::MAX_FUNCTIONS, GMA_GC_VMM );
@@ -593,6 +596,17 @@ bool Console::SetLogMode(int logMode)
 //==============================================================================
 void Console::Printf(char *fmt, ...)
 {
+#ifdef RAD_LINUX
+    if( sOutputHook != NULL )
+    {
+        char text[MAX_STRING_LENGTH];
+        va_list hookArgs;
+        va_start( hookArgs, fmt );
+        vsnprintf( text, sizeof( text ), fmt, hookArgs );
+        va_end( hookArgs );
+        sOutputHook( text, false );
+    }
+#endif
 #ifdef RAD_DEBUG
     //make sure we have a console
     if (!spInstance)
@@ -617,6 +631,17 @@ void Console::Printf(char *fmt, ...)
 //to an error page in the DebugInfo stuff Chakib is working on!
 void Console::Errorf(char *fmt, ...)
 {
+#ifdef RAD_LINUX
+    if( sOutputHook != NULL )
+    {
+        char text[MAX_STRING_LENGTH];
+        va_list hookArgs;
+        va_start( hookArgs, fmt );
+        vsnprintf( text, sizeof( text ), fmt, hookArgs );
+        va_end( hookArgs );
+        sOutputHook( text, true );
+    }
+#endif
 #ifdef RAD_DEBUG
     //make sure we have a console
     if (!spInstance)
@@ -1086,6 +1111,30 @@ void Console::ListConsoleFunctions()
 // Return:      
 //
 //==============================================================================
+#ifdef RAD_LINUX
+void Console::SetOutputHook( OUTPUT_HOOK hook )
+{
+    sOutputHook = hook;
+}
+
+const char* Console::GetFunctionName( int i ) const
+{
+    return ( i >= 0 && i < mFunctionCount ) ? mFunctionTable[i]->text : NULL;
+}
+
+bool Console::GetFunctionArgs( const char* name, int* minArgs, int* maxArgs ) const
+{
+    std::map<radKey32, int>::const_iterator lookup = mFunctionLookup.find( radMakeCaseInsensitiveKey32( name ) );
+    if( lookup == mFunctionLookup.end() || !( mFunctionTable[lookup->second]->name == name ) )
+    {
+        return false;
+    }
+    *minArgs = mFunctionTable[lookup->second]->minArgs;
+    *maxArgs = mFunctionTable[lookup->second]->maxArgs;
+    return true;
+}
+#endif
+
 void Console::ListFunctions()
 {
     //for (int i = 0; i < mFunctionCount; i++)
@@ -2322,6 +2371,10 @@ Console::FunctionTableEntry::FunctionTableEntry
     functionPointer.voidReturn = in_func;
     name = in_name;
     help = in_help;
+#ifdef RAD_LINUX
+    strncpy( text, in_name, sizeof( text ) - 1 );
+    text[sizeof( text ) - 1] = '\0';
+#endif
 };
 
 
@@ -2357,6 +2410,10 @@ Console::FunctionTableEntry::FunctionTableEntry
     functionPointer.boolReturn = in_func;
     name = in_name;
     help = in_help;
+#ifdef RAD_LINUX
+    strncpy( text, in_name, sizeof( text ) - 1 );
+    text[sizeof( text ) - 1] = '\0';
+#endif
 }
 
 

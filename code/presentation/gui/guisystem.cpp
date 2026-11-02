@@ -29,6 +29,9 @@
 #include <presentation/gui/guiuserinputhandler.h>
 #include <presentation/tutorialmode.h>
 
+#ifdef RAD_LINUX
+#include <console/devconsole.h>
+#endif
 #include <data/gamedatamanager.h>
 #include <main/game.h>
 #include <main/platform.h>
@@ -462,6 +465,13 @@ MEMTRACK_PUSH_GROUP( "CGUISystem" );
     //     change languages on-the-fly w/ the Watcher
     //
     FeTextBibleLoader::SetOnlyLoadCurrentLanguage( false );
+#endif
+#ifdef RAD_LINUX
+    // Linux port: every language with the developer console on, so its lang command can switch (as the Xbox case)
+    if( DevConsole::IsEnabled() )
+    {
+        FeTextBibleLoader::SetOnlyLoadCurrentLanguage( false );
+    }
 #endif
 
     // setup the GUI render layer

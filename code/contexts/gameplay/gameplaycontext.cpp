@@ -672,6 +672,11 @@ void GameplayContext::OnUpdate( unsigned int elapsedTime )
     // Common to all playing contexts.
     //
     PlayingContext::OnUpdate( elapsedTime );
+#ifdef RAD_LINUX
+    // Linux port: finishes a save started mid-level (the developer console's save); the original only updates
+    // the game data manager in the bootup, front end and pause contexts
+    GetGameDataManager()->Update( elapsedTime );
+#endif
 #ifdef DEBUGWATCH
     mDebugOnUpdateDT = radTimeGetMicroseconds()-mDebugOnUpdateDT;
 #endif

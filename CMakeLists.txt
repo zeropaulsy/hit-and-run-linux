@@ -570,6 +570,7 @@ add_executable(srr2
   code/supersprint/supersprintdata.cpp
   code/supersprint/supersprintmanager.cpp
   code/main/linuxplatform_sdl.cpp
+  code/console/devconsole.cpp
   code/mission/modscript.cpp
   code/mission/objectives/modobjectives.cpp
   code/mission/conditions/modconditions.cpp
@@ -578,7 +579,7 @@ add_executable(srr2
   code/meta/modtriggeractions.cpp
   code/presentation/gui/frontend/guiscreengraphics.cpp
 )
-target_include_directories(srr2 PRIVATE libs code libs/radcore/inc libs/radmovie/inc libs/radsound/inc libs/radscript/inc libs/radmusic/inc libs/pure3d libs/scrooby/inc libs/scrooby/src libs/radmath libs/sim libs/poser/inc libs/choreo/inc libs/radcontent/inc libs/radcontent)
+target_include_directories(srr2 PRIVATE port/third_party/stb port/third_party/dejavu libs code libs/radcore/inc libs/radmovie/inc libs/radsound/inc libs/radscript/inc libs/radmusic/inc libs/pure3d libs/scrooby/inc libs/scrooby/src libs/radmath libs/sim libs/poser/inc libs/choreo/inc libs/radcontent/inc libs/radcontent)
 if(SHAR_RAD_DEBUG)
   target_compile_definitions(srr2 PRIVATE _DEBUG RAD_DEBUG RAD_WIN32 RAD_PC)
 else()

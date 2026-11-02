@@ -10,6 +10,7 @@ mod/lmlm
 dist/
 port/survey64.json
 port/syntax_survey.json
-# CodeGraph index
-.codegraph/
+# codegraph (local MCP setup + index)
 .mcp.json
+.claude/
+.codegraph/

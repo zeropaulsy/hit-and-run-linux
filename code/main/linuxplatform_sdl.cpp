@@ -20,6 +20,7 @@
 #include <raddebug.hpp>
 #include <p3d/platform.hpp>
 #include <p3d/context.hpp>
+#include <console/devconsole.h>
 #include <input/inputmanager.h>
 #include <input/FEMouse.h>
 #include <input/MouseCursor.h>
@@ -81,8 +82,8 @@ static bool WantVulkan()
         return strcasecmp( e, "vulkan" ) == 0;
     FILE* f = fopen( "simpsons.ini", "r" );
     if( f == NULL )
-        return false;
-    bool vulkan = false;
+        return true;        // Vulkan unless simpsons.ini says otherwise
+    bool vulkan = true;
     char line[ 256 ];
     while( fgets( line, sizeof( line ), f ) )
     {
@@ -137,6 +138,13 @@ bool Win32Platform::InitializeWindow( HINSTANCE hInstance )
 
     bool vulkan = WantVulkan( );
     SDL_Window* window = CreateGameWindow( vulkan );
+    if( window == NULL && vulkan )
+    {
+        // no Vulkan loader or driver: OpenGL, on the same video driver
+        fprintf( stderr, "Vulkan renderer unavailable (%s): using OpenGL\n", SDL_GetError() );
+        vulkan = false;
+        window = CreateGameWindow( false );
+    }
     if( window == NULL && strcmp( SDL_GetCurrentVideoDriver( ), "wayland" ) == 0 )
     {
         // A Wayland window can still fail where X11 works (a driver's EGL platform): fall back to XWayland
@@ -489,6 +497,11 @@ bool Win32Platform::PumpEvents()
     }
     while( SDL_PollEvent( &e ) )
     {
+        // the developer console (` key) takes the keyboard and mouse while open
+        if( DevConsole::HandleEvent( &e ) )
+        {
+            continue;
+        }
         radControllerSDLHandleEvent( &e );                 // wheel + controller hot-plug for radcore input
 
         InputManager* pInputManager = GetInputManager();
@@ -615,6 +628,7 @@ bool Win32Platform::PumpEvents()
             break;
         }
     }
+    DevConsole::Update();
     return quit;
 }
 

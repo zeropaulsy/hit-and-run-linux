@@ -122,6 +122,14 @@ public:
     //Debugging stuff
     void ToggleDebugView( bool on );
     void ToggleDebugView();
+#if defined RAD_LINUX && defined SUPERCAM_DEBUG
+    // Linux port: the developer console's debugcam (the Watcher's Debug Camera XZ / Y Angle)
+    bool IsDebugViewOn() const { return mDebugViewOn; }
+    void SetDebugViewAngles( float xzAngle, float yAngle, float distance )
+    {
+        mDebugXZAngle = xzAngle; mDebugYAngle = yAngle; mDebugMagnitude = distance;
+    }
+#endif
 
     bool AllowCameraToggle();
     bool AllowAutoCameraChange();
@@ -172,7 +180,7 @@ public:
 private:
     void SetActiveSuperCam( unsigned int which = 0, int flags = CUT | QUICK, unsigned int timems = 7000 );
 
-#ifdef DEBUGWATCH
+#if defined DEBUGWATCH || defined RAD_LINUX
     void DrawFrustrum();
 #endif
 

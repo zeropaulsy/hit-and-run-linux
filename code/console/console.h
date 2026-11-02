@@ -124,6 +124,16 @@ class Console : public LoadingManager::ProcessRequestsCallback
 
         void ListConsoleFunctions();
 
+#ifdef RAD_LINUX
+        // Linux port: the developer console (devconsole.cpp) shows Printf / Errorf output in all builds and
+        // completes and checks function names
+        typedef void (*OUTPUT_HOOK)( const char* text, bool warning );
+        static void SetOutputHook( OUTPUT_HOOK hook );
+        int GetFunctionCount() const { return mFunctionCount; }
+        const char* GetFunctionName( int i ) const;
+        bool GetFunctionArgs( const char* name, int* minArgs, int* maxArgs ) const;    // false: no such function
+#endif
+
         void ConsoleListenChannel( int channel );
         void ConsoleBlockChannel( int channel );
 
@@ -196,6 +206,9 @@ class Console : public LoadingManager::ProcessRequestsCallback
             int minArgs;
             int maxArgs;
             bool isConditional;
+#ifdef RAD_LINUX
+            char text[64];  // Linux port: the name for the developer console (release tNames keep no text)
+#endif
 
             static FBMemoryPool sMemoryPool;
 

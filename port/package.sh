@@ -29,9 +29,9 @@ OUT=$ROOT/dist/$NAME
 
 # (a build dir made for the other architecture, e.g. a 32-bit one from before x86-64 became the default, is switched)
 if [ ! -f "$BUILD/build.ninja" ] || ! grep -q "^SHAR_64BIT:BOOL=$X64\$" "$BUILD/CMakeCache.txt"; then
-    cmake -B "$BUILD" -S "$ROOT" -G Ninja -DSHAR_64BIT=$X64 > "$ROOT/port/build.log" 2>&1 || { tail -20 "$ROOT/port/build.log"; exit 1; }
+    cmake -B "$BUILD" -S "$ROOT" -G Ninja -DSHAR_64BIT=$X64 > "$ROOT/port/build.log" 2>&1 || { tail -20 "$ROOT/port/build.log" >&2; exit 1; }
 fi
-ninja -C "$BUILD" -j"$(nproc)" > "$ROOT/port/build.log" 2>&1 || { grep -E "error|FAILED" "$ROOT/port/build.log" | head -20; exit 1; }
+ninja -C "$BUILD" -j"$(nproc)" > "$ROOT/port/build.log" 2>&1 || { grep -E "error|FAILED" "$ROOT/port/build.log" | head -20 >&2; exit 1; }
 
 rm -rf "$OUT"
 mkdir -p "$OUT/lib"

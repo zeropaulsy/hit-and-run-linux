@@ -41,6 +41,25 @@ struct CreditInfo
     const int PAL_OFFSET = 0;
 #endif
 
+#ifdef RAD_LINUX
+// Linux port: line numbers from the retail PC exe, matching the retail credits text
+static CreditInfo s_creditDialogTable[] =
+{
+    { 7, ::radMakeKey32( "pubcredits" ) },
+    { 63, ::radMakeKey32( "foxcredits" ) },
+    { 205 + PAL_OFFSET, ::radMakeKey32( "radproducer" ) },
+    { 218 + PAL_OFFSET, ::radMakeKey32( "radlead" ) },
+    { 230 + PAL_OFFSET, ::radMakeKey32( "raddesign" ) },
+    { 245 + PAL_OFFSET, ::radMakeKey32( "radworld" ) },
+    { 254 + PAL_OFFSET, ::radMakeKey32( "radmodel" ) },
+    { 258 + PAL_OFFSET, ::radMakeKey32( "radfx" ) },
+    { 266 + PAL_OFFSET, ::radMakeKey32( "radfmvart" ) },
+    { 275 + PAL_OFFSET, ::radMakeKey32( "radfeart" ) },
+    { 282 + PAL_OFFSET, ::radMakeKey32( "radprog" ) },
+    { 300 + PAL_OFFSET, ::radMakeKey32( "radtest" ) },
+    { 309 + PAL_OFFSET, ::radMakeKey32( "radsound" ) }
+};
+#else
 static CreditInfo s_creditDialogTable[] =
 {
     { 7, ::radMakeKey32( "pubcredits" ) },
@@ -57,6 +76,7 @@ static CreditInfo s_creditDialogTable[] =
     { 279 + PAL_OFFSET, ::radMakeKey32( "radtest" ) },
     { 289 + PAL_OFFSET, ::radMakeKey32( "radsound" ) }
 };
+#endif
 
 static int s_creditDialogTableSize = sizeof( s_creditDialogTable ) / sizeof( CreditInfo );
 

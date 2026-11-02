@@ -1,7 +1,7 @@
 // Bloom, pass 4 of 4: adds the blurred glow (uScene) to the picture as it was before the bloom (uOriginal: the input
 // of bloom_bright.glsl, which starts the effect).
 
-const float STRENGTH = 0.6;
+const float STRENGTH = 0.25;
 
 void main()
 {

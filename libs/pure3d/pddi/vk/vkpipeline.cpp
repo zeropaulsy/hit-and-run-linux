@@ -407,8 +407,6 @@ bool pvkPipeline::Init()
     pl.pSetLayouts = &setLayout;
     if(vkCreatePipelineLayout(g_pvk->device, &pl, NULL, &layout) != VK_SUCCESS)
         return false;
-    VkPipelineCacheCreateInfo pc = { VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
-    vkCreatePipelineCache(g_pvk->device, &pc, NULL, &cache);
 
     pipelineCapacity = 1024;
     pipelines = (CachedPipeline*)calloc(pipelineCapacity, sizeof(CachedPipeline));
@@ -447,7 +445,6 @@ void pvkPipeline::Shutdown()
         ReleaseProgram(programs[i]);
     g_pvk->DestroyNow(white);
     g_pvk->DestroyNow(screen);
-    vkDestroyPipelineCache(g_pvk->device, cache, NULL);
     vkDestroyPipelineLayout(g_pvk->device, layout, NULL);
     vkDestroyDescriptorSetLayout(g_pvk->device, setLayout, NULL);
     ready = false;
@@ -797,6 +794,9 @@ void pvkPipeline::UploadUniforms(Program& p)
         pvkSunMap(windows, info);
         SetFloats(p, U_SUNMAP, windows, 4, 4);
         SetFloats(p, U_SUNMAPINFO, info, 1, 4);
+        float sky[4];
+        pvkSunSky(sky);
+        SetFloats(p, U_SUNSKY, sky, 1, 4);
         p.sunVersion = pvkSunVersion();
     }
 
@@ -964,7 +964,12 @@ VkPipeline pvkPipeline::GetPipeline(int programIndex, int topologyClass)
     info.pDynamicState = &dynamic;
     info.layout = layout;
     VkPipeline pipeline = VK_NULL_HANDLE;
-    VkResult created = vkCreateGraphicsPipelines(g_pvk->device, cache, 1, &info, NULL, &pipeline);
+    Uint64 started = SDL_GetPerformanceCounter();
+    VkResult created = vkCreateGraphicsPipelines(g_pvk->device, g_pvk->pipelineCache, 1, &info, NULL, &pipeline);
+    double took = (SDL_GetPerformanceCounter() - started) * 1000.0 / SDL_GetPerformanceFrequency();
+    stats.pipelineMs += took;
+    if(took > stats.pipelineMaxMs)
+        stats.pipelineMaxMs = took;
     if(created != VK_SUCCESS)
     {
         static int s_reported = 0;
@@ -1479,9 +1484,9 @@ void pvkPipeline::FrameStats()
         return;
     last = SDL_GetTicks();
     float f = (float)stats.frames;
-    fprintf(stderr, "[vk] per frame: %.0f draws (%.0f streamed), %.0f uniform copies; %u new pipelines (%d cached); "
-            "render time %.3f ms CPU\n", stats.draws / f, stats.streamDraws / f, stats.uniformCopies / f, stats.pipelines,
-            pipelineCount, stats.cpuMs / f);
+    fprintf(stderr, "[vk] per frame: %.0f draws (%.0f streamed), %.0f uniform copies; %u new pipelines (%d cached, %.1f ms, "
+            "longest %.1f); render time %.3f ms CPU\n", stats.draws / f, stats.streamDraws / f, stats.uniformCopies / f,
+            stats.pipelines, pipelineCount, stats.pipelineMs, stats.pipelineMaxMs, stats.cpuMs / f);
     memset(&stats, 0, sizeof(stats));
 }
 

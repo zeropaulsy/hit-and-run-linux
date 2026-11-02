@@ -31,6 +31,8 @@ pvkDisplay::pvkDisplay()
 pvkDisplay::~pvkDisplay()
 {
     pipeline.Shutdown();
+    if(g_pvk)
+        g_pvk->SavePipelineCache();     // the core itself is never shut down (the process ends with it)
     if(s_display == this)
         s_display = NULL;
 }
@@ -59,6 +61,8 @@ bool pvkDisplay::InitDisplay(const pddiDisplayInit* init)
     // as gldisplay.cpp: borderless covers the desktop, exclusive switches to the closest mode, else a window
     if(mode == PDDI_DISPLAY_FULLSCREEN_DESKTOP)
     {
+        if((SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP) == SDL_WINDOW_FULLSCREEN)
+            SDL_SetWindowFullscreen(window, 0);     // as gldisplay.cpp: leave exclusive first (Wayland)
         SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
     }
     else if(mode == PDDI_DISPLAY_FULLSCREEN)

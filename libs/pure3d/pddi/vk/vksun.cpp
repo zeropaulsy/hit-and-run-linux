@@ -27,11 +27,17 @@ static const unsigned kMissingFrames = 30;      // ... or when it is in view, ne
 static const float kMissingRange = 60.0f;
 static const unsigned kWorldStreak = 30;        // frames running with the same transform before it is baked
 static const unsigned kLowWorldStreak = 8;      // low: nothing else casts meanwhile
+// the sky grid (high): how open to the sky each cell round the camera is, after the map in s_mapBuffer as (open,
+// key) floats; glshaders.cpp's SunSkyOpen has the same sizes
+static const int kSkyCells[3] = { 128, 32, 128 };  // across x, y, z (powers of two)
+static const unsigned kSkyCount = 128 * 32 * 128;
+static const VkDeviceSize kMapBytes = (VkDeviceSize)kMapLevels * kMapSize * kMapSize * 4;
 
 static int s_wanted = -1;
 static bool s_wantRays = true;     // SHAR_SUN_RT=0: the device made without ray queries (Low only, as on an iGPU)
-static int s_quality = 0;          // Options > Graphics Shadows (simpsons.ini shadows=), F9, SHAR_SUN=1/low: 0 off,
-                                   // 1 low (the map rasterised), 2 high (ray traced; low without ray queries)
+static int s_quality = 1;          // Options > Graphics Shadows (simpsons.ini shadows=; low by default), F9,
+                                   // SHAR_SUN=0/1/low: 0 off, 1 low (the map rasterised), 2 high (ray traced; low
+                                   // without ray queries)
 static bool s_suppressed = false;  // the game's: no sun here (interiors, the front end; pvkSunSetSuppressed)
 static int s_casterMode = 0;       // what the casters were built for (1 meshes, 2 acceleration structures)
 static float s_eyeToWorld[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
@@ -45,6 +51,13 @@ static float s_range[3] = { 80.0f, 320.0f, 150.0f };   // full rays to (one at t
 static int s_bake = 1;                  // SHAR_SUN_BAKE=0: every shadow ray traced per pixel
 static float s_mapTexel = 0.04f;        // SHAR_SUN_TEXEL: the baked map's level 0 texel (m); each level doubles it
 static unsigned s_bakeBudget = 4000000;    // SHAR_SUN_BAKE_BUDGET: texels baked a frame
+// SHAR_SUN_SKY=lo,hi (0 off): no shadow where a surface sees lo of the sky or less (under a roof: its colours were lit
+// without the sun), full from hi; x: the grid's cell (SHAR_SUN_SKY_CELL, m), w: SHAR_SUN_SKY_DEBUG
+static float s_skyGrid[4] = { 2.0f, 0.15f, 0.5f, 0.0f };
+static int s_skyRays = 24;              // SHAR_SUN_SKY_RAYS: per cell
+static float s_skyReach = 60.0f;        // SHAR_SUN_SKY_REACH: their length (m)
+static unsigned s_skyBudget = 4096;     // SHAR_SUN_SKY_BUDGET: cells baked again a frame (world streamed in since), on
+                                        // top of those new to the window
 static const float* s_projectionSource;
 static float s_viewProjection[16];
 static bool s_viewProjectionSet = false;
@@ -117,6 +130,8 @@ bool pvkSunWanted()
             s_quality = 2;
         else if(e && e[0] == 'l')
             s_quality = 1;
+        else if(e)
+            s_quality = 0;
         const char* rt = getenv("SHAR_SUN_RT");
         s_wantRays = !(rt && rt[0] == '0');
         s_levels[0] = EnvFloat("SHAR_SUN_SHADOW", s_levels[0]);
@@ -152,6 +167,21 @@ bool pvkSunWanted()
         const char* l = getenv("SHAR_SUN_LOG");
         s_logLevel = l ? atoi(l) : 0;
         s_log = s_logLevel > 0;
+        const char* sky = getenv("SHAR_SUN_SKY");
+        if(sky && sky[0] == '0' && !sky[1])
+            s_skyGrid[0] = 0.0f;
+        else if(sky)
+            sscanf(sky, "%f,%f", &s_skyGrid[1], &s_skyGrid[2]);
+        if(s_skyGrid[0] > 0.0f)
+            s_skyGrid[0] = EnvFloat("SHAR_SUN_SKY_CELL", s_skyGrid[0]);
+        s_skyGrid[0] = s_skyGrid[0] < 0.0f ? 0.0f : s_skyGrid[0];
+        s_skyGrid[2] = s_skyGrid[2] > s_skyGrid[1] + 0.01f ? s_skyGrid[2] : s_skyGrid[1] + 0.01f;
+        s_skyGrid[3] = EnvFloat("SHAR_SUN_SKY_DEBUG", 0.0f);
+        s_skyRays = (int)EnvFloat("SHAR_SUN_SKY_RAYS", (float)s_skyRays);
+        s_skyRays = s_skyRays < 1 ? 1 : s_skyRays > 256 ? 256 : s_skyRays;
+        s_skyReach = EnvFloat("SHAR_SUN_SKY_REACH", s_skyReach);
+        float skyBudget = EnvFloat("SHAR_SUN_SKY_BUDGET", (float)s_skyBudget);
+        s_skyBudget = skyBudget < 64.0f ? 64u : skyBudget > (float)kSkyCount ? kSkyCount : (unsigned)skyBudget;
         const char* dbg = getenv("SHAR_SUN_DEBUG");
         s_debug = dbg ? atoi(dbg) : 0;
     }
@@ -555,7 +585,36 @@ struct Blas
     unsigned meshVertices, meshTriangles;
     int meshMask, meshCompare;  // the alpha test (meshMask >= 0: alpha-tested)
     float meshRef;
+    struct Skin* skin;          // rebuilt every frame: updated instead (b.as is one of its structures)
 };
+
+// A caster rebuilt every frame (skinned characters; b.builds > 3): while its triangles stay the same, a new shape
+// updates (refits) the last structure into the next instead of a build from scratch. pvkFrames structures, inputs
+// (positions, then the triangles) and scratches, used in turn: the one written was last read by a frame that is done
+// (or by an earlier upload, ordered before this frame's by its closing barrier).
+struct Skin
+{
+    unsigned short* indices;    // as drawn: the same ones keep the structure
+    unsigned count, vertexCount;
+    bool strip;
+    pvkTexture* alphaTexture;
+    int alphaCompare;
+    float alphaRef;
+    unsigned triangles;
+    unsigned first, last;       // the vertices the triangles use (the bounds): first..last, or those in used
+    unsigned* used;
+    unsigned usedCount;
+    pvkBuffer input[pvkFrames], storage[pvkFrames], scratch[pvkFrames];
+    VkAccelerationStructureKHR as[pvkFrames];
+    VkDeviceAddress address[pvkFrames], scratchAddress[pvkFrames];
+    int current;                // b.as's
+    unsigned long long serial;  // the frame it was last built or updated in
+    unsigned updates;           // since the last full build
+};
+
+static const unsigned kSkinRebuild = 120;   // updates between full builds (a refitted tree loosens as the shape moves)
+static const VkBuildAccelerationStructureFlagsKHR kSkinFlags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR |
+                                                              VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
 
 static Blas* s_blas;
 static unsigned s_blasCount, s_blasCapacity;
@@ -575,8 +634,40 @@ static VkDeviceAddress BufferAddress(const pvkBuffer& b)
 
 static void GeometryFree(unsigned offset, unsigned words);
 
+static void FreeSkin(Blas& b, bool now)
+{
+    Skin* s = b.skin;
+    if(!s)
+        return;
+    for(int f = 0; f < pvkFrames; f++)
+    {
+        if(now)
+        {
+            if(s->as[f])
+                vkDestroyAccelerationStructureKHR(g_pvk->device, s->as[f], NULL);
+            g_pvk->DestroyNow(s->input[f]);
+            g_pvk->DestroyNow(s->storage[f]);
+            g_pvk->DestroyNow(s->scratch[f]);
+        }
+        else
+        {
+            g_pvk->RetireAccel(s->as[f]);
+            g_pvk->Retire(s->input[f]);
+            g_pvk->Retire(s->storage[f]);
+            g_pvk->Retire(s->scratch[f]);
+        }
+    }
+    free(s->indices);
+    free(s->used);
+    free(s);
+    b.skin = NULL;
+    b.as = VK_NULL_HANDLE;
+}
+
 static void ReleaseBlas(Blas& b)
 {
+    if(b.skin)
+        FreeSkin(b, false);
     g_pvk->RetireAccel(b.as);
     g_pvk->Retire(b.storage);
     g_pvk->Retire(b.mesh);
@@ -717,12 +808,34 @@ bool pvkSunBuffers(VkDescriptorBufferInfo* buffers)
     return true;
 }
 
+static void SetBounds(Blas& b, const float* lo, const float* hi)
+{
+    float d[3] = { hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2] };
+    b.size = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+    memcpy(b.lo, lo, 12);
+    memcpy(b.hi, hi, 12);
+    b.huge = b.size > kHugeSize;
+}
+
+// the bounds of the triangles in list into b
+static void CasterBounds(Blas& b, const float* positions, const unsigned* list, unsigned triangles)
+{
+    float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
+    for(unsigned t = 0; t < triangles * 3; t++)
+        for(int k = 0; k < 3; k++)
+        {
+            float v = positions[list[t] * 3 + k];
+            lo[k] = v < lo[k] ? v : lo[k];
+            hi[k] = v > hi[k] ? v : hi[k];
+        }
+    SetBounds(b, lo, hi);
+}
+
 // a caster's triangles as a list (those in range; NULL: none), its bounds into b; malloc'd
 static unsigned* CasterTriangles(Blas& b, const float* positions, unsigned vertexCount, const unsigned short* indices,
                                  unsigned count, bool strip, unsigned* triangles)
 {
     unsigned* list = Triangles(indices, count, strip, triangles);
-    float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
     unsigned kept = 0;
     for(unsigned t = 0; t < *triangles; t++)
     {
@@ -731,13 +844,6 @@ static unsigned* CasterTriangles(Blas& b, const float* positions, unsigned verte
             continue;
         memmove(&list[kept * 3], tri, 12);
         kept++;
-        for(int i = 0; i < 3; i++)
-            for(int k = 0; k < 3; k++)
-            {
-                float v = positions[tri[i] * 3 + k];
-                lo[k] = v < lo[k] ? v : lo[k];
-                hi[k] = v > hi[k] ? v : hi[k];
-            }
     }
     *triangles = kept;
     if(kept == 0)
@@ -745,11 +851,7 @@ static unsigned* CasterTriangles(Blas& b, const float* positions, unsigned verte
         free(list);
         return NULL;
     }
-    float d[3] = { hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2] };
-    b.size = sqrtf(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
-    memcpy(b.lo, lo, sizeof(lo));
-    memcpy(b.hi, hi, sizeof(hi));
-    b.huge = b.size > kHugeSize;
+    CasterBounds(b, positions, list, kept);
     return list;
 }
 
@@ -784,10 +886,181 @@ static bool BuildMesh(Blas& b, const float* positions, const float* uvs, unsigne
     return true;
 }
 
-// alphaSlot >= 0: alpha-tested (uvs, the mask and the test written to the table at id)
+static void BlasGeometry(VkAccelerationStructureGeometryKHR& geometry, VkAccelerationStructureBuildGeometryInfoKHR& build,
+                         VkDeviceAddress input, unsigned vertexCount, bool alpha, VkBuildAccelerationStructureFlagsKHR flags)
+{
+    memset(&geometry, 0, sizeof(geometry));
+    geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+    geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+    geometry.flags = alpha ? 0 : VK_GEOMETRY_OPAQUE_BIT_KHR;   // alpha-tested: the shaders decide
+    VkAccelerationStructureGeometryTrianglesDataKHR& tri = geometry.geometry.triangles;
+    tri.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+    tri.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+    tri.vertexData.deviceAddress = input;
+    tri.vertexStride = 12;
+    tri.maxVertex = vertexCount - 1;
+    tri.indexType = VK_INDEX_TYPE_UINT32;
+    tri.indexData.deviceAddress = input + (VkDeviceSize)vertexCount * 12;
+    memset(&build, 0, sizeof(build));
+    build.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+    build.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+    build.flags = flags;
+    build.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+    build.geometryCount = 1;
+    build.pGeometries = &geometry;
+}
+
+// the skin's next structure from positions: an update of the current one, or every kSkinRebuild a full build
+static void SkinBuild(Blas& b, const float* positions, bool update)
+{
+    Skin* s = b.skin;
+    int next = (s->current + 1) % pvkFrames;
+    memcpy(s->input[next].memory.mapped, positions, (size_t)s->vertexCount * 12);
+    VkAccelerationStructureGeometryKHR geometry;
+    VkAccelerationStructureBuildGeometryInfoKHR build;
+    BlasGeometry(geometry, build, BufferAddress(s->input[next]), s->vertexCount, b.alpha, kSkinFlags);
+    if(update && s->updates < kSkinRebuild)
+    {
+        build.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR;
+        build.srcAccelerationStructure = s->as[s->current];
+        s->updates++;
+    }
+    else
+        s->updates = 0;
+    build.dstAccelerationStructure = s->as[next];
+    build.scratchData.deviceAddress = s->scratchAddress[next];
+    VkAccelerationStructureBuildRangeInfoKHR range = { s->triangles, 0, 0, 0 };
+    const VkAccelerationStructureBuildRangeInfoKHR* ranges = &range;
+    vkCmdBuildAccelerationStructuresKHR(g_pvk->UploadCmd(), 1, &build, &ranges);
+    s->current = next;
+    s->serial = g_pvk->FrameSerial();
+    b.as = s->as[next];
+    b.address = s->address[next];
+    s_buildsThisFrame++;
+}
+
+// b rebuilt every frame: its skin, built from positions (list freed)
+static bool MakeSkin(Blas& b, const float* positions, unsigned vertexCount, unsigned* list, unsigned triangles,
+                     const unsigned short* indices, unsigned count, bool strip, pvkTexture* alphaTexture,
+                     int alphaCompare, float alphaRef)
+{
+    Skin* s = (Skin*)calloc(1, sizeof(Skin));
+    b.skin = s;
+    s->indices = (unsigned short*)malloc((size_t)count * 2);
+    memcpy(s->indices, indices, (size_t)count * 2);
+    s->count = count;
+    s->vertexCount = vertexCount;
+    s->strip = strip;
+    s->alphaTexture = alphaTexture;
+    s->alphaCompare = alphaCompare;
+    s->alphaRef = alphaRef;
+    s->triangles = triangles;
+    // the vertices used, for the bounds: usually a run with none left out
+    unsigned char* seen = (unsigned char*)calloc(vertexCount, 1);
+    s->first = vertexCount;
+    s->last = 0;
+    for(unsigned t = 0; t < triangles * 3; t++)
+    {
+        unsigned v = list[t];
+        seen[v] = 1;
+        s->first = v < s->first ? v : s->first;
+        s->last = v > s->last ? v : s->last;
+    }
+    unsigned n = 0;
+    for(unsigned v = s->first; v <= s->last; v++)
+        n += seen[v];
+    if(n != s->last - s->first + 1)
+    {
+        s->used = (unsigned*)malloc(n * sizeof(unsigned));
+        for(unsigned v = s->first; v <= s->last; v++)
+            if(seen[v])
+                s->used[s->usedCount++] = v;
+    }
+    free(seen);
+
+    VkAccelerationStructureGeometryKHR geometry;
+    VkAccelerationStructureBuildGeometryInfoKHR build;
+    BlasGeometry(geometry, build, 0, vertexCount, b.alpha, kSkinFlags);
+    VkAccelerationStructureBuildSizesInfoKHR sizes = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
+    vkGetAccelerationStructureBuildSizesKHR(g_pvk->device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &build,
+                                            &triangles, &sizes);
+    VkDeviceSize scratchSize = sizes.buildScratchSize > sizes.updateScratchSize ? sizes.buildScratchSize :
+                                                                                  sizes.updateScratchSize;
+    VkDeviceSize vertexBytes = (VkDeviceSize)vertexCount * 12;
+    for(int f = 0; f < pvkFrames; f++)
+    {
+        if(!g_pvk->CreateBuffer(vertexBytes + (VkDeviceSize)triangles * 12, kInputUsage, true, &s->input[f]) ||
+           !g_pvk->CreateBuffer(sizes.accelerationStructureSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR |
+                                VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, &s->storage[f]) ||
+           !g_pvk->CreateBuffer(scratchSize + 256, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, false, &s->scratch[f]))
+        {
+            free(list);
+            FreeSkin(b, false);
+            return false;
+        }
+        memcpy(s->input[f].memory.mapped + vertexBytes, list, (size_t)triangles * 12);
+        s->scratchAddress[f] = (BufferAddress(s->scratch[f]) + 255) & ~(VkDeviceAddress)255;
+        VkAccelerationStructureCreateInfoKHR create = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR };
+        create.buffer = s->storage[f].buffer;
+        create.size = sizes.accelerationStructureSize;
+        create.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+        if(vkCreateAccelerationStructureKHR(g_pvk->device, &create, NULL, &s->as[f]) != VK_SUCCESS)
+        {
+            s->as[f] = VK_NULL_HANDLE;
+            free(list);
+            FreeSkin(b, false);
+            return false;
+        }
+        VkAccelerationStructureDeviceAddressInfoKHR ai = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR };
+        ai.accelerationStructure = s->as[f];
+        s->address[f] = vkGetAccelerationStructureDeviceAddressKHR(g_pvk->device, &ai);
+    }
+    free(list);
+    SkinBuild(b, positions, false);
+    return true;
+}
+
+static void SkinBounds(Blas& b, const float* positions)
+{
+    const Skin* s = b.skin;
+    float lo[3] = { 1e30f, 1e30f, 1e30f }, hi[3] = { -1e30f, -1e30f, -1e30f };
+    unsigned n = s->used ? s->usedCount : s->last - s->first + 1;
+    for(unsigned i = 0; i < n; i++)
+    {
+        const float* p = &positions[(s->used ? s->used[i] : s->first + i) * 3];
+        for(int k = 0; k < 3; k++)
+        {
+            lo[k] = p[k] < lo[k] ? p[k] : lo[k];
+            hi[k] = p[k] > hi[k] ? p[k] : hi[k];
+        }
+    }
+    SetBounds(b, lo, hi);
+}
+
+// a new shape for a skinned caster with the same triangles: its structure updated (false: build it again)
+static bool UpdateSkin(Blas& b, const float* positions, unsigned vertexCount, const unsigned short* indices,
+                       unsigned count, bool strip, pvkTexture* alphaTexture, int alphaCompare, float alphaRef)
+{
+    Skin* s = b.skin;
+    if(!s || !b.live || s->vertexCount != vertexCount || s->count != count || s->strip != strip ||
+       s->alphaTexture != alphaTexture || s->alphaCompare != alphaCompare || s->alphaRef != alphaRef ||
+       memcmp(s->indices, indices, (size_t)count * 2) != 0)
+        return false;
+    SkinBounds(b, positions);
+    if(s->serial == g_pvk->FrameSerial())
+        // a second shape this frame: the build recorded for the first reads it when the frame is submitted
+        memcpy(s->input[s->current].memory.mapped, positions, (size_t)vertexCount * 12);
+    else
+        SkinBuild(b, positions, true);
+    return true;
+}
+
+// alphaSlot >= 0: alpha-tested (uvs, the mask and the test written to the table at id). Rebuilt often (builds > 3):
+// made as a skin (alphaTexture and the test kept to tell when it changes)
 static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float* uvs, unsigned vertexCount,
-                      const unsigned short* indices, unsigned count, bool strip, int alphaSlot, int alphaCompare,
-                      float alphaRef)
+                      const unsigned short* indices, unsigned count, bool strip, int alphaSlot, pvkTexture* alphaTexture,
+                      int alphaCompare, float alphaRef)
 {
     bool alpha = alphaSlot >= 0 && uvs && id < kMaxCasterIds && s_casterTable.memory.mapped;
     b.alpha = false;
@@ -796,18 +1069,8 @@ static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float*
     if(!list)
         return false;
 
-    // the input in host-visible memory, read by the build straight from there
-    pvkBuffer input;
     VkDeviceSize vertexBytes = (VkDeviceSize)vertexCount * 12;
     VkDeviceSize triangleBytes = (VkDeviceSize)triangles * 12;
-    if(!g_pvk->CreateBuffer(vertexBytes + triangleBytes, kInputUsage, true, &input))
-    {
-        free(list);
-        return false;
-    }
-    memcpy(input.memory.mapped, positions, vertexBytes);
-    memcpy(input.memory.mapped + vertexBytes, list, triangleBytes);
-    VkDeviceAddress inputAddress = BufferAddress(input);
     unsigned offset = 0, words = vertexCount * 2 + triangles * 3;
     if(alpha && GeometryAlloc(words, &offset))
     {
@@ -827,30 +1090,27 @@ static bool BuildBlas(Blas& b, unsigned id, const float* positions, const float*
     {
         // no room: it would cast as solid cards
         free(list);
-        g_pvk->Retire(input);
         return false;
     }
+    if(b.builds > 3)
+        return MakeSkin(b, positions, vertexCount, list, triangles, indices, count, strip, alphaTexture, alphaCompare,
+                        alphaRef);
+
+    // the input in host-visible memory, read by the build straight from there
+    pvkBuffer input;
+    if(!g_pvk->CreateBuffer(vertexBytes + triangleBytes, kInputUsage, true, &input))
+    {
+        free(list);
+        return false;
+    }
+    memcpy(input.memory.mapped, positions, vertexBytes);
+    memcpy(input.memory.mapped + vertexBytes, list, triangleBytes);
     free(list);
 
-    VkAccelerationStructureGeometryKHR geometry = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
-    geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-    geometry.flags = alpha ? 0 : VK_GEOMETRY_OPAQUE_BIT_KHR;   // alpha-tested: the shaders decide
-    VkAccelerationStructureGeometryTrianglesDataKHR& tri = geometry.geometry.triangles;
-    tri.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-    tri.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-    tri.vertexData.deviceAddress = inputAddress;
-    tri.vertexStride = 12;
-    tri.maxVertex = vertexCount - 1;
-    tri.indexType = VK_INDEX_TYPE_UINT32;
-    tri.indexData.deviceAddress = inputAddress + vertexBytes;
-
-    VkAccelerationStructureBuildGeometryInfoKHR build = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
-    build.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
-    build.flags = b.builds > 3 ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR :     // rebuilt often
-                                 VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-    build.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-    build.geometryCount = 1;
-    build.pGeometries = &geometry;
+    VkAccelerationStructureGeometryKHR geometry;
+    VkAccelerationStructureBuildGeometryInfoKHR build;
+    BlasGeometry(geometry, build, BufferAddress(input), vertexCount, alpha,
+                 VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
     VkAccelerationStructureBuildSizesInfoKHR sizes = { VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
     vkGetAccelerationStructureBuildSizesKHR(g_pvk->device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &build,
                                             &triangles, &sizes);
@@ -951,6 +1211,7 @@ static unsigned s_instanceCount, s_instanceCapacity;
 static int* s_hash;
 static unsigned s_hashSize;
 static unsigned s_frame = 1;
+static unsigned s_worldEyeFrame;
 
 static unsigned HashInstance(unsigned id, const int* key)
 {
@@ -1000,6 +1261,11 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
             if(!b.as && !b.mesh.buffer)
                 return;
         }
+        else if(UpdateSkin(b, positions, vertexCount, indices, count, strip, alphaTexture, alphaCompare, alphaRef))
+        {
+            b.version = version;
+            b.builds++;
+        }
         else
         {
             ReleaseBlas(b);
@@ -1010,8 +1276,8 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
             if(alphaTexture && slot < 0)
                 return;         // no mask: it would cast as a solid card
             if(mode == 1 ? !BuildMesh(b, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare, alphaRef) :
-                           !BuildBlas(b, *id, positions, uvs, vertexCount, indices, count, strip, slot, alphaCompare,
-                                      alphaRef))
+                           !BuildBlas(b, *id, positions, uvs, vertexCount, indices, count, strip, slot, alphaTexture,
+                                      alphaCompare, alphaRef))
                 return;
             if(s_logLevel >= 2 && b.builds == 1)
                 fprintf(stderr, "PDDI sun: caster %u = %s (%s), %.1f m, %u vertices, %u indices, %s\n", *id,
@@ -1054,8 +1320,13 @@ void pvkSunAddCaster(unsigned* id, unsigned version, const float* positions, con
     }
     if(b.attached)
         return;
-    memcpy(s_worldEye, s_eyeToWorld, sizeof(s_worldEye));
-    memcpy(s_worldProjection, s_viewProjection, sizeof(s_worldProjection));
+    // the frame's first: the world is drawn before the HUD (the radar's map, 150 m up, casts at the power plant)
+    if(s_worldEyeFrame != s_frame)
+    {
+        memcpy(s_worldEye, s_eyeToWorld, sizeof(s_worldEye));
+        memcpy(s_worldProjection, s_viewProjection, sizeof(s_worldProjection));
+        s_worldEyeFrame = s_frame;
+    }
     Instance in;
     memset(&in, 0, sizeof(in));
     in.id = *id;
@@ -1203,8 +1474,9 @@ static bool MakeScenes()
        !g_pvk->CreateBuffer((VkDeviceSize)kMaxMasks * kMaskSize * kMaskSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true,
                             &s_masks) ||
        !g_pvk->CreateBuffer((VkDeviceSize)kGeometryWords * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, &s_geometry) ||
-       !g_pvk->CreateBuffer((VkDeviceSize)kMapLevels * kMapSize * kMapSize * 4,
-                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, false, &s_mapBuffer))
+       !g_pvk->CreateBuffer(kMapBytes + (VkDeviceSize)kSkyCount * 8,
+                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                            VK_BUFFER_USAGE_TRANSFER_DST_BIT, false, &s_mapBuffer))
         return false;
     s_geometryFreeCount = 0;
     GeometryFree(0, kGeometryWords);
@@ -1255,16 +1527,20 @@ VkAccelerationStructureKHR pvkSunWorldScene()
     return draws && world.as ? world.as : draws;
 }
 
+// out is in the mapped instance buffer (uncached: the bitfields' read-modify-writes read it back): filled here, then
+// written in one copy
 static void FillInstance(VkAccelerationStructureInstanceKHR& out, const Instance& in)
 {
-    memcpy(out.transform.matrix, in.transform, sizeof(out.transform.matrix));
+    VkAccelerationStructureInstanceKHR local;
+    memcpy(local.transform.matrix, in.transform, sizeof(local.transform.matrix));
     const Blas& b = s_blas[in.id];
-    out.instanceCustomIndex = in.id;    // the caster table's row (alpha-tested), SHAR_SUN_DEBUG's colour
-    out.mask = in.keep ? 0x01 : 0x02;     // the world; lit things (cars), which lit draws' rays skip
-    out.instanceShaderBindingTableRecordOffset = 0;
-    out.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR |
-                (b.alpha ? 0 : VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR);
-    out.accelerationStructureReference = s_blas[in.id].address;
+    local.instanceCustomIndex = in.id;    // the caster table's row (alpha-tested), SHAR_SUN_DEBUG's colour
+    local.mask = in.keep ? 0x01 : 0x02;     // the world; lit things (cars), which lit draws' rays skip
+    local.instanceShaderBindingTableRecordOffset = 0;
+    local.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR |
+                  (b.alpha ? 0 : VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR);
+    local.accelerationStructureReference = b.address;
+    memcpy(&out, &local, sizeof(local));
 }
 
 //-----------------------------------------------------------------------------
@@ -1377,12 +1653,14 @@ struct BakePush
     float u[4], v[4], sun[4];
 };
 
-static bool MakeBake()
+// a compute program over the bake's bindings (the world's scene, the casters' table, masks, geometry, the map)
+static bool MakeCompute(const char* name, const char* source, unsigned pushBytes, VkPipelineLayout* layout,
+                        VkPipeline* pipeline)
 {
     unsigned* words = NULL;
     size_t count = 0;
     char* log = NULL;
-    bool ok = shar_spirv_compile("sun bake", 2, kBakeSource, &words, &count, &log) != 0;
+    bool ok = shar_spirv_compile(name, 2, source, &words, &count, &log) != 0;
     if(log)
         fprintf(stderr, "PDDI: %s\n", log);
     VkShaderModule module = ok ? pvkCreateShaderModule(words, count) : VK_NULL_HANDLE;
@@ -1390,20 +1668,25 @@ static bool MakeBake()
     shar_spirv_free(log);
     if(!module)
         return false;
-    VkDescriptorSetLayoutBinding bindings[5];
-    memset(bindings, 0, sizeof(bindings));
-    for(int i = 0; i < 5; i++)
+    ok = true;
+    if(!s_bakeSetLayout)
     {
-        bindings[i].binding = i;
-        bindings[i].descriptorType = i == 0 ? VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        bindings[i].descriptorCount = 1;
-        bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        VkDescriptorSetLayoutBinding bindings[5];
+        memset(bindings, 0, sizeof(bindings));
+        for(int i = 0; i < 5; i++)
+        {
+            bindings[i].binding = i;
+            bindings[i].descriptorType = i == 0 ? VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR : VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            bindings[i].descriptorCount = 1;
+            bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        }
+        VkDescriptorSetLayoutCreateInfo set = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+        set.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+        set.bindingCount = 5;
+        set.pBindings = bindings;
+        ok = vkCreateDescriptorSetLayout(g_pvk->device, &set, NULL, &s_bakeSetLayout) == VK_SUCCESS;
     }
-    VkDescriptorSetLayoutCreateInfo set = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-    set.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
-    set.bindingCount = 5;
-    set.pBindings = bindings;
-    VkPushConstantRange range = { VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(BakePush) };
+    VkPushConstantRange range = { VK_SHADER_STAGE_COMPUTE_BIT, 0, pushBytes };
     VkPipelineLayoutCreateInfo pl = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
     pl.setLayoutCount = 1;
     pl.pSetLayouts = &s_bakeSetLayout;
@@ -1414,12 +1697,16 @@ static bool MakeBake()
     info.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
     info.stage.module = module;
     info.stage.pName = "main";
-    ok = vkCreateDescriptorSetLayout(g_pvk->device, &set, NULL, &s_bakeSetLayout) == VK_SUCCESS &&
-         vkCreatePipelineLayout(g_pvk->device, &pl, NULL, &s_bakeLayout) == VK_SUCCESS;
-    info.layout = s_bakeLayout;
-    ok = ok && vkCreateComputePipelines(g_pvk->device, VK_NULL_HANDLE, 1, &info, NULL, &s_bakePipeline) == VK_SUCCESS;
+    ok = ok && vkCreatePipelineLayout(g_pvk->device, &pl, NULL, layout) == VK_SUCCESS;
+    info.layout = *layout;
+    ok = ok && vkCreateComputePipelines(g_pvk->device, g_pvk->pipelineCache, 1, &info, NULL, pipeline) == VK_SUCCESS;
     vkDestroyShaderModule(g_pvk->device, module, NULL);
     return ok;
+}
+
+static bool MakeBake()
+{
+    return MakeCompute("sun bake", kBakeSource, sizeof(BakePush), &s_bakeLayout, &s_bakePipeline);
 }
 
 static bool BakeReady()
@@ -1431,6 +1718,117 @@ static bool BakeReady()
             fprintf(stderr, "PDDI: cannot make the sun's bake: every shadow ray traced per pixel\n");
     }
     return s_bakePipeline != VK_NULL_HANDLE;
+}
+
+static bool Baking();
+
+static const char* const kSkySource =
+    "#version 460\n"
+    "#extension GL_EXT_ray_query : require\n"
+    "// the sky grid (vksun.cpp): per cell, the share of rays over the upper hemisphere (even in solid angle) from its\n"
+    "// centre that leave the static world; hits nearer than the cell (the ground or a wall through it) ignored. Every\n"
+    "// slot is looked at: traced when it holds another cell (the window moved), or in this frame's refresh slice\n"
+    "layout(local_size_x = 64) in;\n"
+    "layout(binding = 0) uniform accelerationStructureEXT world;\n"
+    "layout(std430, binding = 1) readonly buffer SunCasters { uvec4 sunCaster[]; };\n"
+    "layout(std430, binding = 2) readonly buffer SunMasks { uint sunMask[]; };\n"
+    "layout(std430, binding = 3) readonly buffer SunGeometry { uint sunGeometry[]; };\n"
+    "layout(std430, binding = 4) buffer SunMap { float sunMap[]; };\n"
+    "layout(push_constant) uniform Sky\n"
+    "{\n"
+    "    ivec4 window;       // the grid's first cell (x, y, z); w: the refresh slice's first slot\n"
+    "    ivec4 count;        // x: the slice's slots, y: rays per cell\n"
+    "    vec4 size;          // x: cell (m), y: hits ignored nearer, z: the rays' length\n"
+    "} sky;\n"
+    "const ivec3 kCells = ivec3(128, 32, 128);\n"
+    "const uint kBase = 16777216u;   // floats: after the map's 4 levels of 2048^2\n"
+    "vec2 SunUV(uint base, uint vertex)\n"
+    "{\n"
+    "    return vec2(uintBitsToFloat(sunGeometry[base + vertex * 2u]), uintBitsToFloat(sunGeometry[base + vertex * 2u + 1u]));\n"
+    "}\n"
+    "bool SunOpaque(int caster, int primitive, vec2 b)\n"
+    "{\n"
+    "    uvec4 c = sunCaster[caster];\n"
+    "    uint t = c.y + uint(primitive) * 3u;\n"
+    "    vec2 uv = SunUV(c.x, sunGeometry[t]) * (1.0 - b.x - b.y) + SunUV(c.x, sunGeometry[t + 1u]) * b.x +\n"
+    "              SunUV(c.x, sunGeometry[t + 2u]) * b.y;\n"
+    "    uvec2 texel = uvec2(ivec2(floor(fract(uv) * 64.0)) & 63);\n"
+    "    uint i = (c.z & 0xffffu) * 4096u + texel.y * 64u + texel.x;\n"
+    "    float alpha = float((sunMask[i >> 2] >> ((i & 3u) * 8u)) & 255u) / 255.0;\n"
+    "    float ref = uintBitsToFloat(c.w);\n"
+    "    return (c.z >> 16) == 4u ? alpha > ref : alpha >= ref;\n"
+    "}\n"
+    "void main()\n"
+    "{\n"
+    "    uint slot = gl_GlobalInvocationID.x;\n"
+    "    uint total = uint(kCells.x * kCells.y * kCells.z);\n"
+    "    if(slot >= total)\n"
+    "        return;\n"
+    "    ivec3 s = ivec3(slot % 128u, (slot / 128u) % 32u, slot / 4096u);\n"
+    "    ivec3 c = sky.window.xyz + ((s - sky.window.xyz) & (kCells - 1));   // the window's cell in this slot\n"
+    "    // which cell it holds (the slot is shared by cells 128 or 32 apart): exact as a float\n"
+    "    float key = float(1 + (c.x & 255) + (c.y & 255) * 256 + (c.z & 255) * 65536);\n"
+    "    if(sunMap[kBase + slot * 2u + 1u] == key && (slot - uint(sky.window.w)) % total >= uint(sky.count.x))\n"
+    "        return;\n"
+    "    vec3 origin = (vec3(c) + 0.5) * sky.size.x;\n"
+    "    int rays = sky.count.y, open = 0;\n"
+    "    float turn = 6.2831853 * fract(float(c.x * 73 + c.y * 151 + c.z * 311) * 0.6180340);\n"
+    "    for(int r = 0; r < rays; r++)\n"
+    "    {\n"
+    "        float up = (float(r) + 0.5) / float(rays);\n"
+    "        float out_ = sqrt(1.0 - up * up);\n"
+    "        float a = float(r) * 2.3999632 + turn;\n"
+    "        vec3 d = vec3(out_ * cos(a), up, out_ * sin(a));\n"
+    "        rayQueryEXT q;\n"
+    "        rayQueryInitializeEXT(q, world, gl_RayFlagsTerminateOnFirstHitEXT, 0xff, origin, sky.size.y, d, sky.size.z);\n"
+    "        while(rayQueryProceedEXT(q))\n"
+    "        {\n"
+    "            if(SunOpaque(rayQueryGetIntersectionInstanceCustomIndexEXT(q, false),\n"
+    "                         rayQueryGetIntersectionPrimitiveIndexEXT(q, false),\n"
+    "                         rayQueryGetIntersectionBarycentricsEXT(q, false)))\n"
+    "                rayQueryConfirmIntersectionEXT(q);\n"
+    "        }\n"
+    "        open += int(rayQueryGetIntersectionTypeEXT(q, true) == gl_RayQueryCommittedIntersectionNoneEXT);\n"
+    "    }\n"
+    "    sunMap[kBase + slot * 2u] = float(open) / float(rays);\n"
+    "    sunMap[kBase + slot * 2u + 1u] = key;\n"
+    "}\n";
+
+struct SkyPush
+{
+    int window[4];
+    int count[4];
+    float size[4];
+};
+
+static VkPipelineLayout s_skyLayout;
+static VkPipeline s_skyPipeline;
+static bool s_skyFailed;
+static bool s_skyCleared;       // the grid's keys zeroed (none held) once made
+static unsigned s_skyCursor;    // the next slot to bake
+static unsigned s_coverKnownCount;    // pvkSunCover's answers held (SkyBake's)
+
+static bool SkyReady()
+{
+    if(s_skyGrid[0] <= 0.0f)
+        return false;
+    if(!s_skyPipeline && !s_skyFailed)
+    {
+        s_skyFailed = !MakeCompute("sun sky", kSkySource, sizeof(SkyPush), &s_skyLayout, &s_skyPipeline);
+        if(s_skyFailed)
+            fprintf(stderr, "PDDI: cannot make the sun's sky grid: shadows under cover as in the open\n");
+        s_version++;
+    }
+    return s_skyPipeline != VK_NULL_HANDLE;
+}
+
+void pvkSunSky(float* sky)
+{
+    bool on = Mode() == 2 && Baking() && s_skyPipeline;
+    sky[0] = on ? s_skyGrid[0] : 0.0f;
+    sky[1] = s_skyGrid[1];
+    sky[2] = s_skyGrid[2];
+    sky[3] = s_skyGrid[3];
 }
 
 static bool Baking()
@@ -1478,6 +1876,8 @@ static void MapReset()
     memset(s_map, 0, sizeof(s_map));
     s_dirtyTiles = 0;
     s_bakedTicket = s_ticket;
+    s_skyCleared = false;   // (a level started: the last one's cells)
+    s_coverKnownCount = 0;
     s_version++;
 }
 
@@ -1696,7 +2096,7 @@ static bool MakeRasterPipeline(bool alpha, VkPipeline* out)
     info.pColorBlendState = &cb;
     info.pDynamicState = &dy;
     info.layout = s_rasterLayout;
-    ok = ok && vkCreateGraphicsPipelines(g_pvk->device, VK_NULL_HANDLE, 1, &info, NULL, out) == VK_SUCCESS;
+    ok = ok && vkCreateGraphicsPipelines(g_pvk->device, g_pvk->pipelineCache, 1, &info, NULL, out) == VK_SUCCESS;
     if(vertex)
         vkDestroyShaderModule(g_pvk->device, vertex, NULL);
     if(fragment)
@@ -1735,7 +2135,7 @@ static bool MakeRaster()
     info.stage.module = copy;
     info.stage.pName = "main";
     info.layout = s_copyLayout;
-    bool ok = vkCreateComputePipelines(g_pvk->device, VK_NULL_HANDLE, 1, &info, NULL, &s_copyPipeline) == VK_SUCCESS;
+    bool ok = vkCreateComputePipelines(g_pvk->device, g_pvk->pipelineCache, 1, &info, NULL, &s_copyPipeline) == VK_SUCCESS;
     vkDestroyShaderModule(g_pvk->device, copy, NULL);
     return ok;
 }
@@ -2008,7 +2408,8 @@ static unsigned BakeRows(VkCommandBuffer cmd, int level, MapRect& r, unsigned bu
     return (unsigned)(across * rows);
 }
 
-static void BindBake(VkCommandBuffer cmd, VkAccelerationStructureKHR world, const VkDescriptorBufferInfo* buffers)
+static void BindBake(VkCommandBuffer cmd, VkAccelerationStructureKHR world, const VkDescriptorBufferInfo* buffers,
+                     VkPipeline pipeline, VkPipelineLayout layout)
 {
     VkWriteDescriptorSetAccelerationStructureKHR sceneInfo = { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
     sceneInfo.accelerationStructureCount = 1;
@@ -2026,8 +2427,8 @@ static void BindBake(VkCommandBuffer cmd, VkAccelerationStructureKHR world, cons
         else
             writes[i].pBufferInfo = &buffers[i - 1];
     }
-    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, s_bakePipeline);
-    vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, s_bakeLayout, 0, 5, writes);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
+    vkCmdPushDescriptorSetKHR(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, layout, 0, 5, writes);
 }
 
 // world: the static world's scene (rays); VK_NULL_HANDLE: low (rasterised)
@@ -2037,7 +2438,7 @@ static void Bake(VkCommandBuffer cmd, VkAccelerationStructureKHR world)
     if(!pvkSunBuffers(buffers))
         return;
     if(world)
-        BindBake(cmd, world, buffers);
+        BindBake(cmd, world, buffers, s_bakePipeline, s_bakeLayout);
     else
     {
         // the map's texels free of the draws of frames before (still running)
@@ -2110,6 +2511,173 @@ static void Bake(VkCommandBuffer cmd, VkAccelerationStructureKHR world)
     }
     if(!s_dirtyTiles)
         s_bakedTicket = s_ticket;
+}
+
+// the next s_skyBudget slots of the sky grid round the camera, through the static world's scene (built)
+static void SkyBake(VkCommandBuffer cmd, VkAccelerationStructureKHR world)
+{
+    VkDescriptorBufferInfo buffers[4];
+    if(!pvkSunBuffers(buffers))
+        return;
+    if(!s_skyCleared)
+    {
+        vkCmdFillBuffer(cmd, s_mapBuffer.buffer, kMapBytes, (VkDeviceSize)kSkyCount * 8, 0);
+        VkMemoryBarrier2 b = { VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
+        b.srcStageMask = VK_PIPELINE_STAGE_2_CLEAR_BIT;
+        b.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+        b.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+        b.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+        VkDependencyInfo dep = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+        dep.memoryBarrierCount = 1;
+        dep.pMemoryBarriers = &b;
+        vkCmdPipelineBarrier2(cmd, &dep);
+        s_skyCleared = true;
+    }
+    BindBake(cmd, world, buffers, s_skyPipeline, s_skyLayout);
+    SkyPush pc;
+    for(int k = 0; k < 3; k++)
+        pc.window[k] = (int)floorf(s_worldEye[12 + k] / s_skyGrid[0]) - kSkyCells[k] / 2;
+    pc.window[3] = (int)s_skyCursor;
+    pc.count[0] = (int)s_skyBudget;
+    pc.count[1] = s_skyRays;
+    pc.count[2] = pc.count[3] = 0;
+    pc.size[0] = s_skyGrid[0];
+    pc.size[1] = 0.75f * s_skyGrid[0];
+    pc.size[2] = s_skyReach;
+    pc.size[3] = 0.0f;
+    vkCmdPushConstants(cmd, s_skyLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pc), &pc);
+    vkCmdDispatch(cmd, kSkyCount / 64, 1, 1);
+    s_skyCursor = (s_skyCursor + s_skyBudget) % kSkyCount;
+}
+
+// the game's blobs under cover (pvkSunCover): the grid's 8 cells round each place asked about this frame, copied back
+// with the frame; answered from the frame in flight's copy when it comes round again
+static const unsigned kCoverAsks = 128;
+static const float kCoverMatch = 3.0f;              // an answer's place to the asker's (m): it moved since
+static float s_coverAsk[kCoverAsks][3];             // this frame's
+static unsigned s_coverAskCount;
+static float s_coverAsked[pvkFrames][kCoverAsks][3];    // copied in each frame in flight
+static unsigned s_coverAskedCount[pvkFrames];
+static pvkBuffer s_coverReadback[pvkFrames];
+static float s_coverKnown[kCoverAsks][4];           // the latest answers: the place, its cover
+
+static bool SkyOn()
+{
+    return Mode() == 2 && Baking() && s_skyPipeline && s_skyGrid[0] > 0.0f;
+}
+
+// the cells round p that the draws' SunSkyOpen reads (n up, from 0.5 cell above the ground)
+static void CoverCells(const float* p, int c0[3], float f[3])
+{
+    for(int k = 0; k < 3; k++)
+    {
+        float g = (p[k] + (k == 1 ? 0.5f * s_skyGrid[0] : 0.0f)) / s_skyGrid[0] - 0.5f;
+        c0[k] = (int)floorf(g);
+        f[k] = g - (float)c0[k];
+    }
+}
+
+static unsigned CoverSlot(int x, int y, int z)
+{
+    return (unsigned)(((z & 127) * 32 + (y & 31)) * 128 + (x & 127));
+}
+
+// this frame's asks, the cells copied after the grid's bake
+static void CoverCopy(VkCommandBuffer cmd, unsigned f)
+{
+    s_coverAskedCount[f] = 0;
+    if(!s_coverAskCount)
+        return;
+    if(!s_coverReadback[f].buffer &&
+       !g_pvk->CreateBuffer((VkDeviceSize)kCoverAsks * 64, VK_BUFFER_USAGE_TRANSFER_DST_BIT, true, &s_coverReadback[f]))
+        return;
+    static VkBufferCopy regions[kCoverAsks * 8];
+    for(unsigned q = 0; q < s_coverAskCount; q++)
+    {
+        int c0[3];
+        float t[3];
+        CoverCells(s_coverAsk[q], c0, t);
+        for(int k = 0; k < 8; k++)
+        {
+            VkBufferCopy& r = regions[q * 8 + k];
+            r.srcOffset = kMapBytes + (VkDeviceSize)CoverSlot(c0[0] + (k & 1), c0[1] + ((k >> 1) & 1), c0[2] + (k >> 2)) * 8;
+            r.dstOffset = (VkDeviceSize)(q * 8 + k) * 8;
+            r.size = 8;
+        }
+    }
+    VkMemoryBarrier2 b = { VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
+    b.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+    b.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+    b.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+    b.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+    VkDependencyInfo dep = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    dep.memoryBarrierCount = 1;
+    dep.pMemoryBarriers = &b;
+    vkCmdPipelineBarrier2(cmd, &dep);
+    vkCmdCopyBuffer(cmd, s_mapBuffer.buffer, s_coverReadback[f].buffer, s_coverAskCount * 8, regions);
+    memcpy(s_coverAsked[f], s_coverAsk, s_coverAskCount * sizeof(s_coverAsk[0]));
+    s_coverAskedCount[f] = s_coverAskCount;
+}
+
+// the frame in flight's copy (its fence waited) as answers, weighed as SunSkyOpen and SunShade do
+static void CoverRead(unsigned f)
+{
+    if(!s_coverAskedCount[f])
+        return;
+    const float* cells = (const float*)s_coverReadback[f].memory.mapped;
+    float size = s_skyGrid[0];
+    s_coverKnownCount = s_coverAskedCount[f];
+    for(unsigned q = 0; q < s_coverKnownCount; q++)
+    {
+        const float* p = s_coverAsked[f][q];
+        int c0[3];
+        float t[3];
+        CoverCells(p, c0, t);
+        float sum = 0.0f, weight = 0.0f;
+        for(int k = 0; k < 8; k++)
+        {
+            int o[3] = { k & 1, (k >> 1) & 1, k >> 2 };
+            int c[3] = { c0[0] + o[0], c0[1] + o[1], c0[2] + o[2] };
+            if(((float)c[1] + 0.5f) * size - p[1] <= 0.0f)
+                continue;       // under the ground
+            const float* cell = cells + (q * 8 + k) * 2;
+            if(cell[1] != (float)(1 + (c[0] & 255) + (c[1] & 255) * 256 + (c[2] & 255) * 65536))
+                continue;
+            float w = (o[0] ? t[0] : 1.0f - t[0]) * (o[1] ? t[1] : 1.0f - t[1]) * (o[2] ? t[2] : 1.0f - t[2]);
+            sum += w * cell[0];
+            weight += w;
+        }
+        float cover = 0.0f;     // (not baked: the draws shade as in the open)
+        if(weight > 0.0f)
+        {
+            float x = (sum / weight - s_skyGrid[1]) / (s_skyGrid[2] - s_skyGrid[1]);
+            x = x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x;
+            cover = 1.0f - x * x * (3.0f - 2.0f * x);   // SunShade's share of the shade, the other way round
+        }
+        memcpy(s_coverKnown[q], p, sizeof(s_coverAsk[0]));
+        s_coverKnown[q][3] = cover;
+    }
+    s_coverAskedCount[f] = 0;
+}
+
+float pvkSunCover(const float* p)
+{
+    if(!SkyOn())
+        return 0.0f;
+    if(s_coverAskCount < kCoverAsks)
+        memcpy(s_coverAsk[s_coverAskCount++], p, sizeof(s_coverAsk[0]));
+    float best = kCoverMatch * kCoverMatch, cover = 0.0f;
+    for(unsigned i = 0; i < s_coverKnownCount; i++)
+    {
+        const float* k = s_coverKnown[i];
+        float d = (k[0] - p[0]) * (k[0] - p[0]) + (k[1] - p[1]) * (k[1] - p[1]) + (k[2] - p[2]) * (k[2] - p[2]);
+        if(d < best)
+        {
+            best = d;
+            cover = k[3];
+        }
+    }
+    return cover;
 }
 
 // a baked caster that should be drawn (near, in view): not drawn for kMissingFrames, it has gone (knocked down)
@@ -2189,6 +2757,7 @@ void pvkSunEndFrame()
         {
             ReleaseBlas(s_blas[i]);
             s_blas[i].live = false;
+            s_blas[i].builds = 0;   // (made again, not rebuilt: else the world's casters count as animated)
         }
         s_instanceCount = 0;
         RebuildHash();
@@ -2311,6 +2880,9 @@ void pvkSunEndFrame()
     }
     s_bestLight = 0.0f;
 
+    CoverRead((unsigned)(g_pvk->FrameSerial() % pvkFrames));
+    if(!SkyOn())
+        s_coverKnownCount = 0;
     if(sc)
     {
         VkCommandBuffer cmd = g_pvk->UploadCmd();
@@ -2328,15 +2900,25 @@ void pvkSunEndFrame()
         // the world's every frame (the draws trace it where the map cannot draw an edge; empty when not baking)
         if(sc->world.as)
             BuildTlas(cmd, sc->world, worldUsed);
-        if(bake && !low)
+        bool sky = baking && !low && sc->world.as && SkyReady();
+        if((bake && !low) || sky)
         {
-            // the world's scene built; the map's texels free of the draws of frames before (still running)
-            b.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-            b.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+            // the world's scene built; the map's texels free of the draws of frames before (still running); the sky
+            // grid's earlier bakes written (it reads their keys)
+            b.srcStageMask = VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT |
+                             VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+            b.srcAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
             b.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-            b.dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+            b.dstAccessMask = VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR | VK_ACCESS_2_SHADER_STORAGE_READ_BIT |
+                              VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
             vkCmdPipelineBarrier2(cmd, &dep);
-            Bake(cmd, sc->world.as);
+            if(bake && !low)
+                Bake(cmd, sc->world.as);
+            if(sky)
+            {
+                SkyBake(cmd, sc->world.as);
+                CoverCopy(cmd, (unsigned)(g_pvk->FrameSerial() % pvkFrames));
+            }
         }
         // (pvkCore::Present's barrier after the uploads makes them visible to the draws)
     }
@@ -2365,6 +2947,7 @@ void pvkSunEndFrame()
         }
     }
     s_buildsThisFrame = 0;
+    s_coverAskCount = 0;
     s_frame++;
 }
 
@@ -2374,6 +2957,7 @@ void pvkSunShutdown()
         return;
     for(unsigned i = 1; i <= s_blasCount; i++)
     {
+        FreeSkin(s_blas[i], true);
         if(s_blas[i].as)
             vkDestroyAccelerationStructureKHR(g_pvk->device, s_blas[i].as, NULL);
         g_pvk->DestroyNow(s_blas[i].storage);
@@ -2397,12 +2981,26 @@ void pvkSunShutdown()
     }
     s_scenesMade = false;
     g_pvk->DestroyNow(s_mapBuffer);
+    for(int f = 0; f < pvkFrames; f++)
+    {
+        g_pvk->DestroyNow(s_coverReadback[f]);
+        s_coverAskedCount[f] = 0;
+    }
+    s_coverKnownCount = 0;
     if(s_bakePipeline)
         vkDestroyPipeline(g_pvk->device, s_bakePipeline, NULL);
     if(s_bakeLayout)
         vkDestroyPipelineLayout(g_pvk->device, s_bakeLayout, NULL);
     if(s_bakeSetLayout)
         vkDestroyDescriptorSetLayout(g_pvk->device, s_bakeSetLayout, NULL);
+    if(s_skyPipeline)
+        vkDestroyPipeline(g_pvk->device, s_skyPipeline, NULL);
+    if(s_skyLayout)
+        vkDestroyPipelineLayout(g_pvk->device, s_skyLayout, NULL);
+    s_skyPipeline = VK_NULL_HANDLE;
+    s_skyLayout = VK_NULL_HANDLE;
+    s_skyFailed = false;
+    s_skyCleared = false;
     s_bakePipeline = VK_NULL_HANDLE;
     s_bakeLayout = VK_NULL_HANDLE;
     s_bakeSetLayout = VK_NULL_HANDLE;

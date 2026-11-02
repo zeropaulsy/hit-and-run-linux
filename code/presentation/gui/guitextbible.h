@@ -68,7 +68,12 @@ public:
 
     // get/set current locale language
     //
+#ifdef RAD_LINUX
+    // Linux port: dialogue = false keeps the dialogue cement file (the developer console's lang, mid-level)
+    static void SetCurrentLanguage( const Scrooby::XLLanguage language, bool dialogue = true );
+#else
     static void SetCurrentLanguage( const Scrooby::XLLanguage language );
+#endif
     static Scrooby::XLLanguage GetCurrentLanguage();
     static bool IsTextBibleLoaded();
 
