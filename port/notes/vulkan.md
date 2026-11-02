@@ -72,7 +72,7 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
 
 
 ## Sun prototype (`vksun.cpp`)
-- Off by default: Options > Graphics Shadows Off/Low/High (ini `shadows=off|low|high`, old `yes` = high), F9 cycles
+- Low by default (no `shadows=` in the ini): Options > Graphics Shadows Off/Low/High (ini `shadows=off|low|high`, old `yes` = high), F9 cycles
   (saved like the menu). Device made with ray queries + buffer device address where it has them, unless `SHAR_SUN=0`
   (so the menu applies at once) or `SHAR_SUN_RT=0` (Low only, as an iGPU: tests the no-ray-query programs on an RTX).
   `SHAR_SUN=1` forces High, `SHAR_SUN=low` Low. High without ray queries runs Low. `SHAR_SUN=0`: programs and layout

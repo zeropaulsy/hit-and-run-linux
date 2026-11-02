@@ -35,8 +35,9 @@ static const VkDeviceSize kMapBytes = (VkDeviceSize)kMapLevels * kMapSize * kMap
 
 static int s_wanted = -1;
 static bool s_wantRays = true;     // SHAR_SUN_RT=0: the device made without ray queries (Low only, as on an iGPU)
-static int s_quality = 0;          // Options > Graphics Shadows (simpsons.ini shadows=), F9, SHAR_SUN=1/low: 0 off,
-                                   // 1 low (the map rasterised), 2 high (ray traced; low without ray queries)
+static int s_quality = 1;          // Options > Graphics Shadows (simpsons.ini shadows=; low by default), F9,
+                                   // SHAR_SUN=0/1/low: 0 off, 1 low (the map rasterised), 2 high (ray traced; low
+                                   // without ray queries)
 static bool s_suppressed = false;  // the game's: no sun here (interiors, the front end; pvkSunSetSuppressed)
 static int s_casterMode = 0;       // what the casters were built for (1 meshes, 2 acceleration structures)
 static float s_eyeToWorld[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
@@ -129,6 +130,8 @@ bool pvkSunWanted()
             s_quality = 2;
         else if(e && e[0] == 'l')
             s_quality = 1;
+        else if(e)
+            s_quality = 0;
         const char* rt = getenv("SHAR_SUN_RT");
         s_wantRays = !(rt && rt[0] == '0');
         s_levels[0] = EnvFloat("SHAR_SUN_SHADOW", s_levels[0]);
