@@ -2,8 +2,8 @@
 
 <img width="4476" height="1091" alt="Screenshot From 2026-10-23 20-03-31" src="https://github.com/user-attachments/assets/3def41df-9d76-474a-90c8-9d84a62eb772" />
 
-A Linux 64-Bit build of The Simpsons Hit & Run (2003) using SDL2 and OpenGL 3.3, or the new Vulkan 1.3 renderer.
-It runs on X11 and Wayland, with widescreen & ultrawide, high resolutions, anti-aliasing, anisotropic filtering,
+A Linux 64-Bit build of The Simpsons Hit & Run (2003) using SDL2 and Vulkan 1.3, with OpenGL 3.3 as a fallback. It
+runs on X11 and Wayland, with widescreen & ultrawide, high resolutions, anti-aliasing, anisotropic filtering,
 controllers, dynamic sun shadows and optional post-processing shaders.
 
 **Bring your own game.** This release has no game data. You need your own copy of the PC game, installed or copied
@@ -14,7 +14,7 @@ from the disc: the folder holding `art/`, `scripts/` and the `.rcf` files.
 
 | Original (2003) | This project |
 |---|---|
-| Direct3D 8, fixed-function | OpenGL 3.3 core (default) or Vulkan 1.3, shaders matching Direct3D 8's output |
+| Direct3D 8, fixed-function | Vulkan 1.3 (default) or OpenGL 3.3 core, shaders matching Direct3D 8's output |
 | Blob shadows under characters, cars and props | Dynamic sun shadows (Vulkan): ray traced on RTX-class GPUs, shadow map on any other |
 | DirectInput | SDL2: keyboard, mouse, any modern gamepad, rumble |
 | DirectSound + EAX hardware reverb | Software 3D mixer with EAX-style reverb in software |
@@ -24,9 +24,9 @@ from the disc: the folder holding `art/`, `scripts/` and the `.rcf` files.
 
 ## Requirements
 
-A 64-bit (x86-64) Linux as new as Ubuntu 24.04 / Linux Mint 22 (glibc 2.38 or newer), and a GPU driver with OpenGL
-3.3. The Vulkan renderer (optional) needs Vulkan 1.3 (NVIDIA, or Mesa for AMD / Intel); its High shadows need a GPU
-with ray tracing (`VK_KHR_ray_query`), and without it they run as Low. The graphics driver and X11 / Wayland libraries
+A 64-bit (x86-64) Linux as new as Ubuntu 24.04 / Linux Mint 22 (glibc 2.38 or newer), and a GPU driver with Vulkan
+1.3 (NVIDIA, or Mesa for AMD / Intel). Without Vulkan the game starts on OpenGL 3.3 instead. High shadows need a GPU
+with ray tracing (`VK_KHR_ray_query`); without it they run as Low. The graphics driver and X11 / Wayland libraries
 come from your system; everything else is included.
 
 ## Quick start
@@ -55,12 +55,12 @@ Options > Graphics (front end or pause menu) holds the port's own settings, save
 
 | Setting | Values | ini key |
 |---|---|---|
-| Renderer | OpenGL (default), Vulkan; takes effect at the next start | `renderer=vulkan\|opengl` |
+| Renderer | Vulkan (default), OpenGL; takes effect at the next start | `renderer=vulkan\|opengl` |
 | Anti-aliasing | Off, 2x, 4x (default), 8x | `antialiasing=` |
 | Shaders | The post-processing and material shaders in `shaders/` on or off | `shaders=` |
-| Shadows | Off (default), Low, High; Vulkan only | `shadows=off\|low\|high` |
+| Shadows | Off, Low (default), High; Vulkan only | `shadows=off\|low\|high` |
 
-**Sun shadows** (switch the renderer to Vulkan, then pick Low or High) come from the sun (or moon) painted in each level's sky, so they fall the way the sky suggests; the
+**Sun shadows** come from the sun (or moon) painted in each level's sky, so they fall the way the sky suggests; the
 light warms as the sun gets low and turns moon-blue on the night levels. Everything casts: buildings, trees and
 fences through their cut-out textures, cars, and characters, which also darken as they walk into shade. With the
 sun on, the game's blob shadows and the trees' painted shadows are not drawn; interiors and the front end keep the
@@ -68,11 +68,13 @@ original look.
 
 - **Low** bakes the world's shadow into a map and works on any Vulkan GPU. Cars and characters keep the game's blob
   shadows. Costs about half a millisecond a frame on an RTX 5060.
-- **High** ray traces cars and characters into the sun's shadow (no blobs) and refines every shadow edge with rays.
-  Several milliseconds a frame on an RTX 5060 at 2560x1600 with 8x MSAA.
+- **High** ray traces cars and characters into the sun's shadow (no blobs), refines every shadow edge with rays,
+  and takes the sun off places under cover (tunnels, the power plant). About 5 ms a frame on an RTX 5060 at 2560x1600
+  with 8x MSAA.
 - **F9** cycles Off, Low and High in game, the easiest way to compare them.
 
-The OpenGL renderer has no sun shadows: it draws the original blob shadows.
+The OpenGL renderer has no sun shadows: it draws the original blob shadows. Compiled Vulkan pipelines are kept in
+`run/vkpipelines.cache`, so later starts don't pause to build them.
 ## Building from source
 
 ### 64-bit build (the default):
@@ -135,6 +137,7 @@ generated file.
 | `SHAR_SUN=0\|low\|1` | Sun shadows off, Low or High, overriding `simpsons.ini` (0 also skips the ray-tracing setup) |
 | `SHAR_SUN_SOFT`, `SHAR_SUN_RAYS`, `SHAR_SUN_SHADOW`, `SHAR_SUN_ELEVATION`, ... | Sun tuning: edge softness, rays, shade brightness, sun height (all listed in `port/notes/vulkan.md`) |
 | `SHAR_VK_DEBUG=1`, `SHAR_VK_DEVICE=n` | Vulkan validation layers; pick the n-th GPU |
+| `SHAR_VK_PIPELINE_CACHE=0` | Don't read or write `vkpipelines.cache` |
 | `SHAR_GL_DEBUG=1`, `SHAR_GL_STATS=1` | OpenGL debug messages; per-frame draw/upload counts and render times (both renderers) |
 
 `port/run.sh [seconds] [args]` rebuilds and runs the game under gdb, printing a backtrace on a crash.
@@ -196,7 +199,7 @@ misbehaves, report the mod's name and version along with `run/logs/last-session.
 |---|---|
 | Linux x86-64 (default) | **Main and side missions fully playtested.** Game completed to 100%: all story missions, bonus missions, street races, collector cards and cosmetics. |
 | Linux x86 (32-bit, legacy) | **Playable.** Tested through Level 1 - 7 |
-| Vulkan renderer | **Optional** (`renderer=vulkan`). Tested on NVIDIA; Mesa (AMD / Intel) not yet. OpenGL is the default and fallback |
+| Vulkan renderer | **Default.** Tested on NVIDIA and Mesa's software driver (lavapipe); AMD / Intel hardware not yet. OpenGL is the fallback |
 | Windows x64 | Planned |
 | macOS (Apple silicon / Intel) | Planned |
 | Android / handhelds | Possible later: the renderer and input layers already allow it |

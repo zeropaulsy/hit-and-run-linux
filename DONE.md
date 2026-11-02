@@ -41,7 +41,7 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 - [x] Mipmaps with up to 16x anisotropic filtering
 - [x] User post-processing shaders (ambient occlusion, bloom, colour grading, tone mapping, CRT, ...)
 - [x] User material shaders (toon shading, car paint, ...), by material type, file or name; mods can ship them
-- [x] **Vulkan 1.3 renderer** (`renderer=vulkan`, Options > Graphics) beside GL, GL kept as default and fallback;
+- [x] **Vulkan 1.3 renderer** (`renderer=vulkan`, Options > Graphics), the default, GL kept as fallback;
   sun shadows (ray-traced, or Low without ray tracing)
 
 ### Display
