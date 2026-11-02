@@ -1252,15 +1252,22 @@ int GeometryVehicle::CastsShadow()
 }
 #ifdef RAD_LINUX
 bool pvkSunRaysOn();    // pddi/vk/vksun.cpp: the sun's ray-traced shadows (Shadows High; low keeps the blobs)
+float pvkSunCover( const float* p );    // pddi/vk/vksun.cpp: how covered the ground at p is (high: 1 no sun shade)
 #endif
 
 //------------------------------------------------------------------------
 void GeometryVehicle::DisplayShadow( BlobShadowParams* BlobParams )
 {
 #ifdef RAD_LINUX
+    float sunCover = 1.0f;
     if( pvkSunRaysOn() && ::GetGameplayManager()->GetGameType() != GameplayManager::GT_SUPERSPRINT )
     {
-        return; // Linux port: the sun's shadows replace the blob
+        // Linux port: the sun's shadows replace the blob, but not under cover (the sun's shade is off there)
+        sunCover = pvkSunCover( &BlobParams->GroundPos.x );
+        if( sunCover < 0.02f )
+        {
+            return;
+        }
     }
 #endif
     BEGIN_PROFILE("GeometryVehicle::DisplayShadow")
@@ -1325,6 +1332,9 @@ void GeometryVehicle::DisplayShadow( BlobShadowParams* BlobParams )
 		float distanceAlpha = rmt::Clamp((camPos.Magnitude() - 10.0f) * 0.05f, 0.0f, 1.0f);
 
         fadeFactor *= 1.0f - distanceAlpha;
+#ifdef RAD_LINUX
+        fadeFactor = 1.0f - ( 1.0f - fadeFactor ) * sunCover;
+#endif
 
         int c = rmt::Clamp( int( Inside + ( 255 - Inside ) * fadeFactor ), 0, 255 );
         if( c == 255)

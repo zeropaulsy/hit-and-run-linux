@@ -1472,7 +1472,8 @@ static bool MakeScenes()
                             &s_masks) ||
        !g_pvk->CreateBuffer((VkDeviceSize)kGeometryWords * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true, &s_geometry) ||
        !g_pvk->CreateBuffer(kMapBytes + (VkDeviceSize)kSkyCount * 8,
-                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, false, &s_mapBuffer))
+                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                            VK_BUFFER_USAGE_TRANSFER_DST_BIT, false, &s_mapBuffer))
         return false;
     s_geometryFreeCount = 0;
     GeometryFree(0, kGeometryWords);
@@ -1802,6 +1803,7 @@ static VkPipeline s_skyPipeline;
 static bool s_skyFailed;
 static bool s_skyCleared;       // the grid's keys zeroed (none held) once made
 static unsigned s_skyCursor;    // the next slot to bake
+static unsigned s_coverKnownCount;    // pvkSunCover's answers held (SkyBake's)
 
 static bool SkyReady()
 {
@@ -1872,6 +1874,7 @@ static void MapReset()
     s_dirtyTiles = 0;
     s_bakedTicket = s_ticket;
     s_skyCleared = false;   // (a level started: the last one's cells)
+    s_coverKnownCount = 0;
     s_version++;
 }
 
@@ -2544,6 +2547,136 @@ static void SkyBake(VkCommandBuffer cmd, VkAccelerationStructureKHR world)
     s_skyCursor = (s_skyCursor + s_skyBudget) % kSkyCount;
 }
 
+// the game's blobs under cover (pvkSunCover): the grid's 8 cells round each place asked about this frame, copied back
+// with the frame; answered from the frame in flight's copy when it comes round again
+static const unsigned kCoverAsks = 128;
+static const float kCoverMatch = 3.0f;              // an answer's place to the asker's (m): it moved since
+static float s_coverAsk[kCoverAsks][3];             // this frame's
+static unsigned s_coverAskCount;
+static float s_coverAsked[pvkFrames][kCoverAsks][3];    // copied in each frame in flight
+static unsigned s_coverAskedCount[pvkFrames];
+static pvkBuffer s_coverReadback[pvkFrames];
+static float s_coverKnown[kCoverAsks][4];           // the latest answers: the place, its cover
+
+static bool SkyOn()
+{
+    return Mode() == 2 && Baking() && s_skyPipeline && s_skyGrid[0] > 0.0f;
+}
+
+// the cells round p that the draws' SunSkyOpen reads (n up, from 0.5 cell above the ground)
+static void CoverCells(const float* p, int c0[3], float f[3])
+{
+    for(int k = 0; k < 3; k++)
+    {
+        float g = (p[k] + (k == 1 ? 0.5f * s_skyGrid[0] : 0.0f)) / s_skyGrid[0] - 0.5f;
+        c0[k] = (int)floorf(g);
+        f[k] = g - (float)c0[k];
+    }
+}
+
+static unsigned CoverSlot(int x, int y, int z)
+{
+    return (unsigned)(((z & 127) * 32 + (y & 31)) * 128 + (x & 127));
+}
+
+// this frame's asks, the cells copied after the grid's bake
+static void CoverCopy(VkCommandBuffer cmd, unsigned f)
+{
+    s_coverAskedCount[f] = 0;
+    if(!s_coverAskCount)
+        return;
+    if(!s_coverReadback[f].buffer &&
+       !g_pvk->CreateBuffer((VkDeviceSize)kCoverAsks * 64, VK_BUFFER_USAGE_TRANSFER_DST_BIT, true, &s_coverReadback[f]))
+        return;
+    static VkBufferCopy regions[kCoverAsks * 8];
+    for(unsigned q = 0; q < s_coverAskCount; q++)
+    {
+        int c0[3];
+        float t[3];
+        CoverCells(s_coverAsk[q], c0, t);
+        for(int k = 0; k < 8; k++)
+        {
+            VkBufferCopy& r = regions[q * 8 + k];
+            r.srcOffset = kMapBytes + (VkDeviceSize)CoverSlot(c0[0] + (k & 1), c0[1] + ((k >> 1) & 1), c0[2] + (k >> 2)) * 8;
+            r.dstOffset = (VkDeviceSize)(q * 8 + k) * 8;
+            r.size = 8;
+        }
+    }
+    VkMemoryBarrier2 b = { VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
+    b.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+    b.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+    b.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+    b.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+    VkDependencyInfo dep = { VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+    dep.memoryBarrierCount = 1;
+    dep.pMemoryBarriers = &b;
+    vkCmdPipelineBarrier2(cmd, &dep);
+    vkCmdCopyBuffer(cmd, s_mapBuffer.buffer, s_coverReadback[f].buffer, s_coverAskCount * 8, regions);
+    memcpy(s_coverAsked[f], s_coverAsk, s_coverAskCount * sizeof(s_coverAsk[0]));
+    s_coverAskedCount[f] = s_coverAskCount;
+}
+
+// the frame in flight's copy (its fence waited) as answers, weighed as SunSkyOpen and SunShade do
+static void CoverRead(unsigned f)
+{
+    if(!s_coverAskedCount[f])
+        return;
+    const float* cells = (const float*)s_coverReadback[f].memory.mapped;
+    float size = s_skyGrid[0];
+    s_coverKnownCount = s_coverAskedCount[f];
+    for(unsigned q = 0; q < s_coverKnownCount; q++)
+    {
+        const float* p = s_coverAsked[f][q];
+        int c0[3];
+        float t[3];
+        CoverCells(p, c0, t);
+        float sum = 0.0f, weight = 0.0f;
+        for(int k = 0; k < 8; k++)
+        {
+            int o[3] = { k & 1, (k >> 1) & 1, k >> 2 };
+            int c[3] = { c0[0] + o[0], c0[1] + o[1], c0[2] + o[2] };
+            if(((float)c[1] + 0.5f) * size - p[1] <= 0.0f)
+                continue;       // under the ground
+            const float* cell = cells + (q * 8 + k) * 2;
+            if(cell[1] != (float)(1 + (c[0] & 255) + (c[1] & 255) * 256 + (c[2] & 255) * 65536))
+                continue;
+            float w = (o[0] ? t[0] : 1.0f - t[0]) * (o[1] ? t[1] : 1.0f - t[1]) * (o[2] ? t[2] : 1.0f - t[2]);
+            sum += w * cell[0];
+            weight += w;
+        }
+        float cover = 0.0f;     // (not baked: the draws shade as in the open)
+        if(weight > 0.0f)
+        {
+            float x = (sum / weight - s_skyGrid[1]) / (s_skyGrid[2] - s_skyGrid[1]);
+            x = x < 0.0f ? 0.0f : x > 1.0f ? 1.0f : x;
+            cover = 1.0f - x * x * (3.0f - 2.0f * x);   // SunShade's share of the shade, the other way round
+        }
+        memcpy(s_coverKnown[q], p, sizeof(s_coverAsk[0]));
+        s_coverKnown[q][3] = cover;
+    }
+    s_coverAskedCount[f] = 0;
+}
+
+float pvkSunCover(const float* p)
+{
+    if(!SkyOn())
+        return 0.0f;
+    if(s_coverAskCount < kCoverAsks)
+        memcpy(s_coverAsk[s_coverAskCount++], p, sizeof(s_coverAsk[0]));
+    float best = kCoverMatch * kCoverMatch, cover = 0.0f;
+    for(unsigned i = 0; i < s_coverKnownCount; i++)
+    {
+        const float* k = s_coverKnown[i];
+        float d = (k[0] - p[0]) * (k[0] - p[0]) + (k[1] - p[1]) * (k[1] - p[1]) + (k[2] - p[2]) * (k[2] - p[2]);
+        if(d < best)
+        {
+            best = d;
+            cover = k[3];
+        }
+    }
+    return cover;
+}
+
 // a baked caster that should be drawn (near, in view): not drawn for kMissingFrames, it has gone (knocked down)
 static bool InView(const Instance& in)
 {
@@ -2744,6 +2877,9 @@ void pvkSunEndFrame()
     }
     s_bestLight = 0.0f;
 
+    CoverRead((unsigned)(g_pvk->FrameSerial() % pvkFrames));
+    if(!SkyOn())
+        s_coverKnownCount = 0;
     if(sc)
     {
         VkCommandBuffer cmd = g_pvk->UploadCmd();
@@ -2776,7 +2912,10 @@ void pvkSunEndFrame()
             if(bake && !low)
                 Bake(cmd, sc->world.as);
             if(sky)
+            {
                 SkyBake(cmd, sc->world.as);
+                CoverCopy(cmd, (unsigned)(g_pvk->FrameSerial() % pvkFrames));
+            }
         }
         // (pvkCore::Present's barrier after the uploads makes them visible to the draws)
     }
@@ -2805,6 +2944,7 @@ void pvkSunEndFrame()
         }
     }
     s_buildsThisFrame = 0;
+    s_coverAskCount = 0;
     s_frame++;
 }
 
@@ -2838,6 +2978,12 @@ void pvkSunShutdown()
     }
     s_scenesMade = false;
     g_pvk->DestroyNow(s_mapBuffer);
+    for(int f = 0; f < pvkFrames; f++)
+    {
+        g_pvk->DestroyNow(s_coverReadback[f]);
+        s_coverAskedCount[f] = 0;
+    }
+    s_coverKnownCount = 0;
     if(s_bakePipeline)
         vkDestroyPipeline(g_pvk->device, s_bakePipeline, NULL);
     if(s_bakeLayout)

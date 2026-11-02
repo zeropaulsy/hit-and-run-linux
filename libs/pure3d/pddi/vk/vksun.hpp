@@ -86,6 +86,9 @@ void pvkSunMap(float* windows, float* info);
 // the sky grid (high, with the map; SHAR_SUN_SKY): x its cell (m; 0 none), shadow from none where a surface sees y of
 // the sky to full at z; w: debug view (the openness)
 void pvkSunSky(float* sky);
+// the game's blob shadows under cover (high): how covered the ground at p is (the sky grid's, as the draws' shade
+// takes it: 0 open, 1 no sun shade), a few frames late; 0 without the grid or until known
+float pvkSunCover(const float* p);
 
 // the scene the frame's draws trace (built by pvkSunEndFrame, before them): with the map, only what is not in it
 // (cars, characters, moving things, static ones not baked yet). None without ray queries; empty in low.

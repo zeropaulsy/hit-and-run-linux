@@ -170,6 +170,12 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   `SHAR_SUN_SKY=lo,hi` (0.15,0.5; 0 off), pre-lit and lit draws. `SHAR_SUN_SKY_DEBUG=1`: openness (white open, magenta
   unbaked). Cost (1920x1200): +0.35 ms power plant, +0.5 ms L1 school street, nearly all the lookup (16 SSBO reads);
   a teleport rebakes the whole grid in one frame. Next: R8 3D image, REPEAT sampler (one trilinear fetch), Low.
+- Blobs under cover (High): the characters'/cars' DisplayShadow fade the game's blob in by `pvkSunCover(GroundPos)`
+  (1 - SunShade's smoothstep: its `cover` is the shade's share, 1 = open). Each asked place's 8 cells copied from
+  s_mapBuffer after SkyBake into a host-visible buffer per frame in flight, weighed on the CPU when that frame comes
+  round (pvkFrames late); askers matched to answers by place (within 3 m). Not known yet / no grid: 0 (no blob).
+- Low <-> High rebuilds every caster: `Blas::builds` reset there, else the second switch back leaves them all > 3
+  (animated: never world, no map, empty world scene, the grid sees open sky).
 
 ## Low shadows (`Mode() == 1`, any Vulkan device)
 - Same map, strips, dirty tiles and SunMapShade; no structures, no rays. Casters: pre-lit (`keep`) only, as host-visible
