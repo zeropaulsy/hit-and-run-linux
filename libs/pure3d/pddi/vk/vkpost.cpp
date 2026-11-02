@@ -238,7 +238,7 @@ static VkPipeline CreatePipeline(Program& p)
     info.pDynamicState = &dynamic;
     info.layout = s_layout;
     VkPipeline pipeline = VK_NULL_HANDLE;
-    vkCreateGraphicsPipelines(g_pvk->device, VK_NULL_HANDLE, 1, &info, NULL, &pipeline);
+    vkCreateGraphicsPipelines(g_pvk->device, g_pvk->pipelineCache, 1, &info, NULL, &pipeline);
     return pipeline;
 }
 

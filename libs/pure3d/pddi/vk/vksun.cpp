@@ -1699,7 +1699,7 @@ static bool MakeCompute(const char* name, const char* source, unsigned pushBytes
     info.stage.pName = "main";
     ok = ok && vkCreatePipelineLayout(g_pvk->device, &pl, NULL, layout) == VK_SUCCESS;
     info.layout = *layout;
-    ok = ok && vkCreateComputePipelines(g_pvk->device, VK_NULL_HANDLE, 1, &info, NULL, pipeline) == VK_SUCCESS;
+    ok = ok && vkCreateComputePipelines(g_pvk->device, g_pvk->pipelineCache, 1, &info, NULL, pipeline) == VK_SUCCESS;
     vkDestroyShaderModule(g_pvk->device, module, NULL);
     return ok;
 }
@@ -2096,7 +2096,7 @@ static bool MakeRasterPipeline(bool alpha, VkPipeline* out)
     info.pColorBlendState = &cb;
     info.pDynamicState = &dy;
     info.layout = s_rasterLayout;
-    ok = ok && vkCreateGraphicsPipelines(g_pvk->device, VK_NULL_HANDLE, 1, &info, NULL, out) == VK_SUCCESS;
+    ok = ok && vkCreateGraphicsPipelines(g_pvk->device, g_pvk->pipelineCache, 1, &info, NULL, out) == VK_SUCCESS;
     if(vertex)
         vkDestroyShaderModule(g_pvk->device, vertex, NULL);
     if(fragment)
@@ -2135,7 +2135,7 @@ static bool MakeRaster()
     info.stage.module = copy;
     info.stage.pName = "main";
     info.layout = s_copyLayout;
-    bool ok = vkCreateComputePipelines(g_pvk->device, VK_NULL_HANDLE, 1, &info, NULL, &s_copyPipeline) == VK_SUCCESS;
+    bool ok = vkCreateComputePipelines(g_pvk->device, g_pvk->pipelineCache, 1, &info, NULL, &s_copyPipeline) == VK_SUCCESS;
     vkDestroyShaderModule(g_pvk->device, copy, NULL);
     return ok;
 }

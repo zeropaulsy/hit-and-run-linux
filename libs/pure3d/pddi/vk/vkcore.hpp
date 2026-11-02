@@ -82,6 +82,12 @@ public:
     bool rayQuery;              // acceleration structures + ray queries + buffer device addresses (SHAR_SUN)
     bool quadFragment;          // subgroup quad operations in fragment shaders (the sun's shared probe rays)
 
+    // every pipeline is made through this; kept in the run dir between sessions (SHAR_VK_PIPELINE_CACHE=0: neither
+    // read nor written). SavePipelineCache: written when pipelines were made since the last save (render thread)
+    VkPipelineCache pipelineCache;
+    void LoadPipelineCache();
+    void SavePipelineCache();
+
     // memory: suballocated from large blocks (thread safe)
     bool Allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags flags, bool linear, pvkMemory* out);
     void Free(pvkMemory& m);

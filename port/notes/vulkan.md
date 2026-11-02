@@ -8,7 +8,7 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   GL is wrong too.
 - What Vulkan is for: Android, macOS (MoltenVK), low-power devices, loader threads without GL's shared context
   pool, later ray-traced shadows and DLSS/FSR. Not desktop speed: GL is fast enough there.
-- Merge into `main` once long play-tests pass and it runs on Mesa as well as NVIDIA; GL stays default until then.
+- Merge into `main` once long play-tests pass and it runs on Mesa as well as NVIDIA.
 
 ## Where it stands
 - Works (NVIDIA RTX 5060, Wayland, 64-bit; also builds 32-bit): legal screen, boot movies, front end, L1 in game,
@@ -18,13 +18,12 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
 - Movies match GL (MSAA target kept across the resolve, see Design; edge strip: `port/notes/platform.md`).
 - Not yet tested: long sessions, other levels/interiors/cutscenes/bonus game, mods in play (HoverCarRefraction,
   video textures), Mesa (AMD/Intel) drivers, X11, fullscreen switches, memcheck/ASan runs on the Vulkan path.
-- Not done: pipeline cache on disk (first-use pipeline stalls), `Screenshot()`, GPU times in `SHAR_GL_STATS`
-  (draws/pipelines only).
+- Not done: `Screenshot()`, GPU times in `SHAR_GL_STATS` (draws, pipelines and their CPU ms only).
 
 ## Next
 1. User play-tests on Vulkan (the same coverage GL had); compare with GL by screenshot when something looks off.
 2. Mesa: an AMD/Intel GPU, or lavapipe (CPU) as a first check; `SHAR_VK_DEVICE=n` picks the device.
-3. Pipeline cache on disk; memcheck/ASan on the Vulkan path.
+3. Memcheck/ASan on the Vulkan path.
 4. Merge into `main`, then the platform goals above.
 
 ## Testing
@@ -69,6 +68,12 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   Offset <- `p.offset[u]`, sampler Binding <- `p.binding[]`, set 0. `shaders/materials/vulkan/shar_material.glsl` =
   pglFragmentPrelude (REFLECTION, CUSTOM) + FinishFragment as main: keep in step with glshaders.cpp.
 - 32-bit: non-dispatchable handles are all uint64_t (no overloads on handle type).
+- Pipeline cache: one `pvkCore::pipelineCache` for every pipeline (game, post, sun, present), file
+  `vkpipelines.cache` in the run dir (own header: magic, size, FNV-1a; then the driver's data, its header checked
+  against vendor/device/pipelineCacheUUID). Damaged or another GPU's: made afresh. Saved in `~pvkDisplay` (the core
+  is never shut down) and from Present each minute when the data grew (temp file + rename). Uncached sun programs
+  (High) ~280 ms a pipeline on NVIDIA with `__GL_SHADER_DISK_CACHE=0`, 0.4 ms from the file; the driver's own disk
+  cache hides most of it on NVIDIA. `SHAR_VK_PIPELINE_CACHE=0`: not read or written; `SHAR_GL_STATS=1` shows the ms.
 
 
 ## Sun prototype (`vksun.cpp`)
@@ -194,7 +199,7 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
 - Edges: map only (1.5-texel filter at level 0 = 6 cm); small props near the ground slightly softer than High.
 
 ## Sun Defaults
-The sun is off by default (Options > Graphics Shadows Low/High, or SHAR_SUN=low/1). Low ignores the ray settings
+The sun is Low by default (Options > Graphics Shadows Off/Low/High, or SHAR_SUN=0/low/1). Low ignores the ray settings
 (SOFT still sets the penumbra width from the map). The defaults are SHAR_SUN_SOFT=0.3, SHAR_SUN_RAYS=8,
 SHAR_SUN_NEAR=80, SHAR_SUN_FAR=320, SHAR_SUN_BAKE_BUDGET=4000000 and SHAR_SUN_SHADOW=0.68. These presets are good for comparing:
 

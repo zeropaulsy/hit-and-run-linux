@@ -60,7 +60,7 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
 
 ### Renderer extras
 - [ ] Sun shadows on GL (Vulkan only: ray queries or its baked shadow map; GL would need shadow maps)
-- [ ] **Vulkan renderer follow-ups**: long play-tests, Mesa (AMD/Intel) drivers, pipeline cache on disk; next steps in
+- [ ] **Vulkan renderer follow-ups**: long play-tests, Mesa (AMD/Intel) drivers, memcheck/ASan; next steps in
   `port/notes/vulkan.md`
 
 ### Other
