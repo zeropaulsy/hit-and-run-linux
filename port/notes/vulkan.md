@@ -157,8 +157,19 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   (`StaticEntityDSG` IS_SHADOW: a few ~100 m chunks, rarely drawn).
 - Custom GLSL materials get the sun (`SunShade` on ShadeMaterial in pglCustomFragmentMain); SPIR-V ones do not.
 - Gaps: SPIR-V material shaders get no sun, additive-blended foliage never casts.
-- Map window follows `s_worldEye`, the camera of the last caster drawn: the frame's last LoadViewMatrix is the HUD
-  radar's (150 m up), which put level 0 off the player (coarse levels, faint shadows; High hid it under rays).
+- Map window (and sky grid) follow `s_worldEye`, the camera of the frame's first caster (the world draws before the
+  HUD). The last one was the HUD radar's (150 m up; `L1HUDinter_m` casts at the power plant): level 0 off the player.
+- Sky grid (`SHAR_SUN_SKY`, High with the map only): under cover (power plant, tunnels) the pre-lit colours already
+  hold the lamps and no sun, so the shade double-darkened them. Per 2 m cell round the camera (128x32x128, toroidal,
+  in s_mapBuffer after the map as (open, key) floats; key = cell & 255 per axis, exact as a float), the share of
+  `SHAR_SUN_SKY_RAYS` (24) hemisphere rays (even in solid angle, `SHAR_SUN_SKY_REACH` 60 m, hits within 1.5 m ignored:
+  ground through the cell) leaving the world's TLAS (`kSkySource`, after the map bake). Every slot checked each frame:
+  traced when its key is another cell's (window moved), plus a refresh slice of `SHAR_SUN_SKY_BUDGET` (4096) for
+  streamed world; cleared in MapReset (level start). `SunSkyOpen`: trilinear over cells in front of the surface (off
+  it by half a cell along n), keys checked (-1: none, full shade). Shade x mix(1, factor, smoothstep(lo, hi, open)),
+  `SHAR_SUN_SKY=lo,hi` (0.15,0.5; 0 off), pre-lit and lit draws. `SHAR_SUN_SKY_DEBUG=1`: openness (white open, magenta
+  unbaked). Cost (1920x1200): +0.35 ms power plant, +0.5 ms L1 school street, nearly all the lookup (16 SSBO reads);
+  a teleport rebakes the whole grid in one frame. Next: R8 3D image, REPEAT sampler (one trilinear fetch), Low.
 
 ## Low shadows (`Mode() == 1`, any Vulkan device)
 - Same map, strips, dirty tiles and SunMapShade; no structures, no rays. Casters: pre-lit (`keep`) only, as host-visible

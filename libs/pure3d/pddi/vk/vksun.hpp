@@ -83,6 +83,9 @@ bool pvkSunBuffers(VkDescriptorBufferInfo* buffers);
 // y0, x1, y1, ends past); info: level 0's texel (m), texels across a level, 1 when the map is used (0: every shadow
 // ray traced per pixel through the whole scene), 1 when it is all there is (low: no rays)
 void pvkSunMap(float* windows, float* info);
+// the sky grid (high, with the map; SHAR_SUN_SKY): x its cell (m; 0 none), shadow from none where a surface sees y of
+// the sky to full at z; w: debug view (the openness)
+void pvkSunSky(float* sky);
 
 // the scene the frame's draws trace (built by pvkSunEndFrame, before them): with the map, only what is not in it
 // (cars, characters, moving things, static ones not baked yet). None without ray queries; empty in low.

@@ -797,6 +797,9 @@ void pvkPipeline::UploadUniforms(Program& p)
         pvkSunMap(windows, info);
         SetFloats(p, U_SUNMAP, windows, 4, 4);
         SetFloats(p, U_SUNMAPINFO, info, 1, 4);
+        float sky[4];
+        pvkSunSky(sky);
+        SetFloats(p, U_SUNSKY, sky, 1, 4);
         p.sunVersion = pvkSunVersion();
     }
 
