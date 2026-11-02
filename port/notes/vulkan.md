@@ -17,18 +17,21 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   VideoTextureSupport). Validation and sync validation clean on boot, movies, front end, L1 (8x MSAA, post passes).
 - Movies match GL (MSAA target kept across the resolve, see Design; edge strip: `port/notes/platform.md`).
 - Not yet tested: long sessions, other levels/interiors/cutscenes/bonus game, mods in play (HoverCarRefraction,
-  video textures), Mesa (AMD/Intel) drivers, X11, fullscreen switches, memcheck/ASan runs on the Vulkan path.
+  video textures), Mesa on real AMD/Intel GPUs (lavapipe: L1 with High sun, 8x MSAA, validation clean), X11, fullscreen switches, memcheck/ASan runs on the Vulkan path.
 - Not done: `Screenshot()`, GPU times in `SHAR_GL_STATS` (draws, pipelines and their CPU ms only).
 
 ## Next
 1. User play-tests on Vulkan (the same coverage GL had); compare with GL by screenshot when something looks off.
-2. Mesa: an AMD/Intel GPU, or lavapipe (CPU) as a first check; `SHAR_VK_DEVICE=n` picks the device.
+2. Mesa on an AMD/Intel GPU (lavapipe passes); `SHAR_VK_DEVICE=n` picks the device.
 3. Memcheck/ASan on the Vulkan path.
 4. Merge into `main`, then the platform goals above.
 
 ## Testing
 - Shots: `SHAR_SHOT_EVERY=n` reads back the scene image before the present pass. What reaches the screen:
   `VK_INSTANCE_LAYERS=VK_LAYER_MESA_screenshot VK_LAYER_MESA_SCREENSHOT_CONFIG="frames=600/900,output_dir=DIR"`.
+- lavapipe: `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json LP_NUM_THREADS=4`, 1280x720 window, a few
+  minutes at most. All cores for minutes powered the dev PC off (CPU at its 90 C limit even on 4 threads).
+  Every Mesa memory type is device-local and host-visible: blocks are mapped by type (`pvkCore::Allocate`).
 - `SHAR_VK_DEBUG=1` validation; add `VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true` for sync hazards.
 - Same frame in both: run once per `SHAR_RENDERER`, copy the user's simpsons.ini into the scratch run dir (window
   size, MSAA, filtering change the result).

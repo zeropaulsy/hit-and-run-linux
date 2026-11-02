@@ -643,7 +643,9 @@ bool pvkCore::Allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags fl
         block.size = kBlockSize;
         block.type = type;
         block.linear = linear;
-        if(host)
+        // by the type, not the request: on Mesa (lavapipe, integrated GPUs) every type is device-local and
+        // host-visible, so a block made for a device-local request also serves host-visible ones
+        if(memoryProperties.memoryTypes[type].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
             vkMapMemory(device, memory, 0, VK_WHOLE_SIZE, 0, (void**)&block.mapped);
         block.freeCapacity = 8;
         block.free = (Block::Range*)malloc(block.freeCapacity * sizeof(Block::Range));
