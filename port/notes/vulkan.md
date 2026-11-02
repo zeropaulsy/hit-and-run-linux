@@ -30,7 +30,8 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
 - Shots: `SHAR_SHOT_EVERY=n` reads back the scene image before the present pass. What reaches the screen:
   `VK_INSTANCE_LAYERS=VK_LAYER_MESA_screenshot VK_LAYER_MESA_SCREENSHOT_CONFIG="frames=600/900,output_dir=DIR"`.
 - lavapipe: `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json LP_NUM_THREADS=4`, 1280x720 window, a few
-  minutes at most. All cores for minutes powered the dev PC off (CPU at its 90 C limit even on 4 threads).
+  minutes at most. All cores for minutes powered the dev PC off (CPU at its 90 C limit even on 4 threads); the dev
+  PC's cooler can't hold it: 85 C within ~1 min at 3 threads, 20 fps cap, CPU fan at 100%. Run it on another machine.
   Every Mesa memory type is device-local and host-visible: blocks are mapped by type (`pvkCore::Allocate`).
 - `SHAR_VK_DEBUG=1` validation; add `VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true` for sync hazards.
 - Same frame in both: run once per `SHAR_RENDERER`, copy the user's simpsons.ini into the scratch run dir (window
