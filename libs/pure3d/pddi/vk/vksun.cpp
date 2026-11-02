@@ -2621,6 +2621,7 @@ void pvkSunEndFrame()
         {
             ReleaseBlas(s_blas[i]);
             s_blas[i].live = false;
+            s_blas[i].builds = 0;   // (made again, not rebuilt: else the world's casters count as animated)
         }
         s_instanceCount = 0;
         RebuildHash();
