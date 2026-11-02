@@ -278,8 +278,16 @@ void CmdCheat( int argc, char** argv )
         if( strcasecmp( s_cheats[i].name, argv[1] ) == 0 )
         {
             bool on = argc > 2 ? atoi( argv[2] ) != 0 : !cheats->IsCheatEnabled( s_cheats[i].id );
-            cheats->SetCheatEnabled( s_cheats[i].id, on );
-            // the unlock cheats need every story mission done in final builds (SetCheatEnabled ignores them)
+            // forced: the unlock cheats skip the final build's all-story-missions rule
+            cheats->SetCheatEnabled( s_cheats[i].id, on, true );
+            if( s_cheats[i].id == CHEAT_ID_UNLOCK_EVERYTHING )
+            {
+                // as ReceiveInputs does for the typed code: unlockall sets every unlock cheat
+                for( int id = CHEAT_ID_UNLOCK_BEGIN; id < CHEAT_ID_UNLOCK_EVERYTHING; id++ )
+                {
+                    cheats->SetCheatEnabled( static_cast<eCheatID>( id ), on, true );
+                }
+            }
             DevConsole::Print( "%s %s", s_cheats[i].name, cheats->IsCheatEnabled( s_cheats[i].id ) ? "on" : "off" );
             return;
         }

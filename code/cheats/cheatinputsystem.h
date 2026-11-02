@@ -60,7 +60,12 @@ public:
     void SetActivated( int controllerId, bool activated );
     bool IsActivated( int controllerId ) const;
 
+#ifdef RAD_LINUX
+    // Linux port: force skips the final build's all-story-missions rule for the unlock cheats (developer console)
+    void SetCheatEnabled( eCheatID cheatID, bool enable, bool force = false );
+#else
     void SetCheatEnabled( eCheatID cheatID, bool enable );
+#endif
     bool IsCheatEnabled( eCheatID cheatID ) const;
 #ifdef RAD_LINUX
     // Linux port: SetStageEnabledCheats (mods' AdditionalScriptFunctionality): on while a stage runs, beside the
