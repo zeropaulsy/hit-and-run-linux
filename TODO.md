@@ -54,14 +54,11 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
   only checked that a mod raising them all loads and quits cleanly
 
 ### Platforms
-- [ ] **64-bit verification**: long play sessions. Done: the bonus game (ASan clean, quits in its menu/load/race), mods under
-  ASan, memcheck tooling (Level 1 clean), packaged bundle (`port/package.sh`)
 - [ ] **Windows x64**
 - [ ] **macOS** (Apple silicon and Intel)
 - [ ] **Packaging**: an AppImage-style bundle per platform (Linux has a tarball from `port/package.sh`)
 
 ### Renderer extras
-- [ ] Anti-aliasing entry in the display menu
 - [ ] Sun shadows on GL (Vulkan only: ray queries or its baked shadow map; GL would need shadow maps)
 - [ ] **Vulkan renderer follow-ups**: long play-tests, Mesa (AMD/Intel) drivers, pipeline cache on disk; next steps in
   `port/notes/vulkan.md`

@@ -11,6 +11,7 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 
 ### Platforms
 - [x] **64-bit build** boots and plays: movies, front end, Levels 1/7, races, interiors, driving, sound; AddressSanitizer clean
+- [x] **64-bit long play sessions**: the game completed to 100%; bonus game ASan clean, mods under ASan, memcheck tooling
 
 ### Build and platform
 - [x] **Build system**: CMake + Ninja project generated from the original Visual Studio projects
@@ -36,6 +37,7 @@ What the port does so far. User-facing overview: [`README.md`](README.md); porti
 - [x] Gamma applied by a shader pass (works in a window and under Wayland)
 - [x] Post-processing passes at reduced size (`#pragma shar_scale`); SSAO at half size
 - [x] Multisample anti-aliasing (4x by default) with alpha-to-coverage for cut-out textures
+- [x] Anti-aliasing entry in the display menu
 - [x] Mipmaps with up to 16x anisotropic filtering
 - [x] User post-processing shaders (ambient occlusion, bloom, colour grading, tone mapping, CRT, ...)
 - [x] User material shaders (toon shading, car paint, ...), by material type, file or name; mods can ship them
