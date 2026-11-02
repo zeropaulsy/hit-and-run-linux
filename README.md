@@ -1,6 +1,6 @@
 # The Simpsons Hit & Run: Linux port
 
-<img width="2538" height="777" alt="Screenshot From 2026-11-02 18-21-11" src="https://github.com/user-attachments/assets/289a63ea-495a-40f4-bf56-6cc5a6dcab43" />
+<img width="2538" height="777" alt="Screenshot From 2026-11-02 18-21-11" src="https://github.com/user-attachments/assets/d17480cd-92df-433c-88dd-12667ec562f6" />
 
 A Linux 64-Bit build of The Simpsons Hit & Run (2003) using SDL2 and Vulkan 1.3, with OpenGL 3.3 as a fallback. It
 runs on X11 and Wayland, with widescreen & ultrawide, high resolutions, anti-aliasing, anisotropic filtering,
