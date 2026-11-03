@@ -45,7 +45,8 @@
 
 ## macOS arm64 (planned, not started; nothing below is built or tested yet)
 Order of events (each step needs the one before; Linux builds must keep working throughout):
-1. Set up: Xcode tools, CMake, Ninja, SDL2, FFmpeg, MoltenVK; retail game data on the Mac. Check MoltenVK reports 1.3.
+1. Set up: `brew install cmake ninja pkgconf sdl2 ffmpeg openal-soft molten-vk vulkan-loader vulkan-headers vulkan-tools`;
+   retail game data on the Mac (still to do). Homebrew is `/opt/homebrew`, not on the default search paths.
 2. Configure: macOS branch in `gen_cmake.py` (arch, linker flags, deps), `build-macos/`.
 3. Compile: clang source fixes library by library; replace `int3`, crash handler PC, `/proc/self/exe`.
 4. Link: allocator isolation redesign first, since a wrong operator new crashes before `main`.
@@ -57,8 +58,9 @@ Order of events (each step needs the one before; Linux builds must keep working 
 10. Ship: `play.sh`, `.app` packaging and signing; update README and TODO.
 
 Blockers found by reading the code. Toolchain rules go in `gen_cmake.py`.
-- Target: Apple clang + libc++, Mach-O, SDL2 and FFmpeg from Homebrew. `SHAR_ARCH` (-m64/-m32) -> `-arch arm64`. Clang
-  is stricter than GCC: expect source fixes.
+- Target: Apple clang + libc++, Mach-O, SDL2, OpenAL and FFmpeg from Homebrew; `GL` -> `-framework OpenGL`. `SHAR_ARCH`
+  (-m64/-m32) -> `-arch arm64`. Clang is stricter than GCC: expect source fixes. Homebrew's `sdl2` is sdl2-compat (SDL2
+  API over SDL3): behaviour may differ from Linux's SDL2. `openal-soft` is keg-only: add its prefix to the search paths.
 - Linker: no `--version-script`, `--exclude-libs`, `--start-group`, `-static-libgcc`, `-static-libstdc++`. Exports:
   `-exported_symbols_list`.
 - Allocator isolation (above) is ELF-specific: no `objcopy` on pddigl, Mach-O prefixes `_` (`__Znwm`), and weak binding
@@ -70,9 +72,9 @@ Blockers found by reading the code. Toolchain rules go in `gen_cmake.py`.
   `shar_crash.cpp` PC: `uc_mcontext->__ss.__pc`. No SSE intrinsic headers in the tree.
 - Linux APIs: `/proc/self/exe` (`win32main.cpp`) -> `_NSGetExecutablePath`. Fibers (`win32_threads.cpp`) use ucontext:
   deprecated on macOS, test on arm64 or replace.
-- Vulkan via MoltenVK: `vkcore.cpp` requires 1.3 (check the installed one reports it) and needs
-  `VK_KHR_portability_enumeration` + `VK_KHR_portability_subset`, not requested yet. No ray query -> `rayQuery = false`
-  path: verify sun shadows there.
+- Vulkan via MoltenVK: 1.4.2 on an M2 reports Vulkan 1.4, so `vkcore.cpp`'s 1.3 check passes; dynamic rendering and
+  synchronization2 present. Needs `VK_KHR_portability_enumeration` + `VK_KHR_portability_subset`, not requested yet.
+  No ray query or acceleration structure extensions: `rayQuery = false` path, verify sun shadows there.
 - GL fallback: 3.3 core is available but deprecated on macOS; surfaceless worker contexts are Wayland-only (platform.md).
 - Hardware differences that can expose bugs: weak memory order (x86 forgave unsynchronised flag handoffs between
   threads); out-of-range float -> int saturates (x86: INT_MIN). `char` stays signed on Apple arm64.
