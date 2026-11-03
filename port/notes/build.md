@@ -51,7 +51,7 @@ Order of events (each step needs the one before; Linux builds must keep working 
 3. Compile (done: everything compiles and links, nothing run yet). Apple-only `-fdelayed-template-parsing` stands in for
    MSVC-style late template parsing; `port/compat/macos/malloc.h` supplies `<malloc.h>`. Don't add `using namespace std` to
    headers: libc++'s `std::ref` clashes with radcore's `ref<>`. `SHAR_LOCAL` is empty on macOS until step 4.
-4. Link: allocator isolation redesign first, since a wrong operator new crashes before `main`.
+4. Link (done). Reaches `main` and the no-game-data message; not yet run with game data.
 5. Runtime foundations: fibers, `InvokeVf64`; both can fail at boot, so settle them before the first run.
 6. First pixels on GL with `SHAR_NO_AUDIO=1` (no MoltenVK in the way): legal screen, front end.
 7. Into the game: L1, input, audio, movies, then the other levels and mods.
@@ -63,10 +63,12 @@ Blockers found by reading the code. Toolchain rules go in `gen_cmake.py`.
 - Target: Apple clang + libc++, Mach-O, SDL2, OpenAL and FFmpeg from Homebrew; `GL` -> `-framework OpenGL`. `SHAR_ARCH`
   (-m64/-m32) -> `-arch arm64`. Clang is stricter than GCC: expect source fixes. Homebrew's `sdl2` is sdl2-compat (SDL2
   API over SDL3): behaviour may differ from Linux's SDL2. `openal-soft` is keg-only: add its prefix to the search paths.
-- Linker: no `--version-script`, `--exclude-libs`, `--start-group`, `-static-libgcc`, `-static-libstdc++`. Exports:
-  `-exported_symbols_list`.
-- Allocator isolation (above) is ELF-specific: no `objcopy` on pddigl, Mach-O prefixes `_` (`__Znwm`), and weak binding
-  can route libc++ and dylibs to the game's operator new. Redesign, then check with `nm -gU`, not `nm -D`.
+- Linker: no `--version-script`, `--exclude-libs`, `--start-group`, `-static-libgcc`, `-static-libstdc++`.
+- Allocator isolation on Mach-O: dyld coalesces weak `operator new`, so an exported definition in the executable takes
+  over every dylib's. `macos/srr2.unexported` hides them (a list: repeated `-unexported_symbol` flags kept only the last).
+  `macos/pddi_new.h` renames pddigl's references with assembler labels instead of `objcopy`. Checks: `nm -gU srr2` has no
+  `__Znwm __Znam __ZdlPv __ZdaPv`; `nm -u libpddigl.a` has only `_pddi_heap_*`; the executable imports no libc++ function
+  that returns memory the game would free (`nm -u srr2 | c++filt`), so `std::string` etc. must stay out of game code.
 - radscript `InvokeVf64` (`linuxtypeinfovfcall.cpp`, sorted in `TypeInfoMethod.cpp`) is SysV: rewrite. Apple arm64:
   `this` + 7 ints in x0-x7, 8 floats in v0-v7, stack args packed to natural size, not 8-byte slots, so the
   one-signature call can't cover stack args as it stands. Vtable slots (Itanium, as GCC): verify.
