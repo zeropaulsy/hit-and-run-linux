@@ -22,6 +22,9 @@
 ## Frame timing / loading
 - Unsynced GL ran 2-4k fps, 0 ms frames broke physics (NaN traffic speed, launches): vsync + 60 fps cap (`game.cpp`,
   `SHAR_FPS_CAP`, `SHAR_VSYNC=0`). `SHAR_FRAME_LOG=1` histogram.
+- Frame time clamped to 100 ms (`game.cpp`, `SHAR_MAX_FRAME_MS=n`, 0 = off): release builds had no limit (the 1000 ms hack in
+  `GameFlow`/`RenderFlow::OnTimerDone` is `#ifndef RAD_RELEASE`). Below 10 fps the game runs in slow motion.
+  The default skips cutscenes (`PresentationManager` `IsBusy()`/`InConversation()`: real-time sound); a value set by hand doesn't.
 - radcontent load thread runs only inside `SwitchTasks()`: `radLoadManager::Service` hands off up to 8 ms/frame
   (`SHAR_LOAD_BUDGET_MS`).
 - NVIDIA throttles a minimised window to ~1 swap/s: `SwapWithVsync` pauses vsync when throttled, retries after 5 s
