@@ -52,7 +52,8 @@ Order of events (each step needs the one before; Linux builds must keep working 
    MSVC-style late template parsing; `port/compat/macos/malloc.h` supplies `<malloc.h>`. Don't add `using namespace std` to
    headers: libc++'s `std::ref` clashes with radcore's `ref<>`. `SHAR_LOCAL` is empty on macOS until step 4.
 4. Link (done). Reaches `main` and the no-game-data message; not yet run with game data.
-5. Runtime foundations: fibers, `InvokeVf64`; both can fail at boot, so settle them before the first run.
+5. Runtime foundations (done). Fibers stay on ucontext: a stress test passed on arm64 (20,000 round trips on main and worker
+   threads, deep stacks, FP values kept). `InvokeVf64` has an arm64 version, tested against real signatures.
 6. First pixels on GL with `SHAR_NO_AUDIO=1` (no MoltenVK in the way): legal screen, front end.
 7. Into the game: L1, input, audio, movies, then the other levels and mods.
 8. Vulkan via MoltenVK: portability extensions, compare with GL by screenshot, sun shadows, then make it the default.
@@ -69,10 +70,9 @@ Blockers found by reading the code. Toolchain rules go in `gen_cmake.py`.
   `macos/pddi_new.h` renames pddigl's references with assembler labels instead of `objcopy`. Checks: `nm -gU srr2` has no
   `__Znwm __Znam __ZdlPv __ZdaPv`; `nm -u libpddigl.a` has only `_pddi_heap_*`; the executable imports no libc++ function
   that returns memory the game would free (`nm -u srr2 | c++filt`), so `std::string` etc. must stay out of game code.
-- radscript `InvokeVf64` (`linuxtypeinfovfcall.cpp`, sorted in `TypeInfoMethod.cpp`) is SysV: rewrite. Apple arm64:
-  `this` + 7 ints in x0-x7, 8 floats in v0-v7, stack args packed to natural size, not 8-byte slots, so the
-  one-signature call can't cover stack args as it stands. Vtable slots (Itanium, as GCC): verify.
-- Fibers (`win32_threads.cpp`) use ucontext: deprecated on macOS, test on arm64 or replace.
+- radscript `InvokeVf64` on Apple arm64: `this` + 7 ints in x0-x7, 8 floats in v0-v7. Stack args are packed to natural
+  size, so one signature can't place them: `TypeInfoMethod.cpp` aborts on a method needing them. `srrtypes.typ` (454
+  methods, at most 6 parameters) has none.
 - GL debug output (`SHAR_GL_DEBUG`) is compiled out: macOS OpenGL stops at 4.1.
 - Vulkan via MoltenVK: 1.4.2 on an M2 reports Vulkan 1.4, so `vkcore.cpp`'s 1.3 check passes; dynamic rendering and
   synchronization2 present. Needs `VK_KHR_portability_enumeration` + `VK_KHR_portability_subset`, not requested yet.
