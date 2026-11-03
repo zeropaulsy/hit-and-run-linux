@@ -276,12 +276,10 @@ bool ParseDir( PackageReader& r, const char* rel, unsigned int count, unsigned i
         {
             return false;
         }
+        // Only FLAG_TIMESTAMP changes the layout. Other bits are set on some entries (0x13 on a packed desktop.ini, so
+        // likely the file's Windows attributes) and do not move anything, so they are ignored rather than refusing
+        // the whole package.
         unsigned int flags = U16( r.sector );
-        if ( flags & ~FLAG_TIMESTAMP )
-        {
-            r.error = "unknown entry flags";
-            return false;
-        }
         char name[ 256 ];                               // UTF-16LE name; mod paths are ASCII in practice
         unsigned int n = 0;
         for ( unsigned int at = 2; at + 1 < SECTOR && n + 1 < sizeof( name ); at += 2 )
