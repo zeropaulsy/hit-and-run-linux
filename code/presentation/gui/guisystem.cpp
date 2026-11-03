@@ -450,6 +450,11 @@ MEMTRACK_PUSH_GROUP( "CGUISystem" );
     m_pApp = Scrooby::App::GetInstance();
     rAssert( m_pApp != NULL );
 
+#ifdef RAD_LINUX
+    // Linux port: the text language from simpsons.ini (language=), before the text bible is loaded
+    m_pApp->SetLocalizationLanguage( CGuiTextBible::GetCurrentLanguage() );
+#endif
+
     // set Scrooby to use full image names depending on whether or not
     // resource files are joined together into single P3D project file
     //

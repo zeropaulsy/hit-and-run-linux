@@ -1212,6 +1212,14 @@ void Win32Platform::LoadConfig( ConfigString& config )
             // the setting the options menu shows and saves
             mRenderer = _stricmp( value, "vulkan" ) == 0 ? RENDERER_VULKAN : RENDERER_OPENGL;
         }
+        else if( _stricmp( property, "language" ) == 0 )
+        {
+            // Linux port: the text and speech language: english, french, german or spanish (English otherwise)
+            CGuiTextBible::SetStartupLanguage( _stricmp( value, "french" ) == 0 ? Scrooby::XL_FRENCH :
+                                               _stricmp( value, "german" ) == 0 ? Scrooby::XL_GERMAN :
+                                               _stricmp( value, "spanish" ) == 0 ? Scrooby::XL_SPANISH :
+                                               Scrooby::XL_ENGLISH );
+        }
         else if( _stricmp( property, "shadows" ) == 0 )
         {
             // Linux port: the sun's shadows (Vulkan): off, low or high (yes: high); SHAR_SUN=0/1/low overrides
@@ -1339,6 +1347,11 @@ void Win32Platform::SaveConfig( ConfigString& config )
     config.WriteProperty( "renderer", mRenderer == RENDERER_VULKAN ? "vulkan" : "opengl" );
     static const char* const SHADOWS[] = { "off", "low", "high" };
     config.WriteProperty( "shadows", SHADOWS[ pvkSunQuality() ] );
+    {
+        const Scrooby::XLLanguage lang = CGuiTextBible::GetCurrentLanguage();
+        config.WriteProperty( "language", lang == Scrooby::XL_FRENCH ? "french" : lang == Scrooby::XL_GERMAN ? "german" :
+                                          lang == Scrooby::XL_SPANISH ? "spanish" : "english" );
+    }
 #endif
 }
 
