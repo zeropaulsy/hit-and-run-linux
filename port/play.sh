@@ -54,6 +54,12 @@ else
     BUILD=${SHAR_BUILD:-$ROOT/$PREFIX}; CMAKE_ARGS=()
 fi
 if [ -n "$X32" ]; then CMAKE_ARGS+=(-DSHAR_64BIT=OFF); else CMAKE_ARGS+=(-DSHAR_64BIT=ON); fi
+# macOS: CMakeLists.txt defaults to arm64 and /opt/homebrew, so an Intel Mac says otherwise on first configure.
+# hw.optional.arm64, not uname -m: a shell under Rosetta reports x86_64 on Apple silicon.
+if [ "$(uname -s)" = Darwin ] && [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" != 1 ]; then
+    CMAKE_ARGS+=(-DCMAKE_OSX_ARCHITECTURES=x86_64)
+    if [ -x /opt/local/bin/port ]; then CMAKE_ARGS+=(-DSHAR_BREW=/opt/local); else CMAKE_ARGS+=(-DSHAR_BREW=/usr/local); fi
+fi
 
 if [ -z "$DATA" ]; then
     echo "usage: port/play.sh --data DIR [--mod MOD]... [--debug] [--32] [--no-build] [game args...]" >&2

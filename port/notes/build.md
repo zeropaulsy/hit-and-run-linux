@@ -90,14 +90,14 @@ Order of events (each step needs the one before; Linux builds must keep working 
    - User confirmed on Vulkan: Low shadows, gamma. Not reported: stutter on first use, Cmd+Q, a full play session.
    - Not checked: validation layer (`vulkan-validationlayers` not installed).
 9. Hardening: ASan, TSan for memory-order bugs, long play sessions.
-10. Ship: `play.sh`, `.app` packaging and signing; update README and TODO.
+10. Ship: `.app` packaging and signing; update README and TODO.
 
 Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
 - Apple GL: `glBufferSubData` on a buffer in use submits and waits for the GPU, even in an unused region (60% of the main
   thread). Use unsynchronised `glMapBufferRange` (`glpipeline.cpp EndStream`, `glcon.cpp Upload`). Find stalls with `sample`.
 - Optimised by default on macOS (`RelWithDebInfo`, `gen_cmake.py`).
 - Target: Apple clang + libc++, Mach-O, SDL2, OpenAL and FFmpeg from Homebrew; `GL` -> `-framework OpenGL`. `SHAR_ARCH`
-  (-m64/-m32) -> `-arch arm64`. Clang is stricter than GCC: expect source fixes. Homebrew's `sdl2` is sdl2-compat (SDL2
+  (-m64/-m32) is empty: the architecture comes from `CMAKE_OSX_ARCHITECTURES` (default arm64). Clang is stricter than GCC: expect source fixes. Homebrew's `sdl2` is sdl2-compat (SDL2
   API over SDL3): behaviour may differ from Linux's SDL2. `openal-soft` is keg-only: add its prefix to the search paths.
 - Linker: no `--version-script`, `--exclude-libs`, `--start-group`, `-static-libgcc`, `-static-libstdc++`.
 - Allocator isolation on Mach-O: dyld coalesces weak `operator new`, so an exported definition in the executable takes
@@ -115,18 +115,20 @@ Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
 - GL fallback: 3.3 core is available but deprecated on macOS; surfaceless worker contexts are Wayland-only (platform.md).
 - Hardware differences that can expose bugs: weak memory order (x86 forgave unsynchronised flag handoffs between
   threads); out-of-range float -> int saturates (x86: INT_MIN). `char` stays signed on Apple arm64.
-- Tools to replace: valgrind `memcheck.sh` (use ASan), `play.sh`, `package.sh`/`--noble` (needs an .app, signing).
+- Tools to replace: valgrind `memcheck.sh` (use ASan), `package.sh`/`--noble` (needs an .app, signing).
 - Filesystem is case-insensitive by default: no two tracked paths may differ only in case.
 - Keep the checkout out of iCloud-synced folders (`~/Documents`, `~/Desktop`): sync conflicts leave `name 2.a` copies in build output and could do the same in `.git`. Use `~/Developer`.
-- Intel x86_64 Mac (Big Sur tested): same build, `-DCMAKE_OSX_ARCHITECTURES=x86_64`. Crash handler needs an
-  `__APPLE__ && __x86_64__` branch in `shar_crash.cpp` (Darwin ucontext: `uc_mcontext->__ss.__rip`, not Linux's
-  `gregs[REG_RIP]`). MoltenVK on an Iris Plus 640 exposes only Vulkan 1.2, so OpenGL 4.1 is the only renderer.
+- Intel x86_64 Mac (Big Sur with MacPorts tested; Homebrew at `/usr/local` not): same build, `-DCMAKE_OSX_ARCHITECTURES=x86_64`.
+  `play.sh` passes it on first configure, with SHAR_BREW `/opt/local` if MacPorts is installed, else `/usr/local`; an existing
+  build dir is left alone. `shar_crash.cpp` has an `__APPLE__ && __x86_64__` branch (Darwin ucontext: `uc_mcontext->__ss.__rip`,
+  not Linux's `gregs[REG_RIP]`). MoltenVK on an Iris Plus 640 exposes only Vulkan 1.2, below the 1.3 `vkcore.cpp` requires, so
+  that GPU runs OpenGL 4.1.
 - MacPorts works as an alternative to Homebrew: `-DSHAR_BREW=/opt/local`. If the Vulkan SDK is self-installed from
   LunarG, headers land in `/usr/local/include` (System Global Install), not the SHAR_BREW prefix: add
-  `-DCMAKE_CXX_FLAGS="-isystem /usr/local/include"`. Don't add `-L/usr/local/lib` unless you know nothing older is
-  there: an old FFmpeg 4.x in `/usr/local/lib` silently beat the current one in `/opt/local/lib` and the link
-  failed on `swr_alloc_set_opts2`/`av_channel_layout_default` (FFmpeg 5.1+). Vulkan loader is `dlopen`'d so needs
-  no `-L` anyway.
+  `-DCMAKE_CXX_FLAGS="-isystem /usr/local/include"`. With MacPorts, don't add `-L/usr/local/lib` unless you know nothing
+  older is there: an old FFmpeg 4.x in `/usr/local/lib` silently beat the current one in `/opt/local/lib` and the link
+  failed on `swr_alloc_set_opts2`/`av_channel_layout_default` (FFmpeg 5.1+). `-DSHAR_BREW=/usr/local` searches that
+  directory by design. The Vulkan loader is loaded at run time (`SDL_Vulkan_LoadLibrary`), so it needs no `-L` anyway.
 
 ## Shipped-binary strings
 - `-fmacro-prefix-map` makes `__FILE__` relative. Release (`!RAD_DEBUG`) `rReleaseAssert`/`Warning` pass
