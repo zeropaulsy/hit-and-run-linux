@@ -43,19 +43,18 @@
 - Saves layout-identical (CharacterSheet 7140, SaveGameInfoData 16).
 - Verified: L1-7, races, interiors, bonus game, mods, ASan clean; `package.sh`. Not yet: long sessions.
 
-## macOS arm64 (branch `mac-arm64`; in progress, steps 1-6 of 10 done, step 7 awaiting the user's play test)
-Status: native on an Apple M2, OpenGL 4.1 only so far. Boots to Level 1 gameplay; no full play session yet.
+## macOS arm64 (branch `mac-arm64`; in progress, steps 1-6 done, step 7 open items left, step 8 awaiting the user's play test)
+Status: native on an Apple M2, Vulkan via MoltenVK by default, OpenGL 4.1 as fallback. Scripted runs only on Vulkan; no full play session yet.
 - Build: `export PATH=/opt/homebrew/bin:$PATH; ninja -C build-macos -j8` (`cmake -S . -B build-macos -G Ninja` if missing).
 - Run (`run/` holds symlinks to `game-files/` and a copy of `shaders/`; both ignored by git):
-  `cd run && SHAR_RENDERER=opengl SHAR_NO_AUDIO=1 ../build-macos/srr2`. Add `skipmovie`, or `skipfe demo l1` to self-run.
-- Without `SHAR_RENDERER=opengl` the default ini says `renderer=vulkan`: untested here, that is step 8.
+  `cd run && ../build-macos/srr2`. Add `skipmovie`, or `skipfe demo l1` to self-run. `SHAR_RENDERER=opengl` for GL, `SHAR_NO_AUDIO=1` for silence.
 - Benchmark: `SHAR_VSYNC=0 SHAR_FPS_CAP=1000 SHAR_FRAME_LOG=1 SHAR_GL_STATS=1 SHAR_QUIT_AT=45000`, `skipfe demo l1`; a
   `[frames]` line covers 5 s. Uncapped, 1920x1080, 4x MSAA: unoptimised 66 fps; optimised 66 fps; optimised + buffer fix
-  ~165 fps; with the example shaders ~85 fps. A self-running demo, not real play: the user's own test is still to do.
-- Next: step 8.
+  ~165 fps; with the example shaders ~85 fps. Vulkan with the example shaders ~167 fps (GL ~80 in the same run), + `SHAR_SUN=low`
+  ~133 fps. A self-running demo, not real play: the user's own test is still to do.
+- Next: the user plays on Vulkan, then step 9.
 - Open: Apple GL logged `unit 0 GLD_TEXTURE_INDEX_2D is unloadable` once (a draw with an incomplete texture; cause not
-  found). 30 scripted methods return float, `InvokeVf64` reads the integer register (as on x86-64). Main menu never seen
-  in a screenshot. Linux not rebuilt since these changes: check it builds with GCC and `gen_cmake.py` output is unchanged.
+  found). 30 scripted methods return float, `InvokeVf64` reads the integer register (as on x86-64). Linux not rebuilt since these changes: check it builds with GCC and `gen_cmake.py` output is unchanged.
 - Linux builds have no optimisation either: `gen_cmake.py` sets no build type there, and play.sh/package.sh pass none.
   Left unchanged; worth deciding.
 
@@ -77,8 +76,16 @@ Order of events (each step needs the one before; Linux builds must keep working 
      (no Linux capture to compare). Own test mod: CustomFiles override and Lua handler output (mkstemp) both served in L1.
    - User confirmed: sound, controls, speed, Cmd+Q. Still to do: a real mod; pads and a full play session not reported.
    - Test traps: `demo` loads `demo.mfk`/`demoi.mfk`, not `level.mfk`; `SHAR_SHOT_EVERY` is seconds; macOS has no `timeout`;
-     L1 `skipfe` stops at a tutorial popup (context 10). Don't search `~` for test data: it triggers macOS folder prompts.
-8. Vulkan via MoltenVK: portability extensions, compare with GL by screenshot, sun shadows, then make it the default.
+     L1 `skipfe` stops at a tutorial popup (context 10). Characters' idle animations include deep bends: not a skinning bug. Don't search `~` for test data: it triggers macOS folder prompts.
+8. Vulkan via MoltenVK (scripted runs pass, the user's play test to do). `WantVulkan` already defaults to Vulkan, so no switch was needed.
+   - Same as GL by screenshot: `skipfe lN m1 nofail` L1-L7, legal screen, boot movie, main menu (mean diff 0.47/255). Runs aren't
+     deterministic, so frames only roughly line up: differences looked at were animation, traffic and camera timing, no overall colour shift.
+     An early `SHAR_SHOT_EVERY` shot can be the loading screen: look at the shots, don't trust a low diff alone.
+   - Menu: `skipmovie` goes straight there (also skips the front end's intro, `StartIntroMovie`).
+   - Passed: MSAA 2x/4x (8x clamps to 4x), no post shaders, window resize and minimise (`display=window` only: borderless
+     ignores `SHAR_RESIZE_SCRIPT`), no ini = Vulkan, GL fallback with `SDL_VULKAN_LIBRARY=/nonexistent` and `VK_DRIVER_FILES=/nonexistent.json`.
+   - Sun: no ray queries, so Low only (`SHAR_SUN=1` runs Low): bridge girder shadows seen in `demo l1`.
+   - Not checked: validation layer (`vulkan-validationlayers` not installed), what reaches the screen (shots read the scene image before the gamma pass).
 9. Hardening: ASan, TSan for memory-order bugs, long play sessions.
 10. Ship: `play.sh`, `.app` packaging and signing; update README and TODO.
 
@@ -99,9 +106,9 @@ Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
   size, so one signature can't place them: `TypeInfoMethod.cpp` aborts on a method needing them. `srrtypes.typ` (454
   methods, at most 6 parameters) has none.
 - GL debug output (`SHAR_GL_DEBUG`) is compiled out: macOS OpenGL stops at 4.1.
-- Vulkan via MoltenVK: 1.4.2 on an M2 reports Vulkan 1.4, so `vkcore.cpp`'s 1.3 check passes; dynamic rendering and
-  synchronization2 present. Needs `VK_KHR_portability_enumeration` + `VK_KHR_portability_subset`, not requested yet.
-  No ray query or acceleration structure extensions: `rayQuery = false` path, verify sun shadows there.
+- Vulkan via MoltenVK: 1.4.2 on an M2 reports Vulkan 1.4, so `vkcore.cpp`'s 1.3 check passes. `__APPLE__` code enables
+  `VK_KHR_portability_enumeration` + `VK_KHR_portability_subset` (features as offered). `pointPolygons` is false: point fill draws solid
+  (`pvkCore::pointPolygons`). No `samplerMipLodBias`: unused. No ray queries: Low shadows only. Depth is D32S8 (no D24S8).
 - GL fallback: 3.3 core is available but deprecated on macOS; surfaceless worker contexts are Wayland-only (platform.md).
 - Hardware differences that can expose bugs: weak memory order (x86 forgave unsynchronised flag handoffs between
   threads); out-of-range float -> int saturates (x86: INT_MIN). `char` stays signed on Apple arm64.

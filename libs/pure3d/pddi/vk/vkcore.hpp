@@ -77,6 +77,7 @@ public:
     bool bcTextures;            // textureCompressionBC (DXT)
     bool anisotropy;            // samplerAnisotropy
     bool fillModeNonSolid;
+    bool pointPolygons;
     VkFormat depthFormat;       // D24S8, else D32S8
     VkSampleCountFlags sampleCounts;    // usable for colour and depth targets
     bool rayQuery;              // acceleration structures + ray queries + buffer device addresses (SHAR_SUN)

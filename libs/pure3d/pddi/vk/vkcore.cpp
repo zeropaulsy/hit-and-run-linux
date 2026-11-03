@@ -59,12 +59,17 @@ bool pvkCore::CreateInstance(SDL_Window* window)
 
     const char* extensions[16];
     unsigned count = 0;
-    if(!SDL_Vulkan_GetInstanceExtensions(window, &count, NULL) || count > 14 ||
+    if(!SDL_Vulkan_GetInstanceExtensions(window, &count, NULL) || count > 13 ||
        !SDL_Vulkan_GetInstanceExtensions(window, &count, extensions))
     {
         fprintf(stderr, "PDDI: SDL has no Vulkan surface for this window (%s)\n", SDL_GetError());
         return false;
     }
+
+#ifdef __APPLE__
+    // MoltenVK is a portability driver: the loader hides it unless asked
+    extensions[count++] = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+#endif
 
     // SHAR_VK_DEBUG=1: the validation layer (package vulkan-validationlayers) and its messages on stderr
     bool debug = EnvInt("SHAR_VK_DEBUG", 0) != 0;
@@ -90,6 +95,9 @@ bool pvkCore::CreateInstance(SDL_Window* window)
     app.pEngineName = "Pure3D";
     app.apiVersion = VK_API_VERSION_1_3;
     VkInstanceCreateInfo info = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
+#ifdef __APPLE__
+    info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
     info.pApplicationInfo = &app;
     info.enabledExtensionCount = count;
     info.ppEnabledExtensionNames = extensions;
@@ -219,6 +227,7 @@ bool pvkCore::CreateDevice()
     bcTextures = available.textureCompressionBC && !getenv("SHAR_GL_NO_S3TC");
     anisotropy = available.samplerAnisotropy != 0;
     fillModeNonSolid = available.fillModeNonSolid != 0;
+    pointPolygons = fillModeNonSolid;
 
     VkPhysicalDeviceVulkan13Features f13 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
     VkPhysicalDeviceFeatures2 query = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
@@ -280,19 +289,37 @@ bool pvkCore::CreateDevice()
     features.features.samplerAnisotropy = anisotropy;
     features.features.fillModeNonSolid = fillModeNonSolid;
 
+#ifdef __APPLE__
+    // a portability device must get VK_KHR_portability_subset, with what it offers of that subset switched on
+    VkPhysicalDevicePortabilitySubsetFeaturesKHR portability = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR };
+    query.pNext = &portability;
+    vkGetPhysicalDeviceFeatures2(physical, &query);
+    pointPolygons = fillModeNonSolid && portability.pointPolygons;
+    portability.pNext = features.pNext;
+    features.pNext = &portability;
+#endif
+
     float priority = 1.0f;
     VkDeviceQueueCreateInfo q = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
     q.queueFamilyIndex = queueFamily;
     q.queueCount = 1;
     q.pQueuePriorities = &priority;
-    const char* extensions[5] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
-                                  VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
-                                  VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME };
+    const char* extensions[6] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME };
+    unsigned extensionCount = 2;
+#ifdef __APPLE__
+    extensions[extensionCount++] = VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME;
+#endif
+    if(rayQuery)
+    {
+        extensions[extensionCount++] = VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME;
+        extensions[extensionCount++] = VK_KHR_RAY_QUERY_EXTENSION_NAME;
+        extensions[extensionCount++] = VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME;
+    }
     VkDeviceCreateInfo info = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
     info.pNext = &features;
     info.queueCreateInfoCount = 1;
     info.pQueueCreateInfos = &q;
-    info.enabledExtensionCount = rayQuery ? 5 : 2;
+    info.enabledExtensionCount = extensionCount;
     info.ppEnabledExtensionNames = extensions;
     VkResult r = vkCreateDevice(physical, &info, NULL, &device);
     if(r != VK_SUCCESS)

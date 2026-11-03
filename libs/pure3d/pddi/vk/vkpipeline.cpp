@@ -857,6 +857,8 @@ VkPipeline pvkPipeline::GetPipeline(int programIndex, int topologyClass)
         samplesLog2++;
     int blend = state.blend >= 0 && state.blend < 8 ? state.blend : 0;
     int fill = g_pvk->fillModeNonSolid ? (state.fill & 3) : 0;
+    if(fill == PDDI_FILL_POINT && !g_pvk->pointPolygons)     // MoltenVK
+        fill = 0;
     unsigned key = (unsigned)programIndex | (blend << 6) | ((state.colourWrite & 15) << 10) | (fill << 14) |
                    ((AlphaToCoverage() ? 1 : 0) << 16) | (samplesLog2 << 17) | (topologyClass << 20) | (1u << 31);
 
