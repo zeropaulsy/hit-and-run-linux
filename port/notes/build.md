@@ -118,6 +118,15 @@ Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
 - Tools to replace: valgrind `memcheck.sh` (use ASan), `play.sh`, `package.sh`/`--noble` (needs an .app, signing).
 - Filesystem is case-insensitive by default: no two tracked paths may differ only in case.
 - Keep the checkout out of iCloud-synced folders (`~/Documents`, `~/Desktop`): sync conflicts leave `name 2.a` copies in build output and could do the same in `.git`. Use `~/Developer`.
+- Intel x86_64 Mac (Big Sur tested): same build, `-DCMAKE_OSX_ARCHITECTURES=x86_64`. Crash handler needs an
+  `__APPLE__ && __x86_64__` branch in `shar_crash.cpp` (Darwin ucontext: `uc_mcontext->__ss.__rip`, not Linux's
+  `gregs[REG_RIP]`). MoltenVK on an Iris Plus 640 exposes only Vulkan 1.2, so OpenGL 4.1 is the only renderer.
+- MacPorts works as an alternative to Homebrew: `-DSHAR_BREW=/opt/local`. If the Vulkan SDK is self-installed from
+  LunarG, headers land in `/usr/local/include` (System Global Install), not the SHAR_BREW prefix: add
+  `-DCMAKE_CXX_FLAGS="-isystem /usr/local/include"`. Don't add `-L/usr/local/lib` unless you know nothing older is
+  there: an old FFmpeg 4.x in `/usr/local/lib` silently beat the current one in `/opt/local/lib` and the link
+  failed on `swr_alloc_set_opts2`/`av_channel_layout_default` (FFmpeg 5.1+). Vulkan loader is `dlopen`'d so needs
+  no `-L` anyway.
 
 ## Shipped-binary strings
 - `-fmacro-prefix-map` makes `__FILE__` relative. Release (`!RAD_DEBUG`) `rReleaseAssert`/`Warning` pass
