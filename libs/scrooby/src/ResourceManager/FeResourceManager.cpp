@@ -52,7 +52,7 @@
     #ifdef RAD_WIN32
         #define WIN32_EXTRA_LEAN
         #define WIN32_LEAN_AND_MEAN
-        #include <Windows.h>
+        #include <windows.h>
     #endif
 #endif // SRR2_HOLIDAYS_THEME_HACK
 
