@@ -705,6 +705,18 @@ void pglPipeline::EndStream()
         glBufferData(GL_ARRAY_BUFFER, streamBufferSize, NULL, GL_STREAM_DRAW);
         streamOffset = 0;
     }
+#ifdef __APPLE__
+    // Apple's GL submits and waits for the GPU on glBufferSubData to a buffer in use, even in an unused region; the
+    // ring never overwrites what draws are reading, so an unsynchronised map is safe and doesn't wait
+    void* dst = glMapBufferRange(GL_ARRAY_BUFFER, streamOffset, size,
+                                 GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+    if(dst)
+    {
+        memcpy(dst, streamVerts, size);
+        glUnmapBuffer(GL_ARRAY_BUFFER);
+    }
+    else
+#endif
     glBufferSubData(GL_ARRAY_BUFFER, streamOffset, size, streamVerts);
 
     GLsizei stride = sizeof(pglVertex);

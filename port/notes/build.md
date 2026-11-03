@@ -43,7 +43,22 @@
 - Saves layout-identical (CharacterSheet 7140, SaveGameInfoData 16).
 - Verified: L1-7, races, interiors, bonus game, mods, ASan clean; `package.sh`. Not yet: long sessions.
 
-## macOS arm64 (planned, not started; nothing below is built or tested yet)
+## macOS arm64 (branch `mac-arm64`; in progress, steps 1-6 of 10 done)
+Status: native on an Apple M2, OpenGL 4.1 only so far. Boots to Level 1 gameplay; no full play session yet.
+- Build: `export PATH=/opt/homebrew/bin:$PATH; ninja -C build-macos -j8` (`cmake -S . -B build-macos -G Ninja` if missing).
+- Run (`run/` holds symlinks to `game-files/` and a copy of `shaders/`; both ignored by git):
+  `cd run && SHAR_RENDERER=opengl SHAR_NO_AUDIO=1 ../build-macos/srr2`. Add `skipmovie`, or `skipfe demo l1` to self-run.
+- Without `SHAR_RENDERER=opengl` the default ini says `renderer=vulkan`: untested here, that is step 8.
+- Benchmark: `SHAR_VSYNC=0 SHAR_FPS_CAP=1000 SHAR_FRAME_LOG=1 SHAR_GL_STATS=1 SHAR_QUIT_AT=45000`, `skipfe demo l1`; a
+  `[frames]` line covers 5 s. Uncapped, 1920x1080, 4x MSAA: unoptimised 66 fps; optimised 66 fps; optimised + buffer fix
+  ~165 fps; with the example shaders ~85 fps. A self-running demo, not real play: the user's own test is still to do.
+- Next: user re-tests with the fixes (reported under 60 fps before them), then step 7 starting with audio.
+- Open: Apple GL logged `unit 0 GLD_TEXTURE_INDEX_2D is unloadable` once (a draw with an incomplete texture; cause not
+  found). 30 scripted methods return float, `InvokeVf64` reads the integer register (as on x86-64). Main menu never seen
+  in a screenshot. Linux not rebuilt since these changes: check it builds with GCC and `gen_cmake.py` output is unchanged.
+- Linux builds have no optimisation either: `gen_cmake.py` sets no build type there, and play.sh/package.sh pass none.
+  Left unchanged; worth deciding.
+
 Order of events (each step needs the one before; Linux builds must keep working throughout):
 1. Set up: `brew install cmake ninja pkgconf sdl2 ffmpeg openal-soft molten-vk vulkan-loader vulkan-headers vulkan-tools`;
    retail game data on the Mac (still to do). Homebrew is `/opt/homebrew`, not on the default search paths.
@@ -54,13 +69,17 @@ Order of events (each step needs the one before; Linux builds must keep working 
 4. Link (done). Reaches `main` and the no-game-data message; not yet run with game data.
 5. Runtime foundations (done). Fibers stay on ucontext: a stress test passed on arm64 (20,000 round trips on main and worker
    threads, deep stacks, FP values kept). `InvokeVf64` has an arm64 version, tested against real signatures.
-6. First pixels on GL with `SHAR_NO_AUDIO=1` (no MoltenVK in the way): legal screen, front end.
+6. First pixels (done): `SHAR_RENDERER=opengl SHAR_NO_AUDIO=1` on an M2 runs legal screen, movies, new game, loading screen and
+   L1 in game, with a clean window-close exit. Run from a directory of symlinks to the game data, so the ini stays out of it.
 7. Into the game: L1, input, audio, movies, then the other levels and mods.
 8. Vulkan via MoltenVK: portability extensions, compare with GL by screenshot, sun shadows, then make it the default.
 9. Hardening: ASan, TSan for memory-order bugs, long play sessions.
 10. Ship: `play.sh`, `.app` packaging and signing; update README and TODO.
 
-Blockers found by reading the code. Toolchain rules go in `gen_cmake.py`.
+Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
+- Apple GL: `glBufferSubData` on a buffer in use submits and waits for the GPU, even in an unused region (60% of the main
+  thread). Use unsynchronised `glMapBufferRange` (`glpipeline.cpp EndStream`, `glcon.cpp Upload`). Find stalls with `sample`.
+- Optimised by default on macOS (`RelWithDebInfo`, `gen_cmake.py`).
 - Target: Apple clang + libc++, Mach-O, SDL2, OpenAL and FFmpeg from Homebrew; `GL` -> `-framework OpenGL`. `SHAR_ARCH`
   (-m64/-m32) -> `-arch arm64`. Clang is stricter than GCC: expect source fixes. Homebrew's `sdl2` is sdl2-compat (SDL2
   API over SDL3): behaviour may differ from Linux's SDL2. `openal-soft` is keg-only: add its prefix to the search paths.
