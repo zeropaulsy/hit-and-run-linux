@@ -5,24 +5,30 @@ A 64-bit Linux build of *The Simpsons: Hit & Run* (2003). It is not an emulator 
 > **Bring your own game.** No game data is included. You need your own copy of the PC game: the folder that holds `art/`, `scripts/` and the `.rcf` files.
 
 **Requirements:** A 64-bit (x86-64) Linux as new as Ubuntu 24.04 / Linux Mint 22 (glibc 2.38 or newer), and a
-graphics driver with OpenGL 3.3. The optional Vulkan renderer needs Vulkan 1.3 (NVIDIA, or Mesa for AMD / Intel).
+graphics driver with Vulkan 1.3 (NVIDIA, or Mesa for AMD / Intel). Without Vulkan the game starts on OpenGL 3.3.
 
 ## What's new
 
 **Graphics**
-- New Vulkan 1.3 renderer, optional: switch in Options > Graphics > Renderer (takes effect at the next start).
-  OpenGL stays the default and the fallback.
+- New Vulkan 1.3 renderer, now the default. OpenGL stays as the fallback and is used automatically when Vulkan is
+  missing; switch in Options > Graphics > Renderer (takes effect at the next start).
 - Dynamic sun shadows (Vulkan only): the sun or moon painted in each level's sky casts shadows from buildings, trees,
   fences, cars and characters, with light that warms as the sun gets low and turns moon-blue on night levels.
-  Options > Graphics > Shadows: Off (default), Low (any Vulkan GPU) or High (ray traced, needs a ray-tracing GPU: adds
-  car and character shadows). F9 cycles them in game.
+  Options > Graphics > Shadows: Off, Low (default, any GPU) or High (ray traced, needs a ray-tracing GPU: adds car and
+  character shadows and takes the sun off places under cover). F9 cycles them in game.
 - Options > Graphics page: renderer, anti-aliasing, shaders on/off and shadows, from the front end or the pause menu.
-- Example shaders: SSAO with a full-resolution blur; Vulkan (SPIR-V) post-processing and material shaders.
+- Compiled Vulkan pipelines are cached in `vkpipelines.cache`, so later starts don't pause to build them.
+- Example shaders: SSAO with a full-resolution blur, bloom on by default at a lower strength, gentler tone mapping.
 
 **Fixes**
+- Credits roll matches the retail PC game (missing sections shown, the last lines no longer drawn over the first).
+- Switching from exclusive fullscreen to borderless on Wayland no longer leaves the picture in the top-left corner.
 - Held keys are no longer delayed on KDE Plasma.
 - A noisy strip at the edge of movies is gone.
 - The phone booth no longer shows the previous car's picture for a car without one.
+
+**Developer console** (start with `./run.sh console`, toggle with the ` key, type `help`): cheats, coins,
+teleporting, debug camera, cards, outfits, language switching, saving and loading, and the game's script functions.
 
 **Mods:** almost every remaining Mod Launcher hack is now in: all of AdditionalScriptFunctionality (stage vehicle and
 passenger settings, character models and forces, parked cars, CON file commands), the unlock and "no ..." hacks,
@@ -70,4 +76,4 @@ include the mod's name and version.
 ---
 
 The Simpsons: Hit & Run was developed by Radical Entertainment and published by Vivendi Universal Games. This project is not affiliated with or endorsed by them.
-Built with SDL2, Vulkan, glslang, FFmpeg, Lua 5.4 and libpng.
+Built with SDL2, Vulkan, glslang, FFmpeg, Lua 5.4, libpng, stb_truetype and the DejaVu Sans Mono font.

@@ -132,7 +132,7 @@ public:
 
     void FrameStats();
     void FrameEnd();
-    struct Stats { unsigned frames, draws, streamDraws, pipelines, uniformCopies, uploads; double cpuMs; } stats;
+    struct Stats { unsigned frames, draws, streamDraws, pipelines, uniformCopies, uploads; double cpuMs, pipelineMs, pipelineMaxMs; } stats;
 
 private:
     enum { GROUP_MATRICES, GROUP_LIGHTS, GROUP_FOG, GROUP_MATERIAL, GROUP_COUNT };
@@ -184,7 +184,6 @@ private:
 
     VkDescriptorSetLayout setLayout;
     VkPipelineLayout layout;
-    VkPipelineCache cache;
 
     // pipeline objects by key
     struct CachedPipeline { unsigned key; VkPipeline pipeline; };

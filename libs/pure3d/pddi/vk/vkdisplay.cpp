@@ -31,6 +31,8 @@ pvkDisplay::pvkDisplay()
 pvkDisplay::~pvkDisplay()
 {
     pipeline.Shutdown();
+    if(g_pvk)
+        g_pvk->SavePipelineCache();     // the core itself is never shut down (the process ends with it)
     if(s_display == this)
         s_display = NULL;
 }

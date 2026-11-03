@@ -292,13 +292,22 @@ CheatInputSystem::IsActivated( int controllerId ) const
 // Return:      
 //
 //===========================================================================
+#ifdef RAD_LINUX
+void
+CheatInputSystem::SetCheatEnabled( eCheatID cheatID, bool enable, bool force )
+#else
 void
 CheatInputSystem::SetCheatEnabled( eCheatID cheatID, bool enable )
+#endif
 {
 #ifdef FINAL
-    if( cheatID == CHEAT_ID_UNLOCK_CARDS ||
+    if(
+#ifdef RAD_LINUX
+        !force &&
+#endif
+        ( cheatID == CHEAT_ID_UNLOCK_CARDS ||
         cheatID == CHEAT_ID_UNLOCK_SKINS ||
-        cheatID == CHEAT_ID_UNLOCK_VEHICLES )
+        cheatID == CHEAT_ID_UNLOCK_VEHICLES ) )
     {
         // for these cheats, unless all missions are completed, don't do
         // anything

@@ -41,7 +41,7 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
 
 ## Options > Graphics (`CGuiScreenGraphics`, front end + pause)
 - Anti-aliasing Off/2/4/8, Shaders (`pglSetUserShaders`, ini `shaders=`), Renderer (ini `renderer=opengl|vulkan`;
-  next start), Shadows (`pvkSunSetEnabled`, ini `shadows=`, default off; Vulkan sun only, `SHAR_SUN=0/1` overrides
+  next start), Shadows (`pvkSunSetEnabled`, ini `shadows=`, default low; Vulkan sun only, `SHAR_SUN=0/1/low` overrides
   the ini). Apply at once; config saved on leaving.
 - No page of its own: reuses the Display page, `Scrooby::Text::Clone` (Linux port) copies rows' label/value texts,
   originals hidden; arrows shared (transform saved around AddMenuItem, which scales them). Rows past the page's

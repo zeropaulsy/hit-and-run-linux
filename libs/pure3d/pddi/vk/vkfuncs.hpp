@@ -65,7 +65,7 @@
     X(vkCmdSetStencilCompareMask) X(vkCmdSetStencilWriteMask) X(vkCmdSetStencilReference) \
     X(vkCmdSetDepthBiasEnable) X(vkCmdSetDepthBoundsTestEnable) X(vkCmdSetRasterizerDiscardEnable) \
     X(vkCmdSetPrimitiveRestartEnable) \
-    X(vkCmdClearAttachments) X(vkCmdCopyBuffer) X(vkCmdCopyBufferToImage) X(vkCmdCopyImageToBuffer) \
+    X(vkCmdClearAttachments) X(vkCmdCopyBuffer) X(vkCmdFillBuffer) X(vkCmdCopyBufferToImage) X(vkCmdCopyImageToBuffer) \
     X(vkCmdBlitImage) X(vkCmdCopyImage) X(vkCmdResolveImage) X(vkCmdClearColorImage) X(vkCmdClearDepthStencilImage) \
     X(vkCmdPushConstants) \
     X(vkCmdPushDescriptorSetKHR) X(vkCmdWriteTimestamp) \

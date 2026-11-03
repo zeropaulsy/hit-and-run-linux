@@ -8,7 +8,7 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   GL is wrong too.
 - What Vulkan is for: Android, macOS (MoltenVK), low-power devices, loader threads without GL's shared context
   pool, later ray-traced shadows and DLSS/FSR. Not desktop speed: GL is fast enough there.
-- Merge into `main` once long play-tests pass and it runs on Mesa as well as NVIDIA; GL stays default until then.
+- Merge into `main` once long play-tests pass and it runs on Mesa as well as NVIDIA.
 
 ## Where it stands
 - Works (NVIDIA RTX 5060, Wayland, 64-bit; also builds 32-bit): legal screen, boot movies, front end, L1 in game,
@@ -18,19 +18,22 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
 - Movies match GL (MSAA target kept across the resolve, see Design; edge strip: `port/notes/platform.md`).
 - macOS arm64 (MoltenVK, Apple M2): scripted runs match GL, see build.md "macOS arm64" step 8.
 - Not yet tested: long sessions, other levels/interiors/cutscenes/bonus game, mods in play (HoverCarRefraction,
-  video textures), Mesa (AMD/Intel) drivers, X11, fullscreen switches, memcheck/ASan runs on the Vulkan path.
-- Not done: pipeline cache on disk (first-use pipeline stalls), `Screenshot()`, GPU times in `SHAR_GL_STATS`
-  (draws/pipelines only).
+  video textures), Mesa on real AMD/Intel GPUs (lavapipe: L1 with High sun, 8x MSAA, validation clean), X11, fullscreen switches, memcheck/ASan runs on the Vulkan path.
+- Not done: `Screenshot()`, GPU times in `SHAR_GL_STATS` (draws, pipelines and their CPU ms only).
 
 ## Next
 1. User play-tests on Vulkan (the same coverage GL had); compare with GL by screenshot when something looks off.
-2. Mesa: an AMD/Intel GPU, or lavapipe (CPU) as a first check; `SHAR_VK_DEVICE=n` picks the device.
-3. Pipeline cache on disk; memcheck/ASan on the Vulkan path.
+2. Mesa on an AMD/Intel GPU (lavapipe passes); `SHAR_VK_DEVICE=n` picks the device.
+3. Memcheck/ASan on the Vulkan path.
 4. Merge into `main`, then the platform goals above.
 
 ## Testing
 - Shots: `SHAR_SHOT_EVERY=n` reads back the scene image before the present pass. What reaches the screen:
   `VK_INSTANCE_LAYERS=VK_LAYER_MESA_screenshot VK_LAYER_MESA_SCREENSHOT_CONFIG="frames=600/900,output_dir=DIR"`.
+- lavapipe: `VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json LP_NUM_THREADS=4`, 1280x720 window, a few
+  minutes at most. All cores for minutes powered the dev PC off (CPU at its 90 C limit even on 4 threads); the dev
+  PC's cooler can't hold it: 85 C within ~1 min at 3 threads, 20 fps cap, CPU fan at 100%. Run it on another machine.
+  Every Mesa memory type is device-local and host-visible: blocks are mapped by type (`pvkCore::Allocate`).
 - `SHAR_VK_DEBUG=1` validation; add `VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true` for sync hazards.
 - Same frame in both: run once per `SHAR_RENDERER`, copy the user's simpsons.ini into the scratch run dir (window
   size, MSAA, filtering change the result).
@@ -70,10 +73,16 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   Offset <- `p.offset[u]`, sampler Binding <- `p.binding[]`, set 0. `shaders/materials/vulkan/shar_material.glsl` =
   pglFragmentPrelude (REFLECTION, CUSTOM) + FinishFragment as main: keep in step with glshaders.cpp.
 - 32-bit: non-dispatchable handles are all uint64_t (no overloads on handle type).
+- Pipeline cache: one `pvkCore::pipelineCache` for every pipeline (game, post, sun, present), file
+  `vkpipelines.cache` in the run dir (own header: magic, size, FNV-1a; then the driver's data, its header checked
+  against vendor/device/pipelineCacheUUID). Damaged or another GPU's: made afresh. Saved in `~pvkDisplay` (the core
+  is never shut down) and from Present each minute when the data grew (temp file + rename). Uncached sun programs
+  (High) ~280 ms a pipeline on NVIDIA with `__GL_SHADER_DISK_CACHE=0`, 0.4 ms from the file; the driver's own disk
+  cache hides most of it on NVIDIA. `SHAR_VK_PIPELINE_CACHE=0`: not read or written; `SHAR_GL_STATS=1` shows the ms.
 
 
 ## Sun prototype (`vksun.cpp`)
-- Off by default: Options > Graphics Shadows Off/Low/High (ini `shadows=off|low|high`, old `yes` = high), F9 cycles
+- Low by default (no `shadows=` in the ini): Options > Graphics Shadows Off/Low/High (ini `shadows=off|low|high`, old `yes` = high), F9 cycles
   (saved like the menu). Device made with ray queries + buffer device address where it has them, unless `SHAR_SUN=0`
   (so the menu applies at once) or `SHAR_SUN_RT=0` (Low only, as an iGPU: tests the no-ray-query programs on an RTX).
   `SHAR_SUN=1` forces High, `SHAR_SUN=low` Low. High without ray queries runs Low. `SHAR_SUN=0`: programs and layout
@@ -158,8 +167,25 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   (`StaticEntityDSG` IS_SHADOW: a few ~100 m chunks, rarely drawn).
 - Custom GLSL materials get the sun (`SunShade` on ShadeMaterial in pglCustomFragmentMain); SPIR-V ones do not.
 - Gaps: SPIR-V material shaders get no sun, additive-blended foliage never casts.
-- Map window follows `s_worldEye`, the camera of the last caster drawn: the frame's last LoadViewMatrix is the HUD
-  radar's (150 m up), which put level 0 off the player (coarse levels, faint shadows; High hid it under rays).
+- Map window (and sky grid) follow `s_worldEye`, the camera of the frame's first caster (the world draws before the
+  HUD). The last one was the HUD radar's (150 m up; `L1HUDinter_m` casts at the power plant): level 0 off the player.
+- Sky grid (`SHAR_SUN_SKY`, High with the map only): under cover (power plant, tunnels) the pre-lit colours already
+  hold the lamps and no sun, so the shade double-darkened them. Per 2 m cell round the camera (128x32x128, toroidal,
+  in s_mapBuffer after the map as (open, key) floats; key = cell & 255 per axis, exact as a float), the share of
+  `SHAR_SUN_SKY_RAYS` (24) hemisphere rays (even in solid angle, `SHAR_SUN_SKY_REACH` 60 m, hits within 1.5 m ignored:
+  ground through the cell) leaving the world's TLAS (`kSkySource`, after the map bake). Every slot checked each frame:
+  traced when its key is another cell's (window moved), plus a refresh slice of `SHAR_SUN_SKY_BUDGET` (4096) for
+  streamed world; cleared in MapReset (level start). `SunSkyOpen`: trilinear over cells in front of the surface (off
+  it by half a cell along n), keys checked (-1: none, full shade). Shade x mix(1, factor, smoothstep(lo, hi, open)),
+  `SHAR_SUN_SKY=lo,hi` (0.15,0.5; 0 off), pre-lit and lit draws. `SHAR_SUN_SKY_DEBUG=1`: openness (white open, magenta
+  unbaked). Cost (1920x1200): +0.35 ms power plant, +0.5 ms L1 school street, nearly all the lookup (16 SSBO reads);
+  a teleport rebakes the whole grid in one frame. Next: R8 3D image, REPEAT sampler (one trilinear fetch), Low.
+- Blobs under cover (High): the characters'/cars' DisplayShadow fade the game's blob in by `pvkSunCover(GroundPos)`
+  (1 - SunShade's smoothstep: its `cover` is the shade's share, 1 = open). Each asked place's 8 cells copied from
+  s_mapBuffer after SkyBake into a host-visible buffer per frame in flight, weighed on the CPU when that frame comes
+  round (pvkFrames late); askers matched to answers by place (within 3 m). Not known yet / no grid: 0 (no blob).
+- Low <-> High rebuilds every caster: `Blas::builds` reset there, else the second switch back leaves them all > 3
+  (animated: never world, no map, empty world scene, the grid sees open sky).
 
 ## Low shadows (`Mode() == 1`, any Vulkan device)
 - Same map, strips, dirty tiles and SunMapShade; no structures, no rays. Casters: pre-lit (`keep`) only, as host-visible
@@ -178,7 +204,7 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
 - Edges: map only (1.5-texel filter at level 0 = 6 cm); small props near the ground slightly softer than High.
 
 ## Sun Defaults
-The sun is off by default (Options > Graphics Shadows Low/High, or SHAR_SUN=low/1). Low ignores the ray settings
+The sun is Low by default (Options > Graphics Shadows Off/Low/High, or SHAR_SUN=0/low/1). Low ignores the ray settings
 (SOFT still sets the penumbra width from the map). The defaults are SHAR_SUN_SOFT=0.3, SHAR_SUN_RAYS=8,
 SHAR_SUN_NEAR=80, SHAR_SUN_FAR=320, SHAR_SUN_BAKE_BUDGET=4000000 and SHAR_SUN_SHADOW=0.68. These presets are good for comparing:
 

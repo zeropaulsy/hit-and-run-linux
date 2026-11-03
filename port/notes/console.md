@@ -43,7 +43,7 @@
   original calls only in bootup/frontend/pause contexts; `GameplayContext::OnUpdate` calls it too on Linux.
   `load` mid-level would change progress under a running level: front end only (then Resume Game).
 - `npc` checks `art\chars\<6 letters>_m.p3d` with `radFileOpenSync` first; `Destroy` clears `sSpawnedCharacter`.
-- `cheat`: own name table -> `CheatInputSystem::SetCheatEnabled`; FINAL ignores unlock cheats before 100% story.
+- `cheat`: own name table -> `CheatInputSystem::SetCheatEnabled( id, on, force=true )`: skips FINAL's unlock-cheats-need-100%-story rule (typed cheat codes keep it); `unlockall` sets every unlock cheat (as `ReceiveInputs`).
 
 ## Wiring
 - Events: `PumpEvents` (linuxplatform_sdl.cpp) gives every SDL_Event to `DevConsole::HandleEvent` first; open, it takes

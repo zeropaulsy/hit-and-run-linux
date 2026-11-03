@@ -354,6 +354,7 @@ bool pvkCore::Init(SDL_Window* window)
 {
     if(!pvkLoadGlobal() || !CreateInstance(window) || !PickDevice() || !CreateDevice())
         return false;
+    LoadPipelineCache();
 
     for(int f = 0; f < pvkFrames; f++)
     {
@@ -414,6 +415,10 @@ void pvkCore::Shutdown()
     }
     vkDeviceWaitIdle(device);
     pvkSunShutdown();
+    SavePipelineCache();
+    if(pipelineCache)
+        vkDestroyPipelineCache(device, pipelineCache, NULL);
+    pipelineCache = VK_NULL_HANDLE;
     FlushRetired(~0ull);
     DestroyTargets();
     DestroySwapchain();
@@ -449,6 +454,121 @@ void pvkCore::Shutdown()
         vkDestroyDebugUtilsMessengerEXT(instance, messenger, NULL);
     vkDestroyInstance(instance, NULL);
     instance = VK_NULL_HANDLE;
+}
+
+//-----------------------------------------------------------------------------
+// Pipeline cache on disk
+//-----------------------------------------------------------------------------
+
+// file: this header, then the driver's cache data (which starts with VkPipelineCacheHeaderVersionOne)
+static const char s_cacheFile[] = "vkpipelines.cache";
+static const char s_cacheMagic[8] = { 'S', 'H', 'A', 'R', 'P', 'V', 'K', '1' };
+struct CacheFileHeader
+{
+    char magic[8];
+    unsigned size;          // bytes of driver data after this header
+    unsigned checksum;      // FNV-1a of them (some drivers crash on damaged data instead of rejecting it)
+};
+
+static unsigned Fnv1a(const unsigned char* data, size_t size)
+{
+    unsigned h = 2166136261u;
+    for(size_t i = 0; i < size; i++)
+        h = (h ^ data[i]) * 16777619u;
+    return h;
+}
+
+static bool CacheEnabled()
+{
+    const char* e = getenv("SHAR_VK_PIPELINE_CACHE");
+    return !e || strcmp(e, "0") != 0;
+}
+
+static size_t s_cacheSavedSize;     // driver data size at the last load or save: unchanged = nothing new to write
+
+void pvkCore::LoadPipelineCache()
+{
+    unsigned char* data = NULL;
+    size_t size = 0;
+    FILE* f = CacheEnabled() ? fopen(s_cacheFile, "rb") : NULL;
+    if(f)
+    {
+        CacheFileHeader h;
+        if(fread(&h, sizeof(h), 1, f) == 1 && memcmp(h.magic, s_cacheMagic, sizeof(s_cacheMagic)) == 0 &&
+           h.size >= sizeof(VkPipelineCacheHeaderVersionOne) && h.size < (256u << 20))
+        {
+            data = (unsigned char*)malloc(h.size);
+            if(data && fread(data, 1, h.size, f) == h.size && Fnv1a(data, h.size) == h.checksum)
+                size = h.size;
+        }
+        fclose(f);
+        if(!size)
+            fprintf(stderr, "PDDI: %s damaged: pipelines made afresh\n", s_cacheFile);
+    }
+    if(size)
+    {
+        // the driver checks this too, but not every driver checks it well
+        VkPipelineCacheHeaderVersionOne dh;
+        memcpy(&dh, data, sizeof(dh));
+        if(dh.headerSize < sizeof(dh) || dh.headerVersion != VK_PIPELINE_CACHE_HEADER_VERSION_ONE ||
+           dh.vendorID != properties.vendorID || dh.deviceID != properties.deviceID ||
+           memcmp(dh.pipelineCacheUUID, properties.pipelineCacheUUID, VK_UUID_SIZE) != 0)
+        {
+            fprintf(stderr, "PDDI: %s is for another GPU or driver: pipelines made afresh\n", s_cacheFile);
+            size = 0;
+        }
+    }
+    VkPipelineCacheCreateInfo info = { VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO };
+    info.initialDataSize = size;
+    info.pInitialData = size ? data : NULL;
+    VkResult r = vkCreatePipelineCache(device, &info, NULL, &pipelineCache);
+    if(r != VK_SUCCESS && size)
+    {
+        fprintf(stderr, "PDDI: %s not taken (%d): pipelines made afresh\n", s_cacheFile, r);
+        info.initialDataSize = 0;
+        info.pInitialData = NULL;
+        size = 0;
+        r = vkCreatePipelineCache(device, &info, NULL, &pipelineCache);
+    }
+    if(r != VK_SUCCESS)
+        pipelineCache = VK_NULL_HANDLE;     // pipelines still made, just not cached
+    else if(size)
+        fprintf(stderr, "PDDI: %s: %u KB of pipelines\n", s_cacheFile, (unsigned)(size >> 10));
+    free(data);
+    s_cacheSavedSize = size;
+}
+
+void pvkCore::SavePipelineCache()
+{
+    if(!pipelineCache || !CacheEnabled())
+        return;
+    size_t size = 0;
+    if(vkGetPipelineCacheData(device, pipelineCache, &size, NULL) != VK_SUCCESS || size == 0 ||
+       size == s_cacheSavedSize || size >= (256u << 20))
+        return;
+    unsigned char* data = (unsigned char*)malloc(size);
+    if(!data)
+        return;
+    VkResult r = vkGetPipelineCacheData(device, pipelineCache, &size, data);
+    if(r == VK_SUCCESS)
+    {
+        // written beside, then renamed over: a crash or full disk mid-write leaves the old file
+        char temp[sizeof(s_cacheFile) + 8];
+        snprintf(temp, sizeof(temp), "%s.tmp", s_cacheFile);
+        FILE* f = fopen(temp, "wb");
+        CacheFileHeader h;
+        memcpy(h.magic, s_cacheMagic, sizeof(h.magic));
+        h.size = (unsigned)size;
+        h.checksum = Fnv1a(data, size);
+        bool ok = f && fwrite(&h, sizeof(h), 1, f) == 1 && fwrite(data, 1, size, f) == size;
+        if(f)
+            ok = fclose(f) == 0 && ok;
+        if(ok && rename(temp, s_cacheFile) == 0)
+            s_cacheSavedSize = size;
+        else
+            remove(temp);
+    }
+    free(data);
 }
 
 //-----------------------------------------------------------------------------
@@ -550,7 +670,9 @@ bool pvkCore::Allocate(const VkMemoryRequirements& req, VkMemoryPropertyFlags fl
         block.size = kBlockSize;
         block.type = type;
         block.linear = linear;
-        if(host)
+        // by the type, not the request: on Mesa (lavapipe, integrated GPUs) every type is device-local and
+        // host-visible, so a block made for a device-local request also serves host-visible ones
+        if(memoryProperties.memoryTypes[type].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
             vkMapMemory(device, memory, 0, VK_WHOLE_SIZE, 0, (void**)&block.mapped);
         block.freeCapacity = 8;
         block.free = (Block::Range*)malloc(block.freeCapacity * sizeof(Block::Range));
@@ -1380,7 +1502,7 @@ static VkPipeline CreatePresentPipeline(VkDevice device, VkPipelineLayout layout
     info.pDynamicState = &dynamic;
     info.layout = layout;
     VkPipeline pipeline = VK_NULL_HANDLE;
-    vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &info, NULL, &pipeline);
+    vkCreateGraphicsPipelines(device, g_pvk->pipelineCache, 1, &info, NULL, &pipeline);
     return pipeline;
 }
 
@@ -1395,6 +1517,14 @@ void pvkCore::Present(float gamma, SDL_Window* window)
         BeginFrame();
     ResolveTarget();
     EndRendering();
+    // a crash would lose the session's pipelines: written every minute when new ones were made (small: a few MB)
+    static Uint32 s_cacheSaved = 0;
+    Uint32 now = SDL_GetTicks();
+    if(now - s_cacheSaved > 60000)
+    {
+        s_cacheSaved = now;
+        SavePipelineCache();
+    }
     Frame& fr = frames[frame];
     VkCommandBuffer cmd = fr.cmd;
 
