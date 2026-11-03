@@ -440,7 +440,7 @@ void PresentationManager::PlayFMV( const char* FileName,
     pEvent->SetRenderLayer( RenderEnums::PresentationSlot );
     pEvent->SetAutoPlay( true );
 
-#ifdef PAL
+#if defined( PAL ) || defined( RAD_LINUX )    // Linux port: the movie's audio track follows the language (simpsons.ini language=)
     if( IsLocalized )
     {
         switch( CGuiTextBible::GetCurrentLanguage() )
