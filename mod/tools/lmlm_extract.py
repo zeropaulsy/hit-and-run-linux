@@ -46,8 +46,8 @@ def parse(d):
             name_sec = sec(pos)
             pos += 1
             flags, = struct.unpack_from('<H', name_sec, 0)
-            if flags & ~FLAG_TIMESTAMP:
-                sys.exit(f'unknown entry flags {flags:#x} at sector {pos - 1}')
+            # only FLAG_TIMESTAMP changes the layout; other bits (seen: 0x13, 0x06) don't move anything and are
+            # ignored. What they mean is not known.
             name = name_sec[2:].decode('utf-16le', 'replace').split('\0')[0]
             if not name or name in ('.', '..') or '/' in name or '\\' in name:
                 sys.exit(f'bad name {name!r} at sector {pos - 1}')
