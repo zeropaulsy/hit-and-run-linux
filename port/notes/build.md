@@ -44,6 +44,18 @@
 - Verified: L1-7, races, interiors, bonus game, mods, ASan clean; `package.sh`. Not yet: long sessions.
 
 ## macOS arm64 (planned, not started; nothing below is built or tested yet)
+Order of events (each step needs the one before; Linux builds must keep working throughout):
+1. Set up: Xcode tools, CMake, Ninja, SDL2, FFmpeg, MoltenVK; retail game data on the Mac. Check MoltenVK reports 1.3.
+2. Configure: macOS branch in `gen_cmake.py` (arch, linker flags, deps), `build-macos/`.
+3. Compile: clang source fixes library by library; replace `int3`, crash handler PC, `/proc/self/exe`.
+4. Link: allocator isolation redesign first, since a wrong operator new crashes before `main`.
+5. Runtime foundations: fibers, `InvokeVf64`; both can fail at boot, so settle them before the first run.
+6. First pixels on GL with `SHAR_NO_AUDIO=1` (no MoltenVK in the way): legal screen, front end.
+7. Into the game: L1, input, audio, movies, then the other levels and mods.
+8. Vulkan via MoltenVK: portability extensions, compare with GL by screenshot, sun shadows, then make it the default.
+9. Hardening: ASan, TSan for memory-order bugs, long play sessions.
+10. Ship: `play.sh`, `.app` packaging and signing; update README and TODO.
+
 Blockers found by reading the code. Toolchain rules go in `gen_cmake.py`.
 - Target: Apple clang + libc++, Mach-O, SDL2 and FFmpeg from Homebrew. `SHAR_ARCH` (-m64/-m32) -> `-arch arm64`. Clang
   is stricter than GCC: expect source fixes.
