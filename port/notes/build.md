@@ -1,4 +1,4 @@
-# Build, toolchain, 64-bit
+# Build, toolchain, 64-bit, macOS arm64
 
 ## Tools (port/)
 - `vcx.py` reads the VS2013 .vcxproj files; `gen_cmake.py` -> CMakeLists.txt. Rules: `win32/` source -> `linux/`
@@ -42,6 +42,30 @@
   `lpSurface`, type info strings; 32-bit masks on addresses fixed (`RoundUpAlignment`, movie negative pitch).
 - Saves layout-identical (CharacterSheet 7140, SaveGameInfoData 16).
 - Verified: L1-7, races, interiors, bonus game, mods, ASan clean; `package.sh`. Not yet: long sessions.
+
+## macOS arm64 (planned, not started; nothing below is built or tested yet)
+Blockers found by reading the code. Toolchain rules go in `gen_cmake.py`.
+- Target: Apple clang + libc++, Mach-O, SDL2 and FFmpeg from Homebrew. `SHAR_ARCH` (-m64/-m32) -> `-arch arm64`. Clang
+  is stricter than GCC: expect source fixes.
+- Linker: no `--version-script`, `--exclude-libs`, `--start-group`, `-static-libgcc`, `-static-libstdc++`. Exports:
+  `-exported_symbols_list`.
+- Allocator isolation (above) is ELF-specific: no `objcopy` on pddigl, Mach-O prefixes `_` (`__Znwm`), and weak binding
+  can route libc++ and dylibs to the game's operator new. Redesign, then check with `nm -gU`, not `nm -D`.
+- radscript `InvokeVf64` (`linuxtypeinfovfcall.cpp`, sorted in `TypeInfoMethod.cpp`) is SysV: rewrite. Apple arm64:
+  `this` + 7 ints in x0-x7, 8 floats in v0-v7, stack args packed to natural size, not 8-byte slots, so the
+  one-signature call can't cover stack args as it stands. Vtable slots (Itanium, as GCC): verify.
+- x86 instructions: `int3` in `raddebug/debug.cpp`, `scrooby/strings/pcstring.cpp` -> `__builtin_debugtrap()`.
+  `shar_crash.cpp` PC: `uc_mcontext->__ss.__pc`. No SSE intrinsic headers in the tree.
+- Linux APIs: `/proc/self/exe` (`win32main.cpp`) -> `_NSGetExecutablePath`. Fibers (`win32_threads.cpp`) use ucontext:
+  deprecated on macOS, test on arm64 or replace.
+- Vulkan via MoltenVK: `vkcore.cpp` requires 1.3 (check the installed one reports it) and needs
+  `VK_KHR_portability_enumeration` + `VK_KHR_portability_subset`, not requested yet. No ray query -> `rayQuery = false`
+  path: verify sun shadows there.
+- GL fallback: 3.3 core is available but deprecated on macOS; surfaceless worker contexts are Wayland-only (platform.md).
+- Hardware differences that can expose bugs: weak memory order (x86 forgave unsynchronised flag handoffs between
+  threads); out-of-range float -> int saturates (x86: INT_MIN). `char` stays signed on Apple arm64.
+- Tools to replace: valgrind `memcheck.sh` (use ASan), `play.sh`, `package.sh`/`--noble` (needs an .app, signing).
+- Filesystem is case-insensitive by default: no two tracked paths may differ only in case.
 
 ## Shipped-binary strings
 - `-fmacro-prefix-map` makes `__FILE__` relative. Release (`!RAD_DEBUG`) `rReleaseAssert`/`Warning` pass
