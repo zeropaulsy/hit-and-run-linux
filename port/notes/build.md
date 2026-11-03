@@ -10,7 +10,7 @@
   win32_misc.* (MessageBox), shar_crash.* (signal -> report on stderr; `SHAR_CRASH_HANDLER=0` off), pddi_heap.cpp,
   valgrind/ headers, srr2.map, shar_mod*.cpp.
 - Audit build: grep -Wuninitialized/-Wmaybe-uninitialized; 2 known false positives (actordsg.cpp, opticlensflare.cpp).
-- Deps: amd64 -dev SDL2, GL, OpenAL, FFmpeg. Legacy 32-bit: gcc-multilib + the `:i386` ones (Bink:
+- Deps: amd64 -dev SDL2, GL, OpenAL, FFmpeg, Vulkan (`libvulkan-dev`: headers only, the library loads at run time). Legacy 32-bit: gcc-multilib + the `:i386` ones (Bink:
   `libav{format,codec,util}-dev:i386 libsw{scale,resample}-dev:i386`).
 
 ## Allocator isolation
@@ -54,9 +54,11 @@ Status: native on an Apple M2, Vulkan via MoltenVK by default, OpenGL 4.1 as fal
   ~133 fps. A self-running demo, not real play: the user's own test is still to do.
 - Next: the user plays on Vulkan, then step 9.
 - Open: Apple GL logged `unit 0 GLD_TEXTURE_INDEX_2D is unloadable` once (a draw with an incomplete texture; cause not
-  found). 30 scripted methods return float, `InvokeVf64` reads the integer register (as on x86-64). Linux not rebuilt since these changes: check it builds with GCC and `gen_cmake.py` output is unchanged.
+  found). 30 scripted methods return float, `InvokeVf64` reads the integer register (as on x86-64). Linux x86-64 rechecked after these changes: builds with GCC 15, `gen_cmake.py` output unchanged, scripted runs pass on both renderers.
 - Linux builds have no optimisation either: `gen_cmake.py` sets no build type there, and play.sh/package.sh pass none.
-  Left unchanged; worth deciding.
+  GCC `-O2` needs `-fno-lifetime-dse`: without it `AnimatedIcon::operator new`'s `mAllocated = true` is dropped, a pool slot is
+  handed out twice, SIGSEGV in `AnimatedIcon::Move` (`demo l1`, ~30 s). With the flag: `demo l1`-`l7` clean; ~24% less CPU, same fps on Iris Plus.
+  Not the default yet: the user decides after a real play session on an optimised build; memcheck/ASan not run at `-O2`.
 
 Order of events (each step needs the one before; Linux builds must keep working throughout):
 1. Set up: `brew install cmake ninja pkgconf sdl2 ffmpeg openal-soft molten-vk vulkan-loader vulkan-headers vulkan-tools`;
