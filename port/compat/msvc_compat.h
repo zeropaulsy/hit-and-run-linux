@@ -28,7 +28,11 @@
 /* Symbols that must stay private to the executable. The game replaces the global operator new/delete;
    on Windows that only affects the .exe, but an ELF executable's definition would also replace them
    for every shared library (GPU drivers included). Hidden visibility restores the Windows behaviour. */
+#ifdef __APPLE__
+#define SHAR_LOCAL   /* libc++ declares operator new with default visibility; isolation differs on Mach-O */
+#else
 #define SHAR_LOCAL __attribute__((visibility("hidden")))
+#endif
 
 /* ---- CRT names ---- */
 #define _isnan(x)   __builtin_isnan(x)

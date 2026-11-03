@@ -209,7 +209,7 @@ public:
     // remove next element from the queue
     T Dequeue(void)
     {
-        if(Empty())
+        if(this->Empty())
             sequenceNumber = SHRT_MAX;
         return tPriorityQueue<T>::Dequeue();
     }

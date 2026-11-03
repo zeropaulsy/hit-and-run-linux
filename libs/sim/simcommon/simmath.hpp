@@ -46,8 +46,8 @@ template <class TYPE>
     inline TYPE ClampBetween( TYPE val, const TYPE minv, const TYPE maxv)
 {
     rAssert(minv<=maxv);
-    val = Min(val,maxv);
-    return Max(val,minv);
+    val = rmt::Min(val,maxv);
+    return rmt::Max(val,minv);
 }
 
 inline float ACosSafe(float a)

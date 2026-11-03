@@ -9,6 +9,11 @@
 
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
+#ifdef __clang__
+// gnu++98: the header's ((void*)0) converts to a handle only under GCC's -fpermissive
+#undef VK_NULL_HANDLE
+#define VK_NULL_HANDLE 0
+#endif
 
 #define PVK_GLOBAL_FUNCS(X) \
     X(vkCreateInstance) X(vkEnumerateInstanceExtensionProperties) X(vkEnumerateInstanceLayerProperties) \

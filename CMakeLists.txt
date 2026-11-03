@@ -49,6 +49,9 @@ if(APPLE)
   include_directories(SYSTEM ${SHAR_BREW}/include ${SHAR_BREW}/opt/openal-soft/include)
   link_directories(${SHAR_BREW}/lib ${SHAR_BREW}/opt/openal-soft/lib)
   add_compile_definitions(RAD_MACOS)
+  include_directories(AFTER port/compat/macos)
+  # ucontext (fibers, crash handler) needs _XOPEN_SOURCE; _DARWIN_C_SOURCE keeps the rest of the API visible
+  add_compile_definitions(_XOPEN_SOURCE=700 _DARWIN_C_SOURCE)
 endif()
 # Lua for mods' scripts (port/third_party/lua, port/compat/shar_modlua.cpp): plain C, so declared before the
 # game-wide definitions and the force-included MSVC compat header below
@@ -65,6 +68,10 @@ target_link_options(shar_glslang PRIVATE ${SHAR_ARCH} -static-libstdc++ -static-
 endif()
 target_link_libraries(shar_glslang PRIVATE pthread)
 add_compile_definitions(RAD_WIN32 RAD_LINUX LINUX RAD_PC PDDI_NO_ASM)
+# clang checks non-dependent names when a template is defined; the 2003 sources rely on MSVC parsing them later
+if(APPLE)
+  add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fdelayed-template-parsing>)
+endif()
 # MSVC built-ins/CRT names -> GCC/POSIX, and a types-only windows.h (searched after the source dirs)
 add_compile_options("SHELL:-include ${CMAKE_SOURCE_DIR}/port/compat/msvc_compat.h")
 include_directories(AFTER port/compat)

@@ -48,7 +48,9 @@ Order of events (each step needs the one before; Linux builds must keep working 
 1. Set up: `brew install cmake ninja pkgconf sdl2 ffmpeg openal-soft molten-vk vulkan-loader vulkan-headers vulkan-tools`;
    retail game data on the Mac (still to do). Homebrew is `/opt/homebrew`, not on the default search paths.
 2. Configure: macOS branch in `gen_cmake.py` (arch, linker flags, deps), `build-macos/`.
-3. Compile: clang source fixes library by library; replace `int3`, crash handler PC, `/proc/self/exe`.
+3. Compile (done: everything compiles and links, nothing run yet). Apple-only `-fdelayed-template-parsing` stands in for
+   MSVC-style late template parsing; `port/compat/macos/malloc.h` supplies `<malloc.h>`. Don't add `using namespace std` to
+   headers: libc++'s `std::ref` clashes with radcore's `ref<>`. `SHAR_LOCAL` is empty on macOS until step 4.
 4. Link: allocator isolation redesign first, since a wrong operator new crashes before `main`.
 5. Runtime foundations: fibers, `InvokeVf64`; both can fail at boot, so settle them before the first run.
 6. First pixels on GL with `SHAR_NO_AUDIO=1` (no MoltenVK in the way): legal screen, front end.
@@ -68,10 +70,8 @@ Blockers found by reading the code. Toolchain rules go in `gen_cmake.py`.
 - radscript `InvokeVf64` (`linuxtypeinfovfcall.cpp`, sorted in `TypeInfoMethod.cpp`) is SysV: rewrite. Apple arm64:
   `this` + 7 ints in x0-x7, 8 floats in v0-v7, stack args packed to natural size, not 8-byte slots, so the
   one-signature call can't cover stack args as it stands. Vtable slots (Itanium, as GCC): verify.
-- x86 instructions: `int3` in `raddebug/debug.cpp`, `scrooby/strings/pcstring.cpp` -> `__builtin_debugtrap()`.
-  `shar_crash.cpp` PC: `uc_mcontext->__ss.__pc`. No SSE intrinsic headers in the tree.
-- Linux APIs: `/proc/self/exe` (`win32main.cpp`) -> `_NSGetExecutablePath`. Fibers (`win32_threads.cpp`) use ucontext:
-  deprecated on macOS, test on arm64 or replace.
+- Fibers (`win32_threads.cpp`) use ucontext: deprecated on macOS, test on arm64 or replace.
+- GL debug output (`SHAR_GL_DEBUG`) is compiled out: macOS OpenGL stops at 4.1.
 - Vulkan via MoltenVK: 1.4.2 on an M2 reports Vulkan 1.4, so `vkcore.cpp`'s 1.3 check passes; dynamic rendering and
   synchronization2 present. Needs `VK_KHR_portability_enumeration` + `VK_KHR_portability_subset`, not requested yet.
   No ray query or acceleration structure extensions: `rayQuery = false` path, verify sun shadows there.

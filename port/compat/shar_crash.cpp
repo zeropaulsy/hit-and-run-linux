@@ -43,7 +43,10 @@ namespace
     const char* CodeName(int sig, int code)
     {
         if(sig == SIGABRT) return "abort(): failed assert, std::terminate, heap corruption found by glibc, ...";
-        if(code == SI_USER || code == SI_TKILL) return "sent by kill/raise";
+#ifdef SI_TKILL
+        if(code == SI_TKILL) return "sent by kill/raise";
+#endif
+        if(code == SI_USER) return "sent by kill/raise";
         switch(sig)
         {
         case SIGSEGV: return code == SEGV_MAPERR ? "address not mapped" : code == SEGV_ACCERR ? "access not permitted" : "";
@@ -103,6 +106,8 @@ namespace
         pc = (void*)((ucontext_t*)uc)->uc_mcontext.gregs[REG_EIP];
 #elif defined(__x86_64__)
         pc = (void*)((ucontext_t*)uc)->uc_mcontext.gregs[REG_RIP];
+#elif defined(__APPLE__) && defined(__aarch64__)
+        pc = (void*)((ucontext_t*)uc)->uc_mcontext->__ss.__pc;
 #endif
         char fault[48] = "";
         if(si->si_code > 0 && sig != SIGABRT)    // kernel-generated: si_addr is the faulting address / instruction

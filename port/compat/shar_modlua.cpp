@@ -706,7 +706,18 @@ int ModLuaRunHandler( Mod* mod, const char* script, const char* gamePath, int* f
     if ( ok && h.hasOutput )
     {
         // The output as a file of its own: an anonymous in-memory one
+#ifdef __APPLE__
+        // no memfd on macOS: an unlinked temporary file behaves the same
+        char tmpPath[] = "/tmp/shar-mod-output-XXXXXX";
+        int memfd = mkstemp( tmpPath );
+        if ( memfd >= 0 )
+        {
+            unlink( tmpPath );
+            fcntl( memfd, F_SETFD, FD_CLOEXEC );
+        }
+#else
         int memfd = memfd_create( "shar-mod-output", MFD_CLOEXEC );
+#endif
         size_t done = 0;
         while ( memfd >= 0 && done < h.outputSize )
         {

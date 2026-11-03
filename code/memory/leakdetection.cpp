@@ -198,7 +198,14 @@ void LeakDetectionAddRecord( const void* pMemory, const unsigned int size, const
     VOIDINTMAP::iterator found = g_MemoryMap.find( pMemory );
     rAssert( found == g_MemoryMap.end() );
     g_MemoryAllocationEnabled = false;
-    g_MemoryMap[ pMemory ] = size;
+    if( found != g_MemoryMap.end() )    // not operator[]: libc++ can't build it with this const-pointer key in gnu++98
+    {
+        found->second = size;
+    }
+    else
+    {
+        g_MemoryMap.insert( VOIDINTMAP::value_type( pMemory, size ) );
+    }
     g_MemoryAllocationEnabled = true;
     HeapMgr()->PopHeap( GMA_DEBUG );
 }
