@@ -20,4 +20,5 @@ port/syntax_survey.json
 .codegraph/
 build-macos*/
 game-files/
+bin/
 .DS_Store

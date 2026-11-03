@@ -104,6 +104,8 @@ namespace
         void* pc = NULL;
 #if defined(__i386__)
         pc = (void*)((ucontext_t*)uc)->uc_mcontext.gregs[REG_EIP];
+#elif defined(__APPLE__) && defined(__x86_64__)
+        pc = (void*)((ucontext_t*)uc)->uc_mcontext->__ss.__rip;
 #elif defined(__x86_64__)
         pc = (void*)((ucontext_t*)uc)->uc_mcontext.gregs[REG_RIP];
 #elif defined(__APPLE__) && defined(__aarch64__)

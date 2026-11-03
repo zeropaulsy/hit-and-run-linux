@@ -202,14 +202,16 @@ SDL_Window* Win32Platform::CreateGameWindow( bool vulkan )
     int x, y;
     TranslateResolution( StartingResolution, x, y );
 
+    Uint32 flags = ( vulkan ? SDL_WINDOW_VULKAN : SDL_WINDOW_OPENGL ) |
+                   SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE;
+#if !defined(__APPLE__)
+    flags |= SDL_WINDOW_ALLOW_HIGHDPI;      // Wayland with display scaling: render at the screen's pixels
+                                            // (the display follows SDL_GL_GetDrawableSize). On macOS Retina
+                                            // this would silently 2x the drawable; keep the requested size.
+#endif
     SDL_Window* window = SDL_CreateWindow( ApplicationName,
                                            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                           x, y,
-                                           ( vulkan ? SDL_WINDOW_VULKAN : SDL_WINDOW_OPENGL ) |
-                                           SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE |
-                                           SDL_WINDOW_ALLOW_HIGHDPI );     // Wayland with display scaling: render
-                                                                           // at the screen's pixels (the display
-                                                                           // follows SDL_GL_GetDrawableSize)
+                                           x, y, flags );
     return window;
 }
 
