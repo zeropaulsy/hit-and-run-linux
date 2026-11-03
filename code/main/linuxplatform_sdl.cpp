@@ -25,6 +25,7 @@
 #include <input/FEMouse.h>
 #include <input/MouseCursor.h>
 #include <main/win32platform.h>
+#include <presentation/gui/guitextbible.h>
 #include <render/RenderFlow/renderflow.h>
 
 static const char ApplicationName[] = "The Simpsons: Hit & Run";
@@ -94,6 +95,30 @@ static bool WantVulkan()
     return vulkan;
 }
 
+// The language (simpsons.ini language=english|french|german|spanish) is needed by the sound system and the front end
+// before the config manager has read simpsons.ini, so it is looked at here too.
+static void ReadStartupLanguage()
+{
+    char value[ 64 ] = "";
+    if( FILE* f = fopen( "simpsons.ini", "r" ) )
+    {
+        char line[ 256 ];
+        while( fgets( line, sizeof( line ), f ) )
+        {
+            if( strncasecmp( line, "language=", 9 ) == 0 )
+            {
+                snprintf( value, sizeof( value ), "%s", line + 9 );
+                value[ strcspn( value, "\r\n" ) ] = '\0';
+            }
+        }
+        fclose( f );
+    }
+    CGuiTextBible::SetStartupLanguage( strcasecmp( value, "french" ) == 0 ? Scrooby::XL_FRENCH :
+                                       strcasecmp( value, "german" ) == 0 ? Scrooby::XL_GERMAN :
+                                       strcasecmp( value, "spanish" ) == 0 ? Scrooby::XL_SPANISH :
+                                       Scrooby::XL_ENGLISH );
+}
+
 //==============================================================================
 // Win32Platform::InitializeWindow
 //==============================================================================
@@ -103,6 +128,8 @@ static bool WantVulkan()
 bool Win32Platform::InitializeWindow( HINSTANCE hInstance )
 {
     mhInstance = hInstance;
+
+    ReadStartupLanguage();
 
     // relative mouse mode (mouse-look in gameplay): use raw relative input, not pointer warping, which
     // reports a spurious one-pixel motion every frame under XWayland

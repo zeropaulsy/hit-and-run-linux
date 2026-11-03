@@ -75,6 +75,11 @@ public:
     static void SetCurrentLanguage( const Scrooby::XLLanguage language );
 #endif
     static Scrooby::XLLanguage GetCurrentLanguage();
+#ifdef RAD_LINUX
+    // Linux port: the language from simpsons.ini (language=), set before the front end and the sound start; only
+    // records it (CGuiSystem::Init and the sound manager apply it)
+    static void SetStartupLanguage( const Scrooby::XLLanguage language ) { s_currentLanguage = language; }
+#endif
     static bool IsTextBibleLoaded();
 
 private:
