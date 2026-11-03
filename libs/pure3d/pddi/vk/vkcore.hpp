@@ -118,6 +118,7 @@ public:
     // draw targets: the frame's (multisampled when anti-aliasing is on), resized with the window
     void SetSize(int width, int height);
     void SetSamples(int samples);       // 1 = off; clamped to what the device has
+    void ReportSamples();               // logs the targets' samples when that changed
     int Samples() const { return targetSamples; }
     int Width() const { return scene.colour.image ? scene.colour.width : width; }      // of the targets as made
     int Height() const { return scene.colour.image ? scene.colour.height : height; }
@@ -185,7 +186,7 @@ private:
     bool frameOpen;
 
     int width, height;              // draw targets' size
-    int requestedSamples, targetSamples;
+    int requestedSamples, targetSamples, reportedSamples;
     pvkTarget scene, msTarget;
     bool msActive;                  // this frame draws into msTarget (until ResolveTarget)
     bool rendering;

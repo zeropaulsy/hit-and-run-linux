@@ -655,8 +655,26 @@ void pglSetTextureFiltering( int mipmaps, int anisotropy )
 }
 
 // for the game's settings (Win32Platform::LoadConfig: simpsons.ini antialiasing=)
+static bool s_antialiasingSet = false;  // the game's setting has arrived (the display's 4x is only a default)
+
+// logs the frame target's samples when that changed, once the setting is known
+static void ReportAntialiasing( int samples, int requested )
+{
+    static int s_reported = -1;
+    if( !s_antialiasingSet || samples == s_reported )
+        return;
+    s_reported = samples;
+    if( samples < 2 )
+        fprintf( stderr, "PDDI: anti-aliasing off\n" );
+    else if( requested > samples )
+        fprintf( stderr, "PDDI: %dx anti-aliasing (%dx is not available)\n", samples, requested );
+    else
+        fprintf( stderr, "PDDI: %dx anti-aliasing\n", samples );
+}
+
 void pglSetAntialiasing( int samples )
 {
+    s_antialiasingSet = true;
     if( s_display )
         s_display->SetAntialiasing( samples );
     pvkSetAntialiasing( samples );
@@ -683,11 +701,8 @@ void pglDisplay::BeginFrameTarget( void )
         samples = s_maxSamples;
     if( samples < 2 || winWidth <= 0 || winHeight <= 0 )
     {
-        if( msaaSamples )
-        {
-            fprintf( stderr, "PDDI: anti-aliasing off\n" );
-            msaaSamples = 0;
-        }
+        msaaSamples = 0;
+        ReportAntialiasing( 0, msaaRequested );
         return;
     }
 
@@ -718,15 +733,15 @@ void pglDisplay::BeginFrameTarget( void )
                      samples, winWidth, winHeight, status, error );
             msaaRequested = 0;
             msaaSamples = 0;
+            ReportAntialiasing( 0, 0 );
             return;
         }
-        if( samples != msaaSamples )
-            fprintf( stderr, "PDDI: %dx anti-aliasing\n", samples );
         msaaSamples = samples;
         msaaWidth = winWidth;
         msaaHeight = winHeight;
     }
 
+    ReportAntialiasing( msaaSamples, msaaRequested );
     glBindFramebuffer( GL_FRAMEBUFFER, msaaFramebuffer );
     msaaBound = true;
     pipeline.SetMultisampled( true );
@@ -781,8 +796,18 @@ void pglDisplay ::SwapBuffers()
     SDL_GL_GetDrawableSize( window, &w, &h );
     if( w > 0 && h > 0 )
     {
-        if( w != winWidth || h != winHeight )
-            fprintf( stderr, "PDDI: drawing at %dx%d\n", w, h );
+        // the size and mode on screen (InitDisplay sets winWidth too, so it can't tell what was last logged; the
+        // hidden start-up window isn't the game's size)
+        static int s_loggedW = 0, s_loggedH = 0;
+        static pddiDisplayMode s_loggedMode = PDDI_DISPLAY_WINDOW;
+        if( ( w != s_loggedW || h != s_loggedH || mode != s_loggedMode ) && !( SDL_GetWindowFlags( window ) & SDL_WINDOW_HIDDEN ) )
+        {
+            fprintf( stderr, "PDDI: drawing at %dx%d (%s)\n", w, h, mode == PDDI_DISPLAY_FULLSCREEN ? "exclusive fullscreen" :
+                     mode == PDDI_DISPLAY_FULLSCREEN_DESKTOP ? "borderless" : "window" );
+            s_loggedW = w;
+            s_loggedH = h;
+            s_loggedMode = mode;
+        }
         winWidth = w;
         winHeight = h;
     }

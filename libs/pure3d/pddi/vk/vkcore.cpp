@@ -29,6 +29,7 @@ pvkCore::pvkCore()
     pthread_mutex_init(&memoryLock, NULL);
     pthread_mutex_init(&retireLock, NULL);
     requestedSamples = targetSamples = 1;
+    reportedSamples = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -1041,6 +1042,20 @@ void pvkCore::SetSize(int w, int h)
     targetsDirty = true;
 }
 
+// what the targets really have, once the settings are read (the display starts at a default) and they are made
+void pvkCore::ReportSamples()
+{
+    if(targetsDirty || targetSamples == reportedSamples)
+        return;
+    reportedSamples = targetSamples;
+    if(targetSamples < 2)
+        fprintf(stderr, "PDDI: anti-aliasing off\n");
+    else if(requestedSamples > targetSamples)
+        fprintf(stderr, "PDDI: %dx anti-aliasing (%dx is not available)\n", targetSamples, requestedSamples);
+    else
+        fprintf(stderr, "PDDI: %dx anti-aliasing\n", targetSamples);
+}
+
 void pvkCore::SetSamples(int samples)
 {
     if(samples < 1)
@@ -1080,7 +1095,6 @@ bool pvkCore::CreateTargets()
        !CreateImage(width, height, 1, depthFormat, VK_SAMPLE_COUNT_1_BIT, depthUsage, depthAspect, &scene.depth))
         return false;
 
-    int previous = targetSamples;
     targetSamples = 1;
     VkSampleCountFlagBits samples = SampleBits(requestedSamples, sampleCounts);
     if(samples > 1)
@@ -1096,13 +1110,6 @@ bool pvkCore::CreateTargets()
             Retire(msTarget.colour);
             Retire(msTarget.depth);
         }
-    }
-    if(targetSamples != previous)
-    {
-        if(targetSamples > 1)
-            fprintf(stderr, "PDDI: %dx anti-aliasing\n", targetSamples);
-        else if(previous > 1)
-            fprintf(stderr, "PDDI: anti-aliasing off\n");
     }
 
     // new targets start black, depth 1, stencil 0

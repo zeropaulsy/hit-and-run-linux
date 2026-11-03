@@ -1061,6 +1061,9 @@ int Win32Platform::GetNumProperties() const
 
 void Win32Platform::LoadDefaults()
 {
+#ifdef RAD_LINUX
+    pglSetAntialiasing( mAntialiasing );    // no simpsons.ini: the default is the setting
+#endif
 #ifdef RAD_DEBUG
     SetResolution( StartingResolution, StartingBPP, !CommandLineOptions::Get( CLO_WINDOW_MODE ) );
 #else
