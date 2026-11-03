@@ -369,9 +369,15 @@ namespace
         // the language: the mod's Language setting (ModSettings.ini, by title or file name), else the game's
         // language, else English, else the first file
         const char* setting = single == NULL ? shar_ModConfigFolderLanguage( "CustomText" ) : NULL;
-        static const char* const GAME_LANGUAGES[] = { "English", "French", "German", "Spanish" };
-        int gameLanguage = static_cast<int>( CGuiTextBible::GetCurrentLanguage() );
-        const char* game = gameLanguage >= 0 && gameLanguage < 4 ? GAME_LANGUAGES[ gameLanguage ] : "English";
+        // by name: the Scrooby::XLLanguage values are not indexes into a short list (XL_SPANISH is 7)
+        const char* game = "English";
+        switch( CGuiTextBible::GetCurrentLanguage() )
+        {
+            case Scrooby::XL_FRENCH:  game = "French";  break;
+            case Scrooby::XL_GERMAN:  game = "German";  break;
+            case Scrooby::XL_SPANISH: game = "Spanish"; break;
+            default: break;
+        }
         int bySetting = -1, byGame = -1, byEnglish = -1;
         char* utf8[ 16 ];
         for( int i = 0; i < count; i++ )
