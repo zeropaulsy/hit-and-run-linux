@@ -85,7 +85,8 @@ Order of events (each step needs the one before; Linux builds must keep working 
    - Passed: MSAA 2x/4x (8x clamps to 4x), no post shaders, window resize and minimise (`display=window` only: borderless
      ignores `SHAR_RESIZE_SCRIPT`), no ini = Vulkan, GL fallback with `SDL_VULKAN_LIBRARY=/nonexistent` and `VK_DRIVER_FILES=/nonexistent.json`.
    - Sun: no ray queries, so Low only (`SHAR_SUN=1` runs Low): bridge girder shadows seen in `demo l1`.
-   - Not checked: validation layer (`vulkan-validationlayers` not installed), what reaches the screen (shots read the scene image before the gamma pass).
+   - User confirmed on Vulkan: Low shadows, gamma. Not reported: stutter on first use, Cmd+Q, a full play session.
+   - Not checked: validation layer (`vulkan-validationlayers` not installed).
 9. Hardening: ASan, TSan for memory-order bugs, long play sessions.
 10. Ship: `play.sh`, `.app` packaging and signing; update README and TODO.
 
