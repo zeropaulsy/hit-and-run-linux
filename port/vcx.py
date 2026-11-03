@@ -25,10 +25,24 @@ def ci_index():
     return _index
 
 
+def _exists_exact(rel):
+    """Exact-case exists(), also on case-insensitive filesystems (macOS) where os.path.exists ignores case: otherwise
+    a project's spelling would reach CMakeLists.txt and break the case-sensitive Linux build."""
+    cur = ROOT
+    for part in rel.split(os.sep):
+        if part in (os.curdir, os.pardir):
+            cur = os.path.join(cur, part)
+        elif os.path.isdir(cur) and part in os.listdir(cur):
+            cur = os.path.join(cur, part)
+        else:
+            return False
+    return True
+
+
 def resolve(path):
     """Workspace-relative path with the real on-disk case, or None."""
     rel = os.path.relpath(os.path.normpath(os.path.join(ROOT, path)), ROOT)
-    if os.path.exists(os.path.join(ROOT, rel)):
+    if _exists_exact(rel):
         return rel
     return ci_index().get(rel.lower())
 
