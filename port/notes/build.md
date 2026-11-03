@@ -43,7 +43,7 @@
 - Saves layout-identical (CharacterSheet 7140, SaveGameInfoData 16).
 - Verified: L1-7, races, interiors, bonus game, mods, ASan clean; `package.sh`. Not yet: long sessions.
 
-## macOS arm64 (branch `mac-arm64`; in progress, steps 1-6 of 10 done)
+## macOS arm64 (branch `mac-arm64`; in progress, steps 1-6 of 10 done, step 7 awaiting the user's play test)
 Status: native on an Apple M2, OpenGL 4.1 only so far. Boots to Level 1 gameplay; no full play session yet.
 - Build: `export PATH=/opt/homebrew/bin:$PATH; ninja -C build-macos -j8` (`cmake -S . -B build-macos -G Ninja` if missing).
 - Run (`run/` holds symlinks to `game-files/` and a copy of `shaders/`; both ignored by git):
@@ -52,7 +52,7 @@ Status: native on an Apple M2, OpenGL 4.1 only so far. Boots to Level 1 gameplay
 - Benchmark: `SHAR_VSYNC=0 SHAR_FPS_CAP=1000 SHAR_FRAME_LOG=1 SHAR_GL_STATS=1 SHAR_QUIT_AT=45000`, `skipfe demo l1`; a
   `[frames]` line covers 5 s. Uncapped, 1920x1080, 4x MSAA: unoptimised 66 fps; optimised 66 fps; optimised + buffer fix
   ~165 fps; with the example shaders ~85 fps. A self-running demo, not real play: the user's own test is still to do.
-- Next: user re-tests with the fixes (reported under 60 fps before them), then step 7 starting with audio.
+- Next: step 8.
 - Open: Apple GL logged `unit 0 GLD_TEXTURE_INDEX_2D is unloadable` once (a draw with an incomplete texture; cause not
   found). 30 scripted methods return float, `InvokeVf64` reads the integer register (as on x86-64). Main menu never seen
   in a screenshot. Linux not rebuilt since these changes: check it builds with GCC and `gen_cmake.py` output is unchanged.
@@ -71,7 +71,13 @@ Order of events (each step needs the one before; Linux builds must keep working 
    threads, deep stacks, FP values kept). `InvokeVf64` has an arm64 version, tested against real signatures.
 6. First pixels (done): `SHAR_RENDERER=opengl SHAR_NO_AUDIO=1` on an M2 runs legal screen, movies, new game, loading screen and
    L1 in game, with a clean window-close exit. Run from a directory of symlinks to the game data, so the ini stays out of it.
-7. Into the game: L1, input, audio, movies, then the other levels and mods.
+7. Into the game: L1, input, audio, movies, then the other levels and mods. Scripted, OpenGL, no crashes:
+   - Passed: `demo l1`-`l7` screenshots right; main menu seen; `SHAR_KEY_SCRIPT` moves Homer in `skipfe`; CoreAudio opens at
+     48 kHz; `disk` captures of game and boot movie audio have structured spectra, no NaN; 0.05% of game samples clip
+     (no Linux capture to compare). Own test mod: CustomFiles override and Lua handler output (mkstemp) both served in L1.
+   - User confirmed: sound, controls, speed, Cmd+Q. Still to do: a real mod; pads and a full play session not reported.
+   - Test traps: `demo` loads `demo.mfk`/`demoi.mfk`, not `level.mfk`; `SHAR_SHOT_EVERY` is seconds; macOS has no `timeout`;
+     L1 `skipfe` stops at a tutorial popup (context 10). Don't search `~` for test data: it triggers macOS folder prompts.
 8. Vulkan via MoltenVK: portability extensions, compare with GL by screenshot, sun shadows, then make it the default.
 9. Hardening: ASan, TSan for memory-order bugs, long play sessions.
 10. Ship: `play.sh`, `.app` packaging and signing; update README and TODO.
@@ -101,6 +107,7 @@ Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
   threads); out-of-range float -> int saturates (x86: INT_MIN). `char` stays signed on Apple arm64.
 - Tools to replace: valgrind `memcheck.sh` (use ASan), `play.sh`, `package.sh`/`--noble` (needs an .app, signing).
 - Filesystem is case-insensitive by default: no two tracked paths may differ only in case.
+- Keep the checkout out of iCloud-synced folders (`~/Documents`, `~/Desktop`): sync conflicts leave `name 2.a` copies in build output and could do the same in `.git`. Use `~/Developer`.
 
 ## Shipped-binary strings
 - `-fmacro-prefix-map` makes `__FILE__` relative. Release (`!RAD_DEBUG`) `rReleaseAssert`/`Warning` pass
