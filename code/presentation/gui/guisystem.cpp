@@ -1228,7 +1228,7 @@ void CGuiSystem::OnInitBootUp()
     char languageDir[ 16 ];
     languageDir[ 0 ] = '\0';
 
-#ifdef PAL
+#if defined( PAL ) || defined( RAD_LINUX )    // Linux port: the images with translated text
     switch( CGuiTextBible::GetCurrentLanguage() )
     {
         case Scrooby::XL_FRENCH:
@@ -1274,6 +1274,12 @@ void CGuiSystem::OnInitBootUp()
 #endif
              LICENSE_SCREEN_IMAGE_DIR,
              languageDir );
+#ifdef RAD_LINUX
+    if( languageDir[ 0 ] != '\0' && !CGuiTextBible::GameFileExists( licenseImageFile ) )
+    {
+        sprintf( licenseImageFile, "%slicensePC.p3d", LICENSE_SCREEN_IMAGE_DIR );
+    }
+#endif
 
     //Load the mouse cursor
 #ifdef RAD_WIN32
@@ -1377,7 +1383,7 @@ void CGuiSystem::OnReleaseBootUp()
 
     HeapMgr()->PopHeap(GMA_LEVEL_FE);
 
-#ifdef PAL
+#if defined( PAL ) || defined( RAD_LINUX )    // Linux port: translated tutorial lines run to 60 characters (English: 34)
     this->FormatTutorialTextWithLineBreaks();
 #endif
 
@@ -1638,7 +1644,13 @@ void CGuiSystem::OnReleaseInGame()
 //===========================================================================
 void CGuiSystem::FormatTutorialTextWithLineBreaks()
 {
-#ifdef PAL
+#if defined( PAL ) || defined( RAD_LINUX )
+#ifdef RAD_LINUX
+    if( CGuiTextBible::GetCurrentLanguage() == Scrooby::XL_ENGLISH )
+    {
+        return;
+    }
+#endif
     const int MAX_NUM_CHARS_PER_LINE = 35;
     const P3D_UNICODE TEXT_LINE_BREAK = '\\';
 
@@ -1668,6 +1680,13 @@ void CGuiSystem::FormatTutorialTextWithLineBreaks()
         {
             tutorialText = platformText;
         }
+
+#ifdef RAD_LINUX
+        if( tutorialText == NULL )    // a text bible that doesn't have this one (a mod's)
+        {
+            continue;
+        }
+#endif
 
         // wrap tutorial text by inserting line breaks into text
         //
@@ -1703,6 +1722,12 @@ void CGuiSystem::FormatTutorialTextWithLineBreaks()
             if( numCharsInCurrentLine > MAX_NUM_CHARS_PER_LINE )
             {
                 rAssertMsg( lastSpaceCharIndex != -1, "We might encounter this w/ Japanese text!" );
+#ifdef RAD_LINUX
+                if( lastSpaceCharIndex < 0 )    // Linux port: would write before the string
+                {
+                    continue;
+                }
+#endif
 
                 // replace last space character w/ line break
                 //

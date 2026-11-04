@@ -78,13 +78,20 @@ public:
 #ifdef RAD_LINUX
     // Linux port: the language from simpsons.ini (language=), set before the front end and the sound start; only
     // records it (CGuiSystem::Init and the sound manager apply it)
-    static void SetStartupLanguage( const Scrooby::XLLanguage language ) { s_currentLanguage = language; }
+    static void SetStartupLanguage( const Scrooby::XLLanguage language ) { s_currentLanguage = s_startupLanguage = language; }
+    // what the player chose: speech, movies and simpsons.ini use this; the console's lang only changes the text
+    static Scrooby::XLLanguage GetStartupLanguage() { return s_startupLanguage; }
+    // the file is there, on disc or in a mod
+    static bool GameFileExists( const char* filename );
 #endif
     static bool IsTextBibleLoaded();
 
 private:
     static Scrooby::TextBible* s_textBible;
     static Scrooby::XLLanguage s_currentLanguage;
+#ifdef RAD_LINUX
+    static Scrooby::XLLanguage s_startupLanguage;
+#endif
 
 };
 

@@ -17,6 +17,9 @@
 #include <App.h>
 #include <TextBible.h>
 #include <raddebug.hpp>
+#ifdef RAD_LINUX
+#include <radfile.hpp>
+#endif
 
 #include <sound/soundmanager.h>
 
@@ -426,6 +429,21 @@ namespace
 
 Scrooby::TextBible* CGuiTextBible::s_textBible = NULL;
 Scrooby::XLLanguage CGuiTextBible::s_currentLanguage = Scrooby::XL_ENGLISH;
+#ifdef RAD_LINUX
+Scrooby::XLLanguage CGuiTextBible::s_startupLanguage = Scrooby::XL_ENGLISH;
+
+bool CGuiTextBible::GameFileExists( const char* filename )
+{
+    IRadFile* file = NULL;
+    radFileOpenSync( &file, filename, false, OpenExisting );
+    const bool exists = file != NULL && file->IsOpen();
+    if( file != NULL )
+    {
+        file->Release();
+    }
+    return exists;
+}
+#endif
 
 //===========================================================================
 // Public Member Functions

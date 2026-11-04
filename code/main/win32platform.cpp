@@ -1351,7 +1351,7 @@ void Win32Platform::SaveConfig( ConfigString& config )
     static const char* const SHADOWS[] = { "off", "low", "high" };
     config.WriteProperty( "shadows", SHADOWS[ pvkSunQuality() ] );
     {
-        const Scrooby::XLLanguage lang = CGuiTextBible::GetCurrentLanguage();
+        const Scrooby::XLLanguage lang = CGuiTextBible::GetStartupLanguage();
         config.WriteProperty( "language", lang == Scrooby::XL_FRENCH ? "french" : lang == Scrooby::XL_GERMAN ? "german" :
                                           lang == Scrooby::XL_SPANISH ? "spanish" : "english" );
     }

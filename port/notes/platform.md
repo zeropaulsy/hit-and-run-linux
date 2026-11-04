@@ -66,3 +66,19 @@
   AnimatedIcon with neither its drawable nor `triggersphere_000` loaded gets an empty drawable (`EmptyDrawable`).
   `tFileFTT` loads a failed open as empty. Mod-occluded files set `radDrive::SetLastError`.
 - DSG `SwapArray::Add` refuses when full; `WorldScene` prints `DSG: ...` for unplaceable objects (invisible, collidable).
+
+## Language
+- `language=` in simpsons.ini: read in `ReadStartupLanguage` (linuxplatform_sdl.cpp), before the config manager, as
+  sound and the front end need it first. `s_startupLanguage` (speech, movie tracks, saved value) vs `s_currentLanguage`
+  (text, images; console `lang` changes only this).
+- Voices: `dialog{f,g,s}.rcf`. Retail scripts.rcf has dialog/nis/interactive_props `fr/ge/sp.spt` even on English
+  installs. Missing .rcf: English voices + scripts (`QueueCementFileRegistration`; the "File not found" line is that
+  check). Silence would leave conversations waiting at the "[ENTER] start mission" prompt.
+- Retail English data has `images/loading/{french,german,spanish}/` (translated) and `images/license/<lang>/` (identical
+  to the English file). Missing ones fall back to English (`GameFileExists`).
+- Retail text bible (`scrooby/.../srr2.p3d`; `scrooby2/.../srr2.txt` is older): only English has PC tutorial text
+  (`[W,S,A,D]`, `\\` breaks). Translations keep console button glyphs (`[ + £ § ®`) the PC font can't draw: gaps.
+- PAL tweaks enabled for non-English: tutorial wrap at 35 chars (translations run to 60; English 34; single-spaced, 5
+  lines fit the normal frame, so no PAL frame stretch), HUD/pause box stretch (guihudtextbox.h), German car names in
+  the phone booth. Wrap covers only the startup language: console `lang` shows others unwrapped. Other `#ifdef PAL`
+  layout tweaks (phone booth, scrapbook, mission select, HUD ordinals) stay off.

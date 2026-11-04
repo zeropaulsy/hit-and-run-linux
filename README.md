@@ -75,6 +75,20 @@ original look.
 
 The OpenGL renderer has no sun shadows: it draws the original blob shadows. Compiled Vulkan pipelines are kept in
 `run/vkpipelines.cache`, so later starts don't pause to build them.
+## Language
+
+Set the language in `simpsons.ini` (in `run/`), then start the game:
+
+```ini
+language=spanish
+```
+
+`english` (the default), `french`, `german` or `spanish` sets the text, the loading screens, the speech and the audio
+of the localized movies. Speech needs that language's voice file in your game folder: `dialogf.rcf` (French),
+`dialogg.rcf` (German) or `dialogs.rcf` (Spanish). Without it you get English voices with the translated text. On an
+English copy, translated tutorials also have gaps where button names should be, as the game's translated text was
+never adapted for PC keys.
+
 ## Building from source
 
 ### 64-bit build (the default):
