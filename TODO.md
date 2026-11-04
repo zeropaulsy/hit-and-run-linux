@@ -20,6 +20,7 @@ Every mission of every level is done (see DONE.md). Left:
   front end, Level 1/7 load (100 ms steps across its end) and gameplay, pause, interior, car, race, demo): no hangs or
   crashes left; still to do: the bonus game, missions in progress, cutscenes, the front end's Quit, quitting while saving
 - [x] Debug-build teardown: no crashes; the asserts left come from the original teardown order (see CLAUDE.md)
+- [ ] Optimised Linux builds by default (`RelWithDebInfo` + `-fno-lifetime-dse`, port/notes/build.md): play a real session, memcheck it first
 - [ ] Missing-data tolerance where it is cheap (a missing `art\wrench.p3d` is handled: its icons draw nothing)
 
 ### Mods

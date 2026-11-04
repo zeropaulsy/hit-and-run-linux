@@ -9,6 +9,8 @@
 
 #include "pch.hpp"
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <radtypeinfo.hpp>
 
 #if defined (RAD_WIN32) || defined (RAD_XBOX)
@@ -86,6 +88,14 @@ unsigned int IRadTypeInfoMethod::Invoke
                         }
                     }
                 }
+
+                #if defined( __aarch64__ )
+                if ( sp > 0 )
+                {
+                    fprintf( stderr, "InvokeVf64: %s needs stack arguments, not supported on arm64\n", GetName( ) );
+                    abort( );
+                }
+                #endif
 
                 int ret = InvokeVf64( pI, m_VTableOffset, intRegs, floatRegs, stack );
 

@@ -57,6 +57,7 @@ bool pglDisplay::CheckExtension( char *extName )
     return false;
 }
 
+#ifndef __APPLE__   // macOS OpenGL 4.1 has no debug output
 // SHAR_GL_DEBUG=1 (debug context, see linuxplatform_sdl.cpp): the driver reports errors and warnings as they happen
 static void APIENTRY DebugMessage( GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length,
                                    const GLchar* message, const void* user )
@@ -70,6 +71,7 @@ static void APIENTRY DebugMessage( GLenum source, GLenum type, GLuint id, GLenum
                  severity == GL_DEBUG_SEVERITY_HIGH ? "high" : severity == GL_DEBUG_SEVERITY_MEDIUM ? "medium" : "low", message );
     }
 }
+#endif
 
 void pglSetTextureFiltering( int mipmaps, int anisotropy );
 static pglDisplay* s_display = NULL;      // the display (one), for the game's calls into the renderer
@@ -236,12 +238,14 @@ bool pglDisplay::InitDisplay(const pddiDisplayInit* init)
         s_reported = true;
         GLint flags = 0;
         glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+#ifndef __APPLE__   // macOS stops at OpenGL 4.1, without debug output
         if((flags & GL_CONTEXT_FLAG_DEBUG_BIT) && CheckExtension((char*)"GL_KHR_debug"))
         {
             glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
             glDebugMessageCallback(DebugMessage, NULL);
             fprintf(stderr, "PDDI: GL debug output on\n");
         }
+#endif
     }
     if(!pipeline.Init())
     {

@@ -33,12 +33,33 @@ while [ $# -gt 0 ]; do
         *) break ;;
     esac
 done
+# Pick a build-dir prefix based on OS (overridden entirely by SHAR_BUILD).
+#   linux x86_64 -> build-linux  (--32 -> build-linux32)
+#   macOS        -> build-macos  (universal/arm64/x86_64 all share one dir)
+case "$(uname -s)" in
+    Darwin)
+        [ -n "$X32" ] && { echo "--32 is not supported on macOS" >&2; exit 1; }
+        PREFIX=build-macos
+        NPROC=$(sysctl -n hw.ncpu)
+        ;;
+    Linux)
+        PREFIX=build-linux$X32
+        NPROC=$(nproc)
+        ;;
+    *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
+esac
 if [ $DEBUG = 1 ]; then
-    BUILD=${SHAR_BUILD:-$ROOT/build-linux$X32-debug}; CMAKE_ARGS=(-DSHAR_RAD_DEBUG=ON)
+    BUILD=${SHAR_BUILD:-$ROOT/$PREFIX-debug}; CMAKE_ARGS=(-DSHAR_RAD_DEBUG=ON)
 else
-    BUILD=${SHAR_BUILD:-$ROOT/build-linux$X32}; CMAKE_ARGS=()
+    BUILD=${SHAR_BUILD:-$ROOT/$PREFIX}; CMAKE_ARGS=()
 fi
 if [ -n "$X32" ]; then CMAKE_ARGS+=(-DSHAR_64BIT=OFF); else CMAKE_ARGS+=(-DSHAR_64BIT=ON); fi
+# macOS: CMakeLists.txt defaults to arm64 and /opt/homebrew, so an Intel Mac says otherwise on first configure.
+# hw.optional.arm64, not uname -m: a shell under Rosetta reports x86_64 on Apple silicon.
+if [ "$(uname -s)" = Darwin ] && [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" != 1 ]; then
+    CMAKE_ARGS+=(-DCMAKE_OSX_ARCHITECTURES=x86_64)
+    if [ -x /opt/local/bin/port ]; then CMAKE_ARGS+=(-DSHAR_BREW=/opt/local); else CMAKE_ARGS+=(-DSHAR_BREW=/usr/local); fi
+fi
 
 if [ -z "$DATA" ]; then
     echo "usage: port/play.sh --data DIR [--mod MOD]... [--debug] [--32] [--no-build] [game args...]" >&2
@@ -61,7 +82,7 @@ done
 if [ ! -e "$RUN/shaders" ]; then
     if [ -d "$DATA/shaders" ]; then ln -s "$DATA/shaders" "$RUN/shaders"; else cp -r "$ROOT/shaders" "$RUN/shaders"; fi
 elif [ -d "$RUN/shaders" ] && [ ! -L "$RUN/shaders" ]; then
-    cp -rn "$ROOT/shaders/." "$RUN/shaders/"
+    cp -rn "$ROOT/shaders/." "$RUN/shaders/" 2>/dev/null || true   # BSD cp -n exits 1 if any file exists
 fi
 
 # Mods: absolute paths in SHAR_MODS (the game runs from the run dir)
@@ -83,7 +104,7 @@ if [ $BUILD_STEP = 1 ]; then
         cmake -S "$ROOT" -B "$BUILD" -G Ninja "${CMAKE_ARGS[@]}"
     fi
     echo "Building $BUILD ..."
-    ninja -C "$BUILD" -j"$(nproc)" > "$ROOT/port/build.log" 2>&1 || {
+    ninja -C "$BUILD" -j"$NPROC" > "$ROOT/port/build.log" 2>&1 || {
         grep -E "error|FAILED" "$ROOT/port/build.log" | head -20; echo "Build failed, see port/build.log" >&2; exit 1; }
 fi
 [ -x "$BUILD/srr2" ] || { echo "$BUILD/srr2 not found" >&2; exit 1; }

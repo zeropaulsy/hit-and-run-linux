@@ -9,7 +9,7 @@ data works; Mod Launcher mods partly. Missing: steering-wheel FFB. `README.md` u
 ## Notes: read only the file for the subsystem you touch
 | file | covers |
 |---|---|
-| `port/notes/build.md` | tools, gen_cmake rules, allocator isolation, GCC/MSVC differences, radscript, 64-bit |
+| `port/notes/build.md` | tools, gen_cmake rules, allocator isolation, GCC/MSVC differences, radscript, 64-bit, macOS arm64 port |
 | `port/notes/renderer.md` | GL pipeline, D3D8 parity fixes, textures, MSAA, user post/material shaders, aspect/resolutions |
 | `port/notes/vulkan.md` | Vulkan renderer: status, goals, next steps, testing, design |
 | `port/notes/platform.md` | window/Wayland/GPU driver quirks, threads, frame timing/loading, input, audio, movies, files |

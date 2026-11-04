@@ -16,6 +16,7 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   gamma, window resize/minimise, mod shader hacks wired (RefractionShaderSupport, HoverCarRefraction,
   VideoTextureSupport). Validation and sync validation clean on boot, movies, front end, L1 (8x MSAA, post passes).
 - Movies match GL (MSAA target kept across the resolve, see Design; edge strip: `port/notes/platform.md`).
+- macOS arm64 (MoltenVK, Apple M2): scripted runs match GL, see build.md "macOS arm64" step 8.
 - Not yet tested: long sessions, other levels/interiors/cutscenes/bonus game, mods in play (HoverCarRefraction,
   video textures), Mesa on real AMD/Intel GPUs (lavapipe: L1 with High sun, 8x MSAA, validation clean), X11, fullscreen switches, memcheck/ASan runs on the Vulkan path.
 - Not done: `Screenshot()`, GPU times in `SHAR_GL_STATS` (draws, pipelines and their CPU ms only).

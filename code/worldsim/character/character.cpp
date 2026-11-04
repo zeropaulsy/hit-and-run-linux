@@ -4496,6 +4496,13 @@ void Character::ClearAllActionButtonHandlers()
     }
 
     mpCurrentActionButtonHandler = NULL;
+#ifdef RAD_LINUX
+    // Linux port: quitting during a level load, a bonus mission's NPC outlives the character manager
+    if(!CharacterManager::Exists())
+    {
+        return;
+    }
+#endif
     if(this == GetCharacterManager()->GetCharacter(0))
     {
         CGuiScreenHud* currentHud = GetCurrentHud();

@@ -151,7 +151,7 @@ radOggDecoder* radOggDecoderOpen( unsigned char* data, unsigned int size, const 
     int64_t duration = st->duration;
     if ( duration != AV_NOPTS_VALUE && duration > 0 )
     {
-        d->totalFrames = (unsigned int) av_rescale_q( duration, st->time_base, AVRational{ 1, par->sample_rate } );
+        d->totalFrames = (unsigned int) av_rescale_q( duration, st->time_base, av_make_q( 1, par->sample_rate ) );
     }
     else if ( d->fmt->duration != AV_NOPTS_VALUE && d->fmt->duration > 0 )
     {

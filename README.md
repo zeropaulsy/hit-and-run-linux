@@ -2,12 +2,10 @@
 
 <img width="2538" height="777" alt="Screenshot From 2026-11-02 18-21-11" src="https://github.com/user-attachments/assets/d17480cd-92df-433c-88dd-12667ec562f6" />
 
-A Linux 64-Bit build of The Simpsons Hit & Run (2003) using SDL2 and Vulkan 1.3, with OpenGL 3.3 as a fallback. It
-runs on X11 and Wayland, with widescreen & ultrawide, high resolutions, anti-aliasing, anisotropic filtering,
+A 64-Bit Linux/macOS build of The Simpsons Hit & Run (2003) using SDL2 and Vulkan 1.3, with OpenGL 3.3 as a fallback. It runs on X11 and Wayland, with widescreen & ultrawide, high resolutions, anti-aliasing, anisotropic filtering,
 controllers, dynamic sun shadows and optional post-processing shaders.
 
-**Bring your own game.** This release has no game data. You need your own copy of the PC game, installed or copied
-from the disc: the folder holding `art/`, `scripts/` and the `.rcf` files.
+**Bring your own game.** This release has no game data. You need your own copy of the PC game, the folder holding `art/`, `scripts/` and the `.rcf` files.
 
 > **AI disclaimer.** Aspects of this port are written with the help of an AI coding
 > assistant (Claude). Builds are always manually playtested for bugs and crashes.
@@ -60,18 +58,14 @@ Options > Graphics (front end or pause menu) holds the port's own settings, save
 | Shaders | The post-processing and material shaders in `shaders/` on or off | `shaders=` |
 | Shadows | Off, Low (default), High; Vulkan only | `shadows=off\|low\|high` |
 
-**Sun shadows** come from the sun (or moon) painted in each level's sky, so they fall the way the sky suggests; the
-light warms as the sun gets low and turns moon-blue on the night levels. Everything casts: buildings, trees and
-fences through their cut-out textures, cars, and characters, which also darken as they walk into shade. With the
-sun on, the game's blob shadows and the trees' painted shadows are not drawn; interiors and the front end keep the
-original look.
+**Sun shadows** come from the sun (or moon) painted in each level's sky, so they fall the way the sky suggests; the light warms as the sun gets low and turns moon-blue on the night levels.
 
 - **Low** bakes the world's shadow into a map and works on any Vulkan GPU. Cars and characters keep the game's blob
   shadows. Costs about half a millisecond a frame on an RTX 5060.
 - **High** ray traces cars and characters into the sun's shadow (no blobs), refines every shadow edge with rays,
   and takes the sun off places under cover (tunnels, the power plant). About 5 ms a frame on an RTX 5060 at 2560x1600
   with 8x MSAA.
-- **F9** cycles Off, Low and High in game, the easiest way to compare them.
+- **F9** cycles Off, Low and High in game.
 
 The OpenGL renderer has no sun shadows: it draws the original blob shadows. Compiled Vulkan pipelines are kept in
 `run/vkpipelines.cache`, so later starts don't pause to build them.
@@ -91,7 +85,7 @@ never adapted for PC keys.
 
 ## Building from source
 
-### 64-bit build (the default):
+### Linux:
 ```bash
 sudo apt install cmake ninja-build python3 build-essential \
     libsdl2-dev libgl-dev libvulkan-dev libopenal-dev \
@@ -105,24 +99,41 @@ ninja -C build-linux
 port/play.sh --data DIR                                    # builds and runs it (configures build-linux if needed)
 ```
 
-### 32-bit build (legacy; enable i386 with `sudo dpkg --add-architecture i386`):
+### macOS (work in progress)
+
+You need the Xcode Command Line Tools and [Homebrew](https://brew.sh/), with `brew` on your `PATH`:
 ```bash
-sudo apt install cmake ninja-build python3 gcc-multilib g++-multilib \
-    libsdl2-dev:i386 libgl-dev:i386 libvulkan-dev libopenal-dev:i386 \
-    libavformat-dev:i386 libavcodec-dev:i386 libswscale-dev:i386 libswresample-dev:i386 libavutil-dev:i386
-```
-Then:
-```bash
-cmake -B build-linux32 -G Ninja -DSHAR_64BIT=OFF && ninja -C build-linux32
-port/play.sh --32 --data DIR                # builds and runs it (configures build-linux32 if needed)
+xcode-select --install
+brew install cmake ninja pkgconf sdl2 ffmpeg openal-soft molten-vk vulkan-loader vulkan-headers vulkan-tools
 ```
 
-Boot movies only play in the release build. `port/package.sh` (`--32` for the 32-bit build) makes a self-contained
+**Apple silicon:**
+```bash
+cmake -S . -B build-macos -G Ninja                         # release build (optimised by default on macOS)
+ninja -C build-macos
+port/play.sh --data DIR                                    # builds and runs it (configures build-macos if needed)
+```
+
+**Intel:** `port/play.sh --data DIR` detects an Intel Mac and sets up the build for it on the first run. It uses MacPorts
+packages if MacPorts is installed, otherwise Homebrew's. To run `cmake` yourself instead, set `SHAR_BREW` to where your
+packages live:
+- `-DSHAR_BREW=/usr/local` for Homebrew on Intel (not tested yet)
+- `-DSHAR_BREW=/opt/local` for MacPorts (tested on Big Sur)
+```bash
+cmake -S . -B build-macos -G Ninja -DCMAKE_OSX_ARCHITECTURES=x86_64 -DSHAR_BREW=/usr/local
+ninja -C build-macos
+port/play.sh --data DIR
+```
+If the Vulkan SDK came from LunarG's installer, also pass `-DCMAKE_CXX_FLAGS="-isystem /usr/local/include"` to find
+its headers.
+
+The game runs on Vulkan through MoltenVK, or OpenGL 4.1 if the GPU doesn't get Vulkan 1.3. On macOS, High shadows run as Low, and 8x anti-aliasing drops to 4x on an Apple M2.
+
+Boot movies only play in the release build. `port/package.sh` (`--32` legacy 32-bit build) makes a self-contained
 tarball for another Linux machine; add `--noble` to build it in an Ubuntu 24.04 container (needs `podman`) so it runs
 on Ubuntu 24.04 / Linux Mint 22 and newer, not just on systems as new as yours. The porting details are in [`CLAUDE.md`](CLAUDE.md).
 
-`CMakeLists.txt` is generated from the original Visual Studio projects: change `port/gen_cmake.py`, never the
-generated file.
+`CMakeLists.txt` is generated from the original Visual Studio projects: change `port/gen_cmake.py`, never the generated file.
 
 <details>
 <summary>Debug and test switches</summary>
@@ -187,9 +198,6 @@ port/play.sh --data "/path/to/simpsons" --mod ~/mods/SomeMod.lmlm --mod ~/mods/A
 - Mods load only for that run. Start without `--mod` to play the unmodded game.
 - A mod's settings take the defaults from its `Meta.ini`. To change them, create `run/ModSettings.ini` with a
   `[ModInternalName]` section and `SettingName=value` lines.
-- Hover Car Refraction (the Xbox's see-through look for Professor Frink's hover car as it speeds up) is on when a mod
-  needs it. To turn it on for the normal game too, add `[HoverCarRefraction]` with `Enabled=1` to
-  `run/ModSettings.ini`. `PerCarScreenCapture=0` there captures the screen once per frame, not once per hover car.
 - Total-conversion mods (`Main=1` in `Meta.ini`) keep their own saves in `run/ModSaves/<ModInternalName>/`, apart
   from the normal game's.
 - At startup the log (`run/logs/last-session.log`) lists each mod loaded and any launcher hacks it needs that aren't
@@ -215,7 +223,7 @@ misbehaves, report the mod's name and version along with `run/logs/last-session.
 | Linux x86 (32-bit, legacy) | **Playable.** Tested through Level 1 - 7 |
 | Vulkan renderer | **Default.** Tested on NVIDIA and Mesa's software driver (lavapipe); AMD / Intel hardware not yet. OpenGL is the fallback |
 | Windows x64 | Planned |
-| macOS (Apple silicon / Intel) | Planned |
+| macOS (Apple silicon / Intel) | **In progress.** Builds and runs on an Apple M2 (Vulkan through MoltenVK) and on Intel with Big Sur (OpenGL). No full play session yet |
 | Android / handhelds | Possible later: the renderer and input layers already allow it |
 
 ## Credits

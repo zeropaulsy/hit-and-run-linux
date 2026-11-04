@@ -49,6 +49,21 @@ int InvokeVf( void * pThat, unsigned int vtbloffset, void * pParams, int numPara
 // looks for it; registers and stack slots it does not use are ignored. TypeInfoMethod::Invoke sorts the arguments.
 //=============================================================================
 typedef uintptr_t U;
+#if defined( __aarch64__ )
+//=============================================================================
+// Apple arm64: `this` and the first 7 integer/pointer arguments go in X0-X7, the first 8 floats in V0-V7. Stack
+// arguments are packed to their natural size, so one signature can't place them: TypeInfoMethod::Invoke refuses a
+// method that needs them. No method in srrtypes.typ does (at most 6 parameters).
+//=============================================================================
+typedef int ( *InvokeFn64 )( void*, U, U, U, U, U, U, U, float, float, float, float, float, float, float, float );
+
+int InvokeVf64( void * pThat, unsigned int vtbloffset, const uintptr_t * i, const float * f, const uintptr_t * )
+{
+    void** vtable = *(void***) pThat;
+    InvokeFn64 fn = (InvokeFn64) vtable[ vtbloffset ];
+    return fn( pThat, i[0], i[1], i[2], i[3], i[4], i[5], i[6], f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7] );
+}
+#else
 typedef int ( *InvokeFn64 )( void*, U, U, U, U, U, float, float, float, float, float, float, float, float,
                              U, U, U, U, U, U, U, U, U, U );
 
@@ -59,4 +74,5 @@ int InvokeVf64( void * pThat, unsigned int vtbloffset, const uintptr_t * i, cons
     return fn( pThat, i[0], i[1], i[2], i[3], i[4], f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7],
                s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9] );
 }
+#endif
 #endif

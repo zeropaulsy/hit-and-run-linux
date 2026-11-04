@@ -658,11 +658,15 @@ radFileError radLinuxDrive::TranslateError( int posixError )
 
     case ENXIO:
     case ENODEV:
+#ifdef ENOMEDIUM
     case ENOMEDIUM:
         return( NoMedia );
+#endif
 
+#ifdef EMEDIUMTYPE
     case EMEDIUMTYPE:
         return( MediaWrongType );
+#endif
 
     default:
         return( HardwareFailure );

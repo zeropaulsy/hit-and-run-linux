@@ -18,3 +18,7 @@ port/syntax_survey.json
 .mcp.json
 .claude/
 .codegraph/
+build-macos*/
+game-files/
+bin/
+.DS_Store

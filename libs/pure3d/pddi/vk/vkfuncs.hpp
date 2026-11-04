@@ -8,7 +8,15 @@
 #define _VKFUNCS_HPP_
 
 #define VK_NO_PROTOTYPES
+#ifdef __APPLE__
+#define VK_ENABLE_BETA_EXTENSIONS   // VK_KHR_portability_subset, which MoltenVK requires
+#endif
 #include <vulkan/vulkan.h>
+#ifdef __clang__
+// gnu++98: the header's ((void*)0) converts to a handle only under GCC's -fpermissive
+#undef VK_NULL_HANDLE
+#define VK_NULL_HANDLE 0
+#endif
 
 #define PVK_GLOBAL_FUNCS(X) \
     X(vkCreateInstance) X(vkEnumerateInstanceExtensionProperties) X(vkEnumerateInstanceLayerProperties) \

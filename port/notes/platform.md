@@ -6,7 +6,8 @@
   on Wayland made current surfaceless (`SDL_GL_MakeCurrent(NULL, ctx)`), else "no GL context left". Max texture size cached.
 - Wayland native by default (`SHAR_X11=1` or `SDL_VIDEODRIVER=x11` for X11): XWayland with a screen-covering window
   leaked GBs of Shmem in gnome-shell (OOM). ALLOW_HIGHDPI: logical window sizes, drawable from
-  `SDL_GL_GetDrawableSize`, mouse normalised. Mouse-look = SDL relative mode (X11 keeps re-centring warp).
+  `SDL_GL_GetDrawableSize`, mouse normalised. `__APPLE__` omits the flag: Retina silently doubled the drawable
+  (1440x900 window -> 2880x1800 render), killed Intel iGPU fps. Mouse-look = SDL relative mode (X11 keeps re-centring warp).
   Unverified on Wayland: mouse-look feel, gamepads, minimised pacing.
 - NVIDIA 32-bit egl-wayland2 fails window surfaces (EGL_BAD_ALLOC): `InitializeWindow` points
   `__EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES` at 10_nvidia_wayland.json unless user set it/`_DIRS`. Wayland failure ->

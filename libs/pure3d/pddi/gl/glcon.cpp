@@ -706,6 +706,23 @@ void pglPrimBuffer::Upload(void)
         glBufferData(GL_ARRAY_BUFFER, size, NULL, usage);
         context->GetDisplay()->GetPipeline()->stats.bufferUploads++;
         context->GetDisplay()->GetPipeline()->stats.bufferBytes += size;
+#ifdef __APPLE__
+        // the storage was just orphaned; glBufferSubData would still make Apple's GL submit and wait (glpipeline.cpp)
+        char* dst = (char*)glMapBufferRange(GL_ARRAY_BUFFER, 0, size, GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+        if(dst)
+        {
+            memcpy(dst, coordBase, n * 12);
+            if(normal)
+                memcpy(dst + normalOffset, normalBase, n * 12);
+            if(uv)
+                memcpy(dst + uvOffset, uvBase, n * 8);
+            if(colour)
+                memcpy(dst + colourOffset, colourBase, n * 4);
+            glUnmapBuffer(GL_ARRAY_BUFFER);
+        }
+        else
+#endif
+        {
         glBufferSubData(GL_ARRAY_BUFFER, 0, n * 12, coordBase);
         if(normal)
             glBufferSubData(GL_ARRAY_BUFFER, normalOffset, n * 12, normalBase);
@@ -713,6 +730,7 @@ void pglPrimBuffer::Upload(void)
             glBufferSubData(GL_ARRAY_BUFFER, uvOffset, n * 8, uvBase);
         if(colour)
             glBufferSubData(GL_ARRAY_BUFFER, colourOffset, n * 4, colourBase);
+        }
         verticesChanged = false;
     }
 
