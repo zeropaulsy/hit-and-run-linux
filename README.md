@@ -32,6 +32,9 @@ come from your system; everything else is included.
 ## Quick start
 
 ```bash
+sudo apt install cmake ninja-build python3 build-essential \
+    libsdl2-dev libgl-dev libvulkan-dev libopenal-dev \
+    libavformat-dev libavcodec-dev libswscale-dev libswresample-dev libavutil-dev
 port/play.sh --data "/path/to/The Simpsons - Hit & Run"
 ```
 
@@ -46,8 +49,11 @@ port/play.sh --data DIR --no-build          # skip the build step
 port/play.sh --data DIR skipfe              # straight into Level 1
 port/play.sh --data DIR bonus               # Bonus Game and its tracks open without completed card decks
 port/play.sh --data DIR console             # developer console on the ` key (or SHAR_CONSOLE=1); type help
-port/play.sh --data DIR --32                # the legacy 32-bit build
 ```
+## Developers
+
+Build options, debug switches and the repository layout are in the README on the
+[`dev` branch](https://github.com/zeropaulsy/hit-and-run-linux/tree/dev), which is also where development happens.
 
 ## Graphics settings
 
@@ -75,85 +81,6 @@ original look.
 
 The OpenGL renderer has no sun shadows: it draws the original blob shadows. Compiled Vulkan pipelines are kept in
 `run/vkpipelines.cache`, so later starts don't pause to build them.
-## Building from source
-
-### 64-bit build (the default):
-```bash
-sudo apt install cmake ninja-build python3 build-essential \
-    libsdl2-dev libgl-dev libvulkan-dev libopenal-dev \
-    libavformat-dev libavcodec-dev libswscale-dev libswresample-dev libavutil-dev
-```
-Then:
-```bash
-cmake -B build-linux -G Ninja                              # release build
-cmake -B build-linux-debug -G Ninja -DSHAR_RAD_DEBUG=ON    # debug build: asserts and Radical's debug output
-ninja -C build-linux
-port/play.sh --data DIR                                    # builds and runs it (configures build-linux if needed)
-```
-
-### 32-bit build (legacy; enable i386 with `sudo dpkg --add-architecture i386`):
-```bash
-sudo apt install cmake ninja-build python3 gcc-multilib g++-multilib \
-    libsdl2-dev:i386 libgl-dev:i386 libvulkan-dev libopenal-dev:i386 \
-    libavformat-dev:i386 libavcodec-dev:i386 libswscale-dev:i386 libswresample-dev:i386 libavutil-dev:i386
-```
-Then:
-```bash
-cmake -B build-linux32 -G Ninja -DSHAR_64BIT=OFF && ninja -C build-linux32
-port/play.sh --32 --data DIR                # builds and runs it (configures build-linux32 if needed)
-```
-
-Boot movies only play in the release build. `port/package.sh` (`--32` for the 32-bit build) makes a self-contained
-tarball for another Linux machine; add `--noble` to build it in an Ubuntu 24.04 container (needs `podman`) so it runs
-on Ubuntu 24.04 / Linux Mint 22 and newer, not just on systems as new as yours. The porting details are in [`CLAUDE.md`](CLAUDE.md).
-
-`CMakeLists.txt` is generated from the original Visual Studio projects: change `port/gen_cmake.py`, never the
-generated file.
-
-<details>
-<summary>Debug and test switches</summary>
-
-| Variable | Effect |
-|---|---|
-| `SHAR_FPS_CAP=n` | Frame-rate cap (default 60, 0 = off) |
-| `SHAR_VSYNC=0` | Turn vsync off |
-| `SHAR_FRAME_LOG=1` | Print a frame-time histogram every 5 s |
-| `SHAR_NO_AUDIO=1` | Run without an audio device |
-| `SHAR_SHOT_EVERY=n` | Save `shot_NNN.png` in the run directory every n seconds |
-| `SHAR_KEY_SCRIPT="dik@start-end,..."` | Hold DirectInput key codes during time windows (ms; 1000+n = mouse button n) |
-| `SHAR_RESIZE_SCRIPT="WxH@ms,..."` | Resize the window at those times |
-| `SHAR_QUIT_AT=ms` | Close the window at that time (tests shutting down from any context) |
-| `SHAR_KEYPRESS_SCRIPT="M@ms,..."` | Press keys (SDL key names) at those times, through the window's event queue |
-| `SHAR_INPUT_LOG`, `SHAR_NO_INPUT`, `SHAR_NO_MOUSE`, `SHAR_FORCE_MOUSELOOK` | Input debugging |
-| `SHAR_ASSERT_ABORT=1` | Make failed asserts abort instead of logging |
-| `SHAR_LOAD_BUDGET_MS=n` | Time per frame given to the background loader |
-| `SHAR_CRASH_HANDLER=0` | Don't install the crash-report signal handler |
-| `SHAR_MSAA=n` | Anti-aliasing samples, overriding `simpsons.ini` and Options > Graphics (0 = off) |
-| `SHAR_ALPHA_TO_COVERAGE=0` | Hard edges on cut-out textures even with anti-aliasing |
-| `SHAR_MIPMAPS=0`, `SHAR_ANISOTROPY=n` | Texture filtering, overriding `simpsons.ini` |
-| `SHAR_SHADERS=dir`, `SHAR_POST=0` | Shaders folder (default `shaders/`); post-processing off |
-| `SHAR_MATERIAL_LOG=1` | Print each material's name and type when first drawn (for `materials.ini`) |
-| `SHAR_RENDERER=vulkan\|opengl` | Renderer, overriding `simpsons.ini` and Options > Graphics |
-| `SHAR_SUN=0\|low\|1` | Sun shadows off, Low or High, overriding `simpsons.ini` (0 also skips the ray-tracing setup) |
-| `SHAR_SUN_SOFT`, `SHAR_SUN_RAYS`, `SHAR_SUN_SHADOW`, `SHAR_SUN_ELEVATION`, ... | Sun tuning: edge softness, rays, shade brightness, sun height (all listed in `port/notes/vulkan.md`) |
-| `SHAR_VK_DEBUG=1`, `SHAR_VK_DEVICE=n` | Vulkan validation layers; pick the n-th GPU |
-| `SHAR_VK_PIPELINE_CACHE=0` | Don't read or write `vkpipelines.cache` |
-| `SHAR_GL_DEBUG=1`, `SHAR_GL_STATS=1` | OpenGL debug messages; per-frame draw/upload counts and render times (both renderers) |
-
-`port/run.sh [seconds] [args]` rebuilds and runs the game under gdb, printing a backtrace on a crash.
-
-</details>
-
-## Repository layout
-
-| Path | Contents |
-|---|---|
-| `code/` | The game |
-| `libs/` | Radical's libraries: Pure3D renderer, radcore, radsound, radmovie, Scrooby UI and more |
-| `build/` | The original Visual Studio projects (dev branch only) |
-| `port/` | Everything added for the port: build generator, platform layer, mod support, scripts |
-| `shaders/` | Example shaders and their documentation |
-| `mod/tools/` | Modding tools (`.lmlm` extractor) |
 
 ## Mods (work in progress)
 
@@ -201,7 +128,7 @@ misbehaves, report the mod's name and version along with `run/logs/last-session.
 | Linux x86 (32-bit, legacy) | **Playable.** Tested through Level 1 - 7 |
 | Vulkan renderer | **Default.** Tested on NVIDIA and Mesa's software driver (lavapipe); AMD / Intel hardware not yet. OpenGL is the fallback |
 | Windows x64 | Planned |
-| macOS (Apple silicon / Intel) | Planned |
+| macOS (Apple silicon / Intel) | **In development.** See the [`dev` branch](https://github.com/zeropaulsy/hit-and-run-linux/tree/dev) |
 | Android / handhelds | Possible later: the renderer and input layers already allow it |
 
 ## Credits
