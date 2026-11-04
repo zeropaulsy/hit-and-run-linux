@@ -19,6 +19,8 @@
 #include <Screen.h>
 #include <Page.h>
 #include <Group.h>
+#include <ctype.h>
+#include <string.h>
 #include <Text.h>
 #include <Sprite.h>
 
@@ -39,7 +41,7 @@ static const int ANTIALIASING_SAMPLES[] = { 0, 2, 4, 8};
 static const char* ANTIALIASING_VALUES[] = { "Off", "2x", "4x", "8x" };
 static const int NUM_ANTIALIASING_VALUES = sizeof( ANTIALIASING_SAMPLES ) / sizeof( ANTIALIASING_SAMPLES[ 0 ] );
 
-static const char* ON_OFF_VALUES[] = { "Off", "On" };
+static const char* SHADER_VALUES[] = { "Off" };      // and the packs: BuildShaderPackList
 static const char* SHADOW_VALUES[] = { "Off", "Low", "High" };     // Win32Platform::SetShadows
 
 static const char* RENDERER_VALUES[ Win32Platform::NUM_RENDERERS ] = { "OpenGL", "Vulkan" };
@@ -97,6 +99,7 @@ CGuiScreenGraphics::CGuiScreenGraphics
     bool inGame
 )
 :   CGuiScreen( pScreen, pParent, GUI_SCREEN_ID_GRAPHICS ),
+    m_numShaderPacks( 0 ),
     m_pMenu( NULL ),
     m_inGame( inGame ),
     m_changed( false ),
@@ -180,8 +183,8 @@ MEMTRACK_PUSH_GROUP( "CGuiScreenGraphics" );
             case MENU_ITEM_SHADERS:
             {
                 label = "Shaders";
-                values = ON_OFF_VALUES;
-                numValues = 2;
+                values = SHADER_VALUES;
+                numValues = 1;
                 break;
             }
             case MENU_ITEM_SHADOWS:
@@ -296,6 +299,10 @@ void CGuiScreenGraphics::HandleMessage
                     }
                     case MENU_ITEM_SHADERS:
                     {
+                        if( value > 0 && value <= m_numShaderPacks )
+                        {
+                            plat->SetShaderPack( m_shaderPacks[ value - 1 ] );
+                        }
                         plat->SetUserShaders( value != 0 );
                         break;
                     }
@@ -345,10 +352,58 @@ void CGuiScreenGraphics::InitIntro()
     }
     m_pMenu->SetSelectionValue( MENU_ITEM_RENDERER, plat->GetRenderer() == Win32Platform::RENDERER_VULKAN ? 1 : 0 );
     m_pMenu->SetSelectionValue( MENU_ITEM_ANTIALIASING, aa );
-    m_pMenu->SetSelectionValue( MENU_ITEM_SHADERS, plat->GetUserShaders() ? 1 : 0 );
+    this->BuildShaderPackList();
+    int shaders = 0;
+    if( plat->GetUserShaders() )
+    {
+        char current[ 64 ];
+        plat->GetCurrentShaderPack( current, sizeof( current ) );
+        for( int k = 0; k < m_numShaderPacks; k++ )
+        {
+            if( strcmp( m_shaderPacks[ k ], current ) == 0 )
+            {
+                shaders = k + 1;
+            }
+        }
+    }
+    m_pMenu->SetSelectionValue( MENU_ITEM_SHADERS, shaders );
     m_pMenu->SetSelectionValue( MENU_ITEM_SHADOWS, plat->GetShadows() );
 
     this->ShowPage( true );
+}
+
+
+//===========================================================================
+// CGuiScreenGraphics::BuildShaderPackList
+//===========================================================================
+// Description: The Shaders row's values: Off, then the packs in the shaders folder as it is now, named from their
+//              folders (toon-pack: Toon; shaders/ itself, from before packs: Custom).
+//
+//===========================================================================
+void CGuiScreenGraphics::BuildShaderPackList()
+{
+    m_numShaderPacks = Win32Platform::GetInstance()->ListShaderPacks( m_shaderPacks, MAX_SHADER_PACKS );
+    Scrooby::Text* text = m_values[ MENU_ITEM_SHADERS ];
+    for( int k = 0; k < m_numShaderPacks; k++ )
+    {
+        char label[ 64 ];
+        strcpy( label, m_shaderPacks[ k ][ 0 ] ? m_shaderPacks[ k ] : "Custom" );
+        size_t length = strlen( label );
+        if( length > 5 && strcmp( label + length - 5, "-pack" ) == 0 )
+        {
+            label[ length - 5 ] = 0;
+        }
+        label[ 0 ] = (char)toupper( (unsigned char)label[ 0 ] );
+        if( k + 1 < text->GetNumOfStrings() )
+        {
+            text->SetString( k + 1, label );
+        }
+        else
+        {
+            text->AddHardCodedString( label );
+        }
+    }
+    m_pMenu->SetSelectionValueCount( MENU_ITEM_SHADERS, m_numShaderPacks + 1 );
 }
 
 

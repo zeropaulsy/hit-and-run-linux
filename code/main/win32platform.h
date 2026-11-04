@@ -182,7 +182,7 @@ public:
     static void GetResolutionSize( Resolution res, int& x, int& y ) { TranslateResolution( res, x, y ); }
 
     // Graphics settings (CGuiScreenGraphics; simpsons.ini antialiasing=, shaders=, renderer=, shadows=). Anti-aliasing,
-    // the user's shaders (shaders/) and shadows change at once; the renderer is read at start-up. Shadows: the sun's
+    // the shader pack (a folder in shaders/) and shadows change at once; the renderer is read at start-up. Shadows: the sun's
     // (Vulkan only; pddi/vk/vksun.hpp), 0 off (default), 1 low (shadow map, any GPU), 2 high (ray traced; low
     // without ray queries).
     enum Renderer
@@ -196,6 +196,9 @@ public:
     int GetAntialiasing() const { return mAntialiasing; }
     void SetUserShaders( bool on );
     bool GetUserShaders() const;
+    void SetShaderPack( const char* name );     // a folder in shaders/, applied at once; "": the default
+    void GetCurrentShaderPack( char* name, size_t size ) const;     // in use; "": shaders/ itself
+    int ListShaderPacks( char (*names)[ 64 ], int max ) const;      // by name; "" first when shaders/ is one itself
     void SetRenderer( Renderer renderer ) { mRenderer = renderer; }
     Renderer GetRenderer() const { return mRenderer; }
     void SetShadows( int quality );

@@ -55,7 +55,7 @@ Options > Graphics (front end or pause menu) holds the port's own settings, save
 |---|---|---|
 | Renderer | Vulkan (default), OpenGL; takes effect at the next start | `renderer=vulkan\|opengl` |
 | Anti-aliasing | Off, 2x, 4x (default), 8x | `antialiasing=` |
-| Shaders | The post-processing and material shaders in `shaders/` on or off | `shaders=` |
+| Shaders | Off, or a shader pack from `shaders/` (`vanilla-pack`, `soft-pack`, `toon-pack`, your own) | `shaders=` |
 | Shadows | Off, Low (default), High; Vulkan only | `shadows=off\|low\|high` |
 
 **Sun shadows** come from the sun (or moon) painted in each level's sky, so they fall the way the sky suggests; the light warms as the sun gets low and turns moon-blue on the night levels.
@@ -156,7 +156,7 @@ on Ubuntu 24.04 / Linux Mint 22 and newer, not just on systems as new as yours. 
 | `SHAR_MSAA=n` | Anti-aliasing samples, overriding `simpsons.ini` and Options > Graphics (0 = off) |
 | `SHAR_ALPHA_TO_COVERAGE=0` | Hard edges on cut-out textures even with anti-aliasing |
 | `SHAR_MIPMAPS=0`, `SHAR_ANISOTROPY=n` | Texture filtering, overriding `simpsons.ini` |
-| `SHAR_SHADERS=dir`, `SHAR_POST=0` | Shaders folder (default `shaders/`); post-processing off |
+| `SHAR_SHADERS=dir`, `SHAR_POST=0` | Shaders folder (default `shaders/`), or one pack in it; post-processing off |
 | `SHAR_MATERIAL_LOG=1` | Print each material's name and type when first drawn (for `materials.ini`) |
 | `SHAR_RENDERER=vulkan\|opengl` | Renderer, overriding `simpsons.ini` and Options > Graphics |
 | `SHAR_SUN=0\|low\|1` | Sun shadows off, Low or High, overriding `simpsons.ini` (0 also skips the ray-tracing setup) |
@@ -177,7 +177,7 @@ on Ubuntu 24.04 / Linux Mint 22 and newer, not just on systems as new as yours. 
 | `libs/` | Radical's libraries: Pure3D renderer, radcore, radsound, radmovie, Scrooby UI and more |
 | `build/` | The original Visual Studio projects (dev branch only) |
 | `port/` | Everything added for the port: build generator, platform layer, mod support, scripts |
-| `shaders/` | Example shaders and their documentation |
+| `shaders/` | Shader packs and their documentation |
 | `mod/tools/` | Modding tools (`.lmlm` extractor) |
 
 ## Mods (work in progress)
@@ -225,6 +225,10 @@ misbehaves, report the mod's name and version along with `run/logs/last-session.
 | Windows x64 | Planned |
 | macOS (Apple silicon / Intel) | **In progress.** Builds and runs on an Apple M2 (Vulkan through MoltenVK) and on Intel with Big Sur (OpenGL). No full play session yet |
 | Android / handhelds | Possible later: the renderer and input layers already allow it |
+
+## Extra docs
+
+- [Shaders](shaders/README.md): shader packs, and writing your own post-processing and material shaders
 
 ## Credits
 

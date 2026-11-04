@@ -2,8 +2,8 @@
 // Linux port: user material shaders (OpenGL 3.3 core renderer).
 //=============================================================================
 
-// GLSL files assigned to materials by shaders/materials.ini (in the shaders folder: shaders/ in the working directory
-// or $SHAR_SHADERS) and by a mod's Shaders/materials.ini; the user's rules come first. A material matches by its own
+// GLSL files assigned to materials by materials.ini in the shader pack (pglShaderFolder) and by a mod's
+// Shaders/materials.ini; the user's rules come first. A material matches by its own
 // name from the art, the art file it was loaded from, or the name of its pddi shader type ("simple", "spheremap", a
 // mod's own), in that order. Files reload when they change. Format: shaders/README.md.
 
@@ -23,6 +23,17 @@ public:
     virtual int BuildCustomSpirv(const char* name, const unsigned* words, size_t count, const char* pragmas);
     virtual void ReleaseCustomPrograms() = 0;
 };
+
+// Shader packs: folders holding post.ini, materials.ini and their shaders, in shaders/ in the working directory or
+// $SHAR_SHADERS. pglShaderFolder: the chosen pack's folder; with none chosen (or it is gone) that base folder itself if
+// it has a post.ini or materials.ini (a pack given directly; a shaders/ from before packs), else its soft-pack, else
+// its vanilla-pack.
+// Post and materials follow a change within a second.
+void pglShaderFolder(char* folder, size_t size);
+void pglSetShaderPack(const char* name);        // folder name; "": the default
+const char* pglGetShaderPack();                 // as set
+void pglCurrentShaderPack(char* name, size_t size);     // the one in use; "": the base folder itself
+int pglListShaderPacks(char (*names)[64], int max);     // by name; "" first when the base folder is one itself
 
 // from BeginFrame (render thread): loads the rules and shaders the first time, then reloads changed ones
 void pglCustomUpdate(pglCustomTarget* pipeline);

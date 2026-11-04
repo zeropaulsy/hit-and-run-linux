@@ -157,7 +157,7 @@ $NEEDS
    Mods (Mod Launcher .lmlm files or mod folders):  ./run.sh --mod MyMod.lmlm --mod OtherMod
 
 Settings: run/simpsons.ini (#System: display, resolution, antialiasing, mipmaps, anisotropy).
-Shaders: shaders/ (see shaders/README.md); M in the game turns them off and on.
+Shaders: packs in shaders/ (see shaders/README.md): Options > Graphics > Shaders; M in the game turns them off and on.
 A crash or problem: send run/logs/last-session.log.
 EOF
 

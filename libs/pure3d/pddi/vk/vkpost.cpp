@@ -12,6 +12,9 @@
 // A pass named *.spv is SPIR-V written for Vulkan (shaders/README.md, Vulkan passes): loaded as it is, no header, a
 // fixed interface (s_spirvVertexSource's vUV, the block at binding 0 laid out as below, the samplers at bindings 1 up
 // in U_* order); its pragmas come from the source beside it (same name, .frag), when there is one.
+//
+// Vulkan only (GL's multisampled depth is a renderbuffer): a pass with #pragma shar_depth_samples gets, while the
+// multisampled depth can be read, SHAR_DEPTH_SAMPLES, uDepthMS and DepthSample(): built again when that changes.
 
 #include <pddi/vk/vkpost.hpp>
 #include <pddi/vk/vkpipeline.hpp>
@@ -65,6 +68,18 @@ static const char* s_passHeader =
     "}\n"
     "#line 1\n";
 
+// #pragma shar_depth_samples: raw depth of one sample of a pixel, the pixel counted as vUV * uResolution counts it
+// (the image is stored top row first); pixels outside the picture are clamped
+static const char* s_depthSamplesHeader =
+    "#define SHAR_DEPTH_SAMPLES %d\n"
+    "uniform sampler2DMS uDepthMS;\n"
+    "float DepthSample(ivec2 pixel, int s)\n"
+    "{\n"
+    "    ivec2 size = textureSize(uDepthMS);\n"
+    "    pixel = clamp(pixel, ivec2(0), size - 1);\n"
+    "    return texelFetch(uDepthMS, ivec2(pixel.x, size.y - 1 - pixel.y), s).r;\n"
+    "}\n";
+
 // the screen triangle for SPIR-V passes: vUV at location 0
 static const char* s_spirvVertexSource =
     "#version 450\n"
@@ -89,9 +104,9 @@ static const char* s_depthFragmentSource =
 
 const int MAX_PASSES = 16;
 const int MAX_PASS_TEXTURES = 4;
-const int SAMPLER_BINDINGS = 3 + MAX_PASS_TEXTURES;     // uScene, uOriginal, uDepth, the pass's images
+const int SAMPLER_BINDINGS = 4 + MAX_PASS_TEXTURES;     // uScene, uOriginal, uDepth, the pass's images, uDepthMS
 
-enum { U_SCENE, U_ORIGINAL, U_DEPTH, U_TEXTURE0 };      // samplers
+enum { U_SCENE, U_ORIGINAL, U_DEPTH, U_TEXTURE0, U_DEPTH_MS = U_TEXTURE0 + MAX_PASS_TEXTURES };      // samplers
 enum { P_RESOLUTION, P_TIME, P_FRAME, P_NEAR, P_FAR, P_PROJECTION, P_INVERSE, P_COUNT };    // block members
 static const char* s_blockNames[P_COUNT] = { "uResolution", "uTime", "uFrame", "uNear", "uFar", "uProjection",
                                              "uInverseProjection" };
@@ -123,6 +138,8 @@ struct Pass
     Program program;
     bool ok;
     bool usesDepth;
+    bool wantsDepthSamples;     // #pragma shar_depth_samples
+    int depthSamples;           // what it was built for (0: without uDepthMS)
     bool beginsEffect;
     float scale;
     pvkImage target;            // its own target when scaled
@@ -145,6 +162,8 @@ static Program s_depthProgram;
 static pvkImage s_original, s_pingPong[2], s_depth;     // bottom row first
 static VkImageView s_depthView;                         // the depth buffer's depth aspect, for sampling
 static VkImage s_depthViewImage;
+static VkImageView s_msDepthView;                       // the same for the multisampled depth buffer
+static VkImage s_msDepthViewImage;
 static VkShaderModule s_spirvVertex;                    // SPIR-V passes' vertex stage
 
 static time_t FileTime(const char* path)
@@ -279,6 +298,8 @@ static bool BuildProgram(Program& p, const char* name, const char* fragmentHeade
             slot = U_ORIGINAL;
         else if(strcmp(u.name, "uDepth") == 0)
             slot = U_DEPTH;
+        else if(strcmp(u.name, "uDepthMS") == 0)
+            slot = U_DEPTH_MS;
         for(int t = 0; t < samplerCount && slot < 0; t++)
             if(strcmp(u.name, samplerNames[t]) == 0)
                 slot = U_TEXTURE0 + t;
@@ -534,6 +555,10 @@ static void BuildPass(Pass& p)
         p.textureImage[p.textureCount] = image;
         p.textureCount++;
     }
+    p.wantsDepthSamples = !spirv && strstr(source, "#pragma shar_depth_samples") != NULL;
+    p.depthSamples = p.wantsDepthSamples ? g_pvk->DepthSamples() : 0;
+    if(p.depthSamples > 0)
+        snprintf(header + strlen(header), sizeof(header) - strlen(header), s_depthSamplesHeader, p.depthSamples);
     snprintf(header + strlen(header), sizeof(header) - strlen(header), "#line 1\n");
     if(spirv)
     {
@@ -677,9 +702,16 @@ static void CheckForChanges()
             s_state = -1;
             return;
         }
-        const char* folder = getenv("SHAR_SHADERS");
-        snprintf(s_folder, sizeof(s_folder), "%s", folder && *folder ? folder : "shaders");
+        pglShaderFolder(s_folder, sizeof(s_folder));
         s_state = 1;
+        LoadConfig();
+        return;
+    }
+    char folder[512];
+    pglShaderFolder(folder, sizeof(folder));
+    if(strcmp(folder, s_folder) != 0)       // another pack
+    {
+        snprintf(s_folder, sizeof(s_folder), "%s", folder);
         LoadConfig();
         return;
     }
@@ -751,16 +783,13 @@ static bool Fit(pvkImage& image, int w, int h, VkFormat format)
 }
 
 // the frame's depth buffer as a depth-only view (sampling takes one aspect)
-static VkImageView DepthView(pvkImage& depth)
+static VkImageView DepthView(pvkImage& depth, VkImageView& cached, VkImage& cachedImage)
 {
-    if(s_depthViewImage == depth.image && s_depthView)
-        return s_depthView;
-    if(s_depthView)
-    {
-        // views are cheap; the old one may be in a frame in flight, so it is left (the depth buffer changes with the
-        // window size only)
-        s_depthView = VK_NULL_HANDLE;
-    }
+    if(cachedImage == depth.image && cached)
+        return cached;
+    // views are cheap; the old one may be in a frame in flight, so it is left (the depth buffer changes with the window
+    // size and anti-aliasing only)
+    cached = VK_NULL_HANDLE;
     VkImageViewCreateInfo view = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
     view.image = depth.image;
     view.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -768,9 +797,9 @@ static VkImageView DepthView(pvkImage& depth)
     view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
     view.subresourceRange.levelCount = 1;
     view.subresourceRange.layerCount = 1;
-    vkCreateImageView(g_pvk->device, &view, NULL, &s_depthView);
-    s_depthViewImage = depth.image;
-    return s_depthView;
+    vkCreateImageView(g_pvk->device, &view, NULL, &cached);
+    cachedImage = depth.image;
+    return cached;
 }
 
 // one screen triangle into target (flipped: the frame itself, stored top row first)
@@ -849,6 +878,20 @@ static void Draw(VkCommandBuffer cmd, Program& p, VkImageView target, int w, int
     vkCmdEndRendering(cmd);
 }
 
+static int ActivePasses(int stage, Pass** passes, bool& needDepth)
+{
+    int n = 0;
+    needDepth = false;
+    for(int i = 0; i < s_passCount[stage]; i++)
+    {
+        if(!s_passes[stage][i].ok)
+            continue;
+        passes[n++] = &s_passes[stage][i];
+        needDepth |= s_passes[stage][i].usesDepth;
+    }
+    return n;
+}
+
 void pvkPostRun(int stage, pvkPipeline* pipeline)
 {
     if(!g_pvk)
@@ -857,22 +900,32 @@ void pvkPostRun(int stage, pvkPipeline* pipeline)
     if(s_state != 1 || !g_pglUserShaders)
         return;
     Pass* passes[MAX_PASSES];
-    int n = 0;
     bool needDepth = false;
-    for(int i = 0; i < s_passCount[stage]; i++)
-    {
-        if(!s_passes[stage][i].ok)
-            continue;
-        passes[n++] = &s_passes[stage][i];
-        needDepth |= s_passes[stage][i].usesDepth;
-    }
-    if(n == 0)
+    if(ActivePasses(stage, passes, needDepth) == 0)
         return;
 
     g_pvk->ResolveTarget();
     g_pvk->BeginRendering();        // the frame exists
     g_pvk->EndRendering();
+
+    // anti-aliasing changed (the targets are made by now): passes with shar_depth_samples build for the new count
+    for(int i = 0; i < s_passCount[stage]; i++)
+    {
+        Pass& p = s_passes[stage][i];
+        if(p.wantsDepthSamples && p.depthSamples != g_pvk->DepthSamples())
+            BuildPass(p);
+    }
+    int n = ActivePasses(stage, passes, needDepth);
+    if(n == 0)
+        return;
+    VkImageView msDepthView = VK_NULL_HANDLE;
+    for(int i = 0; i < n; i++)
+        if(passes[i]->program.binding[U_DEPTH_MS] >= 0)
+            msDepthView = DepthView(g_pvk->MultisampledDepth(), s_msDepthView, s_msDepthViewImage);
+
     VkCommandBuffer cmd = g_pvk->Cmd();
+    if(msDepthView)
+        g_pvk->Transition(cmd, g_pvk->MultisampledDepth(), VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     pvkTarget& scene = g_pvk->Scene();
     int w = scene.colour.width, h = scene.colour.height;
     if(!Fit(s_original, w, h, VK_FORMAT_R8G8B8A8_UNORM) || !Fit(s_pingPong[0], w, h, VK_FORMAT_R8G8B8A8_UNORM) ||
@@ -905,7 +958,7 @@ void pvkPostRun(int stage, pvkPipeline* pipeline)
         g_pvk->Transition(cmd, scene.depth, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         g_pvk->Transition(cmd, s_depth, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         memset(views, 0, sizeof(views));
-        views[U_SCENE] = DepthView(scene.depth);
+        views[U_SCENE] = DepthView(scene.depth, s_depthView, s_depthViewImage);
         samplers[U_SCENE] = s_nearest;
         Draw(cmd, s_depthProgram, s_depth.view, w, h, false, block, views, samplers);
         g_pvk->Transition(cmd, s_depth, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -975,8 +1028,9 @@ void pvkPostRun(int stage, pvkPipeline* pipeline)
         views[U_SCENE] = input->view;
         views[U_ORIGINAL] = s_original.view;
         views[U_DEPTH] = needDepth ? s_depth.view : s_original.view;
+        views[U_DEPTH_MS] = msDepthView;
         samplers[U_SCENE] = samplers[U_ORIGINAL] = s_linear;
-        samplers[U_DEPTH] = s_nearest;
+        samplers[U_DEPTH] = samplers[U_DEPTH_MS] = s_nearest;
         for(int t = 0; t < p.textureCount; t++)
         {
             pvkImage& image = s_images[p.textureImage[t]].image;
