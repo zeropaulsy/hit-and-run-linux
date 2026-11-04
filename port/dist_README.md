@@ -69,7 +69,7 @@ include the mod's name and version.
 
 - [Donut Team](https://donutteam.com/), for Lucas' Simpsons Hit & Run Mod Launcher and their years of work on
   modding tools, documentation and research into the game. The mod support in this port follows the format and
-  hacks their launcher defined.
+  hacks their launcher defined. [Support them on Ko-fi](https://ko-fi.com/donutteam).
 - [The Mod Bakery](https://modbakery.donutteam.com/), and the modders who publish there, for hosting and keeping
   the game's mods available over the years.
 
