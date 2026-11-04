@@ -21,6 +21,8 @@ RUN=${SHAR_RUN:-$ROOT/run}
 BUILD=${SHAR_BUILD:-$ROOT/build-linux}
 T=${VG_TOOLS:-$HOME/.cache/shar-memcheck}
 SECS=${1:-330}; shift || true
+# Valgrind frames are slow: no 100 ms frame clamp unless asked for, or the game would crawl through the time limit.
+export SHAR_MAX_FRAME_MS=${SHAR_MAX_FRAME_MS:-0}
 
 # One-time setup, no root needed: valgrind (ships the x86 and amd64 tools), and glibc's debug symbols merged into a
 # private copy of the ELF loader (valgrind needs ld.so's strlen symbol; the system one is stripped). The game is run

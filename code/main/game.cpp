@@ -45,6 +45,7 @@
 #include <debug/profiler.h>
 #include <gameflow/gameflow.h>
 #include <presentation/gui/ingame/guiscreenmissionload.h>
+#include <presentation/presentation.h>
 #include <main/commandlineoptions.h>
 #include <main/game.h>
 #include <main/platform.h>
@@ -522,10 +523,16 @@ void Game::Run()
         time = newTime;
 #ifdef RAD_LINUX
         {
-            // Test aid: SHAR_MAX_FRAME_MS=n caps the time the game sees per frame (slow motion when frames are
-            // slower, e.g. ~33 under valgrind, where the world otherwise streams in long after the car passes).
-            static unsigned s_maxFrameMs = getenv( "SHAR_MAX_FRAME_MS" ) ? (unsigned)atoi( getenv( "SHAR_MAX_FRAME_MS" ) ) : 0;
-            if( s_maxFrameMs > 0 && elapsed > s_maxFrameMs )
+            // A hitch counts as at most 100 ms of game time: release builds had no limit, so a long stall came off
+            // mission timers and physics (10 substeps at most) fell behind the timers and AI.
+            // SHAR_MAX_FRAME_MS=n changes it, 0 = off (test aid: ~33 under valgrind for slow motion, where the world
+            // otherwise streams in long after the car passes). The default stays off during cutscenes, whose sound
+            // runs in real time: animation held back by a hitch would lag it. A value set by hand applies everywhere.
+            static const bool s_maxFrameMsSet = getenv( "SHAR_MAX_FRAME_MS" ) != NULL;
+            static unsigned s_maxFrameMs = s_maxFrameMsSet ? (unsigned)atoi( getenv( "SHAR_MAX_FRAME_MS" ) ) : 100;
+            PresentationManager* pm = GetPresentationManager();
+            const bool inCutscene = pm != NULL && ( pm->IsBusy() || pm->InConversation() );
+            if( s_maxFrameMs > 0 && elapsed > s_maxFrameMs && ( s_maxFrameMsSet || !inCutscene ) )
             {
                 elapsed = s_maxFrameMs;
             }

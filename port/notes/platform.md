@@ -23,6 +23,9 @@
 ## Frame timing / loading
 - Unsynced GL ran 2-4k fps, 0 ms frames broke physics (NaN traffic speed, launches): vsync + 60 fps cap (`game.cpp`,
   `SHAR_FPS_CAP`, `SHAR_VSYNC=0`). `SHAR_FRAME_LOG=1` histogram.
+- Frame time clamped to 100 ms (`game.cpp`, `SHAR_MAX_FRAME_MS=n`, 0 = off): release builds had no limit (the 1000 ms hack in
+  `GameFlow`/`RenderFlow::OnTimerDone` is `#ifndef RAD_RELEASE`). Below 10 fps the game runs in slow motion.
+  The default skips cutscenes (`PresentationManager` `IsBusy()`/`InConversation()`: real-time sound); a value set by hand doesn't.
 - radcontent load thread runs only inside `SwitchTasks()`: `radLoadManager::Service` hands off up to 8 ms/frame
   (`SHAR_LOAD_BUDGET_MS`).
 - NVIDIA throttles a minimised window to ~1 swap/s: `SwapWithVsync` pauses vsync when throttled, retries after 5 s
@@ -64,3 +67,19 @@
   AnimatedIcon with neither its drawable nor `triggersphere_000` loaded gets an empty drawable (`EmptyDrawable`).
   `tFileFTT` loads a failed open as empty. Mod-occluded files set `radDrive::SetLastError`.
 - DSG `SwapArray::Add` refuses when full; `WorldScene` prints `DSG: ...` for unplaceable objects (invisible, collidable).
+
+## Language
+- `language=` in simpsons.ini: read in `ReadStartupLanguage` (linuxplatform_sdl.cpp), before the config manager, as
+  sound and the front end need it first. `s_startupLanguage` (speech, movie tracks, saved value) vs `s_currentLanguage`
+  (text, images; console `lang` changes only this).
+- Voices: `dialog{f,g,s}.rcf`. Retail scripts.rcf has dialog/nis/interactive_props `fr/ge/sp.spt` even on English
+  installs. Missing .rcf: English voices + scripts (`QueueCementFileRegistration`; the "File not found" line is that
+  check). Silence would leave conversations waiting at the "[ENTER] start mission" prompt.
+- Retail English data has `images/loading/{french,german,spanish}/` (translated) and `images/license/<lang>/` (identical
+  to the English file). Missing ones fall back to English (`GameFileExists`).
+- Retail text bible (`scrooby/.../srr2.p3d`; `scrooby2/.../srr2.txt` is older): only English has PC tutorial text
+  (`[W,S,A,D]`, `\\` breaks). Translations keep console button glyphs (`[ + £ § ®`) the PC font can't draw: gaps.
+- PAL tweaks enabled for non-English: tutorial wrap at 35 chars (translations run to 60; English 34; single-spaced, 5
+  lines fit the normal frame, so no PAL frame stretch), HUD/pause box stretch (guihudtextbox.h), German car names in
+  the phone booth. Wrap covers only the startup language: console `lang` shows others unwrapped. Other `#ifdef PAL`
+  layout tweaks (phone booth, scrapbook, mission select, HUD ordinals) stay off.

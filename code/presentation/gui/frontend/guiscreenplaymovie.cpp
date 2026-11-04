@@ -209,10 +209,14 @@ CGuiScreenPlayMovie::SetMovieToPlay( const char* movieName, bool IsSkippable, bo
     pEvent->SetClearWhenDone( true );
 	pEvent->SetSkippable(IsSkippable);
 
-#ifdef PAL
+#if defined( PAL ) || defined( RAD_LINUX )    // Linux port: the movie's audio track follows the language
     if( IsLocalized )
     {
+#ifdef RAD_LINUX
+        switch( CGuiTextBible::GetStartupLanguage() )    // not the console's lang, which is text only
+#else
         switch( CGuiTextBible::GetCurrentLanguage() )
+#endif
         {
             case Scrooby::XL_FRENCH:
             {

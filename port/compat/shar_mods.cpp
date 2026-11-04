@@ -276,12 +276,10 @@ bool ParseDir( PackageReader& r, const char* rel, unsigned int count, unsigned i
         {
             return false;
         }
+        // Only FLAG_TIMESTAMP changes the layout. Other bits show up on some entries (0x13, 0x06) and do not move
+        // anything, so they are ignored (with a warning, below) rather than rejecting the whole package. What they
+        // mean is not known.
         unsigned int flags = U16( r.sector );
-        if ( flags & ~FLAG_TIMESTAMP )
-        {
-            r.error = "unknown entry flags";
-            return false;
-        }
         char name[ 256 ];                               // UTF-16LE name; mod paths are ASCII in practice
         unsigned int n = 0;
         for ( unsigned int at = 2; at + 1 < SECTOR && n + 1 < sizeof( name ); at += 2 )
@@ -301,6 +299,10 @@ bool ParseDir( PackageReader& r, const char* rel, unsigned int count, unsigned i
         }
         char childRel[ PATH_MAX ];
         snprintf( childRel, sizeof( childRel ), "%s%s%s", rel, rel[ 0 ] ? "/" : "", name );
+        if ( flags & ~FLAG_TIMESTAMP )
+        {
+            fprintf( stderr, "mods: %s: %s: unknown entry flags %#x, ignored\n", r.mod->name, childRel, flags );
+        }
         if ( !NextSector( r ) )
         {
             return false;

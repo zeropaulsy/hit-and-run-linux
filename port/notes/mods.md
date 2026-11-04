@@ -4,7 +4,8 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
 
 ## Loading (`port/compat/shar_mods.cpp`)
 - Mod = folder: `Meta.ini` (`RequiredHack=`), `CustomFiles/`, per-hack configs, optional Lua (`CustomFiles.lua`,
-  `CustomFiles.ini`). `.lmlm` = "LSPA" package (512-byte sectors; `mod/tools/lmlm_extract.py`), read in place.
+  `CustomFiles.ini`). `.lmlm` = "LSPA" package (512-byte sectors; `mod/tools/lmlm_extract.py`), read in place. Entry flags: only 0x02
+  (timestamp) moves the layout; others (0x13, 0x06 seen, meaning unknown) log a warning and are ignored.
 - `SHAR_MODS` ':'-separated, earlier wins. Unsupported hacks reported at startup.
 - Every read-only open -> `shar_ModResolve` once (`requests.cpp` -> `shar_ModTakeResolved` in `linuxdrive.cpp`;
   `binkffmpeg.cpp`): Lua handlers, CustomFiles.ini (OccludedPath, PathRedirections/AdditionalFiles), CustomFiles.

@@ -201,6 +201,7 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   `SHAR_SUN_DEBUG=1` in Low: the map's shade, red where High would trace.
 - Low <-> High: every caster released and rebuilt in the other form, map from scratch (`s_casterMode`).
 - Cost (RTX 5060, 2560x1600 8x, L1 start, uncapped): off 1.65 ms, Low 2.1, High 6.5. Mesa lavapipe draws it.
+- Cost on Iris Plus G4 (ICL GT1.5, exclusive fullscreen 1368x912, no MSAA, L1 start, `SHAR_FPS_CAP=0 SHAR_VSYNC=0`): off 11.9 ms, Low 20.2 (default post.ini). Post off: 3.0 / 11.1. Low's +8 ms: ~3.5 sun program, ~4.8 map lookups (`SHAR_SUN_FAR=0.01` skips them). SSAO alone ~6 ms, bloom ~2.
 - Edges: map only (1.5-texel filter at level 0 = 6 cm); small props near the ground slightly softer than High.
 
 ## Sun Defaults

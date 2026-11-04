@@ -394,7 +394,7 @@ CGuiScreenLoading::LoadResources()
     char languageDir[ 16 ];
     languageDir[ 0 ] = '\0';
 
-#ifdef PAL
+#if defined( PAL ) || defined( RAD_LINUX )    // Linux port: the images with translated text
     switch( CGuiTextBible::GetCurrentLanguage() )
     {
         case Scrooby::XL_FRENCH:
@@ -431,6 +431,12 @@ CGuiScreenLoading::LoadResources()
              DYNAMIC_RESOURCES_DIR,
              languageDir,
              currentLevel + 1 );
+#ifdef RAD_LINUX
+    if( languageDir[ 0 ] != '\0' && !CGuiTextBible::GameFileExists( loadingImageFile ) )
+    {
+        sprintf( loadingImageFile, "%sloading%d.p3d", DYNAMIC_RESOURCES_DIR, currentLevel + 1 );
+    }
+#endif
 
     // add request to loading manager to load image file
     //

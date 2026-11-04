@@ -128,8 +128,11 @@ void pvkDisplay::SetGamma(float r, float g, float b)
     gammaB = b;
 }
 
+static bool s_antialiasingSet = false;  // the game's setting has arrived (the display's 4x is only a default)
+
 void pvkSetAntialiasing(int samples)
 {
+    s_antialiasingSet = true;
     if(s_display)
         s_display->SetAntialiasing(samples);
 }
@@ -143,7 +146,11 @@ void pvkDisplay::SetAntialiasing(int samples)
 void pvkDisplay::BeginFrameTarget(void)
 {
     if(g_pvk)
+    {
         g_pvk->SetSamples(msaaRequested);
+        if(s_antialiasingSet)
+            g_pvk->ReportSamples();
+    }
 }
 
 // the texture-filtering settings changed (gldisplay.cpp pglSetTextureFiltering)
@@ -218,8 +225,18 @@ void pvkDisplay::SwapBuffers()
     SDL_Vulkan_GetDrawableSize(window, &w, &h);
     if(w > 0 && h > 0)
     {
-        if(w != winWidth || h != winHeight)
-            fprintf(stderr, "PDDI: drawing at %dx%d\n", w, h);
+        // the size and mode on screen (InitDisplay sets winWidth too, so it can't tell what was last logged; the
+        // hidden start-up window isn't the game's size)
+        static int s_loggedW = 0, s_loggedH = 0;
+        static pddiDisplayMode s_loggedMode = PDDI_DISPLAY_WINDOW;
+        if((w != s_loggedW || h != s_loggedH || mode != s_loggedMode) && !(SDL_GetWindowFlags(window) & SDL_WINDOW_HIDDEN))
+        {
+            fprintf(stderr, "PDDI: drawing at %dx%d (%s)\n", w, h, mode == PDDI_DISPLAY_FULLSCREEN ? "exclusive fullscreen" :
+                    mode == PDDI_DISPLAY_FULLSCREEN_DESKTOP ? "borderless" : "window");
+            s_loggedW = w;
+            s_loggedH = h;
+            s_loggedMode = mode;
+        }
         winWidth = w;
         winHeight = h;
         g_pvk->SetSize(w, h);

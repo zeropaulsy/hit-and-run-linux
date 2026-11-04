@@ -24,7 +24,7 @@
 | `cards [all\|none]` | counts collected cards, or `CardGallery::Add/RemoveAllCollectedCards` |
 | `npc [model]` | `CharacterManager::Spawn` (default homer) in front of the player; replaces the last one |
 | `skin` | `CharacterManager::NextSkin`: next outfit for Bart/Homer/Lisa/Marge/Apu |
-| `lang [english\|french\|german\|spanish]` | text language only (`CGuiTextBible::SetCurrentLanguage(l, false)`) |
+| `lang [english\|french\|german\|spanish]` | text only (`CGuiTextBible::SetCurrentLanguage(l, false)`); speech, movies and simpsons.ini use `GetStartupLanguage` |
 | `save [slot]` / `load [slot]` | `GameDataManager::SaveGame/LoadGame` (slots 1-8); save in a level, load in the front end only |
 | `quit` | quits the game (SDL_QUIT) |
 

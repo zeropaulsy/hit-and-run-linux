@@ -46,6 +46,9 @@
 #include <sound/soundrenderer/soundconstants.h>
 #include <sound/soundclusternameenum.h>
 #include <sound/soundmanager.h>
+#ifdef RAD_LINUX
+#include <presentation/gui/guitextbible.h>
+#endif
 #include <sound/soundrenderer/soundnucleus.hpp>
 #include <sound/dialog/dialogcoordinator.h>
 #include <radobjectbtree.hpp>
@@ -747,7 +750,29 @@ void daSoundRenderingManager::QueueCementFileRegistration()
 
     if( !m_languageSelected )
     {
+#ifdef RAD_LINUX
+        // Linux port: the language from simpsons.ini (language=); English if it is not one the sound system has
+        const char* cementFileName = s_EnglishDialogue;
+        switch( CGuiTextBible::GetStartupLanguage() )
+        {
+            case Scrooby::XL_FRENCH:  cementFileName = s_FrenchDialogue;  m_currentLanguage = DIALOGUE_LANGUAGE_FRENCH;  break;
+            case Scrooby::XL_GERMAN:  cementFileName = s_GermanDialogue;  m_currentLanguage = DIALOGUE_LANGUAGE_GERMAN;  break;
+            case Scrooby::XL_SPANISH: cementFileName = s_SpanishDialogue; m_currentLanguage = DIALOGUE_LANGUAGE_SPANISH; break;
+            default: break;
+        }
+        // Linux port: most installs only have the English voices. Without this language's dialogue file every line
+        // would be silent and conversations would never end by themselves, so use English speech with it; the text
+        // and the movies stay in the language. m_currentLanguage also picks the scripts (QueueRadscriptFileLoads).
+        if( cementFileName != s_EnglishDialogue && !CGuiTextBible::GameFileExists( cementFileName ) )
+        {
+            fprintf( stderr, "sound: %s not found: using the English voices\n", cementFileName );
+            cementFileName = s_EnglishDialogue;
+            m_currentLanguage = DIALOGUE_LANGUAGE_ENGLISH;
+        }
+        registerDialogueCementFiles( cementFileName );
+#else
         registerDialogueCementFiles( s_EnglishDialogue );
+#endif
         m_languageSelected = true;
     }
 
