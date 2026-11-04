@@ -71,6 +71,9 @@ int shar_ModTakeResolved(const char* gamePath, SharModFile* file, const char** r
  * file provides), or SHAR_MOD_MISSING. *file and *redirect stay valid until the next call on this thread. */
 int shar_ModVfsResolve(const char* vpath, SharModFile* file, const char** redirect);
 
+/* CustomFiles.ini [AdditionalFiles]: the nth (from 0) game path to load as well when gamePath is loaded, or NULL. */
+const char* shar_ModAdditionalFile(const char* gamePath, int nth);
+
 /* Whether any mod is loaded (for the Mod Launcher's always-on HackSupport changes). */
 int shar_ModsLoaded(void);
 

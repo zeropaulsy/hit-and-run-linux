@@ -29,8 +29,8 @@ struct ModFile
     int order;              // mod index * large + discovery order, so earlier mods sort first among equal keys
 };
 
-// CustomFiles.ini rules: [PathRedirections] / [AdditionalFiles] src=dst (open dst, a game path, instead) and
-// [Miscellaneous] OccludedPath=path (the file does not exist)
+// CustomFiles.ini rules: [PathRedirections] src=dst (open dst, a game path, instead) and
+// [Miscellaneous] OccludedPath=path (the file does not exist). [AdditionalFiles] are not rules: Additional below.
 struct Rule
 {
     char* key;              // normalised source path
@@ -59,6 +59,15 @@ ModFile* s_Files = NULL;
 int s_NumFiles = 0, s_CapFiles = 0;
 Rule* s_Rules = NULL;
 int s_NumRules = 0, s_CapRules = 0;
+
+// CustomFiles.ini [AdditionalFiles] src=dst: loading src also loads dst. In mod order.
+struct Additional
+{
+    char* key;              // normalised source path
+    char* target;           // game path, single backslashes
+};
+Additional* s_Additional = NULL;
+int s_NumAdditional = 0, s_CapAdditional = 0;
 KeyEntry* s_FileKeys = NULL;
 int s_NumFileKeys = 0;
 KeyEntry* s_RuleKeys = NULL;
@@ -676,6 +685,26 @@ void AddRule( const char* path, const char* target, int modIndex )
     s_NumRules++;
 }
 
+void AddAdditional( const char* path, const char* target )
+{
+    Grow( s_Additional, s_NumAdditional, s_CapAdditional, 16 );
+    char key[ PATH_MAX ];
+    ModNormalise( path, key, sizeof( key ) );
+    Additional& a = s_Additional[ s_NumAdditional++ ];
+    a.key = ModDup( key );
+    a.target = ModDup( target );
+    // the inis double their backslashes; the target goes to the loaders as it is
+    char* out = a.target;
+    for ( const char* in = target; *in != '\0'; in++ )
+    {
+        if ( !( *in == '\\' && out > a.target && out[ -1 ] == '\\' ) )
+        {
+            *out++ = *in;
+        }
+    }
+    *out = '\0';
+}
+
 struct CustomFilesInfo
 {
     Mod* mod;
@@ -689,9 +718,13 @@ void OnCustomFiles( const char* section, const char* key, const char* value, voi
     {
         return;
     }
-    if ( strcasecmp( section, "PathRedirections" ) == 0 || strcasecmp( section, "AdditionalFiles" ) == 0 )
+    if ( strcasecmp( section, "PathRedirections" ) == 0 )
     {
         AddRule( key, value, info->mod->index );
+    }
+    else if ( strcasecmp( section, "AdditionalFiles" ) == 0 )
+    {
+        AddAdditional( key, value );
     }
     else if ( strcasecmp( section, "Miscellaneous" ) == 0 && strcasecmp( key, "OccludedPath" ) == 0 )
     {
@@ -1736,6 +1769,25 @@ extern "C" int shar_ModVfsResolve( const char* vpath, SharModFile* file, const c
         return SHAR_MOD_REDIRECT;
     }
     return SHAR_MOD_MISSING;
+}
+
+extern "C" const char* shar_ModAdditionalFile( const char* gamePath, int nth )
+{
+    pthread_once( &s_Once, Init );
+    if ( s_NumAdditional == 0 )
+    {
+        return NULL;
+    }
+    char key[ PATH_MAX ];
+    ModNormalise( gamePath, key, sizeof( key ) );
+    for ( int i = 0; i < s_NumAdditional; i++ )
+    {
+        if ( strcmp( s_Additional[ i ].key, key ) == 0 && nth-- == 0 )
+        {
+            return s_Additional[ i ].target;
+        }
+    }
+    return NULL;
 }
 
 extern "C" int shar_ModsLoaded( void )

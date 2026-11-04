@@ -33,6 +33,9 @@
 
 #include <mission/gameplaymanager.h>
 #include <sound/soundmanager.h>
+#ifdef RAD_LINUX
+#include <shar_mods.h>
+#endif
 
 //******************************************************************************
 //
@@ -194,6 +197,25 @@ void LoadingManager::AddRequest
         return;
     }
 
+#ifdef RAD_LINUX
+    // Linux port: Mod Launcher [AdditionalFiles], queued first so that this request's callback finds their data too
+    // (a free car's callback makes the car, and its husk comes from the additional file)
+    static int s_additionalDepth = 0;
+    if ( s_additionalDepth < 4 )    // a mod's rules may loop
+    {
+        s_additionalDepth++;
+        const char* additional;
+        for ( int i = 0; ( additional = shar_ModAdditionalFile( filename, i ) ) != NULL; i++ )
+        {
+            if ( strlen( additional ) < LoadingRequest::LOADING_FILENAME_LENGTH )
+            {
+                AddRequest( handlerType, additional, heap, sectionName, groupTag, NULL, NULL );
+            }
+        }
+        s_additionalDepth--;
+    }
+#endif
+
     unsigned newTail = (mRequestTail + 1) % MAX_REQUESTS;
     
 #ifndef FINAL
@@ -353,6 +375,21 @@ void LoadingManager::LoadSync
 {
     rReleasePrintf("\n\n!!!!!! TRC VIOLATION, USE ASYNC!!!!!!!\n\n");
 //    rAssert( false );
+
+#ifdef RAD_LINUX
+    // Linux port: Mod Launcher [AdditionalFiles], as in AddRequest
+    static int s_additionalDepth = 0;
+    if ( s_additionalDepth < 4 )
+    {
+        s_additionalDepth++;
+        const char* additional;
+        for ( int i = 0; ( additional = shar_ModAdditionalFile( filename, i ) ) != NULL; i++ )
+        {
+            LoadSync( handlerType, additional, heap, sectionName );
+        }
+        s_additionalDepth--;
+    }
+#endif
 
     unsigned int startTime = radTimeGetMilliseconds();
 
