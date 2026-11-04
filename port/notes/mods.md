@@ -8,8 +8,10 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   (timestamp) moves the layout; others (0x13, 0x06 seen, meaning unknown) log a warning and are ignored.
 - `SHAR_MODS` ':'-separated, earlier wins. Unsupported hacks reported at startup.
 - Every read-only open -> `shar_ModResolve` once (`requests.cpp` -> `shar_ModTakeResolved` in `linuxdrive.cpp`;
-  `binkffmpeg.cpp`): Lua handlers, CustomFiles.ini (OccludedPath, PathRedirections/AdditionalFiles), CustomFiles.
+  `binkffmpeg.cpp`): Lua handlers, CustomFiles.ini (OccludedPath, PathRedirections), CustomFiles.
   Result: mod file (packaged = fd on .lmlm + slice), Lua output (memfd), redirect, or missing.
+- `[AdditionalFiles] a=b`: loading a also loads b, never a redirect (`LoadingManager::AddRequest`/`LoadSync` queue b first, same
+  section, so a's callback finds both; FCM's `_H` husks). Only loads through LoadingManager. The `AdditionalFiles/` folder: not done.
 - Sound opens by key (decimal radMakeCaseInsensitiveKey32 of backslashed path): files/rules indexed by key too.
 - Lua 5.4.8 (`port/third_party/lua`): one sandboxed state per mod, launcher API subset, VFS /Mods /GameData /GameDir
   (`shar_modlua.cpp`).
