@@ -75,6 +75,12 @@ void main()
 
 Settings are best written as `const float NAME = value;` at the top of the file (the examples do that).
 
+A pass can read every anti-aliasing sample of the depth buffer: with `#pragma shar_depth_samples`, while the Vulkan
+renderer has anti-aliasing on, it also gets `SHAR_DEPTH_SAMPLES` (samples per pixel, a `#define`) and
+`float DepthSample(ivec2 pixel, int s)` (raw depth; pixel as `ivec2(vUV * uResolution)`, clamped to the picture). OpenGL
+and anti-aliasing off leave them undefined, so use `#ifdef SHAR_DEPTH_SAMPLES` and fall back to `uDepth`
+(`post/outline.glsl` does).
+
 A pass can use images: `#pragma shar_texture uName file.png` (up to four per pass) declares `uniform sampler2D
 uName` holding the PNG, the path relative to the pass's own file; the image's top row is at `v = 0`. Images reload
 when they change too.
@@ -94,6 +100,7 @@ stage always works at full size.
 
 | File | Stage | What it does |
 |------|-------|--------------|
+| `outline.glsl` | scene | ink lines round objects and along sharp corners, from the depth buffer alone: put it after `tonemap.glsl` (settings at its top). Anti-aliased with the Vulkan renderer's MSAA; otherwise hard, and `fxaa.glsl` after it smooths them |
 | `ssao.glsl`, `ssao_blur_h.glsl`, `ssao_blur_v.glsl` | scene | ambient occlusion: darkens corners, recesses and the ground around objects (three passes, in this order: the occlusion, then an edge-aware blur that also darkens the picture; `SHOW_AO` in `ssao_blur_v.glsl` shows it alone; works at full size, `#pragma shar_scale` in `ssao.glsl`: 0.5 is a quarter of the cost) |
 | `tonemap.glsl` | scene | filmic tone mapping (`CURVE`: ACES, Hable, Reinhard): softer highlights, richer midtones; mid grey stays put; `SATURATION` sets how much of the curve's colour boost to keep |
 | `grade.glsl` | scene | colour grading: white balance, exposure, contrast, saturation, vibrance, lift / gamma / gain, split toning |

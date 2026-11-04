@@ -60,6 +60,7 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
   Uniforms incl. uProjection/uInverseProjection, ViewPosition().
 - SSAO: half size, 8 samples, 4x4 Bayer rotations, log distance in G/B; apply = exact 4x4 box (5x5 weighted taps),
   depth-weighted. 0.27 ms at 1080p (RTX 5060). Tonemap: LDR widen x/(1-0.6x) + ACES/Hable/Reinhard; LUTs ReShade 1024x32.
+- Outlines (`post/outline.glsl`): depth only, off by default. Silhouette = second difference of 1/z (0 on planes), near side only, gated by height above the plane behind (ground seams read as big steps at low angles); creases from depth-derived normals. Compared sample for sample with `#pragma shar_depth_samples` (vulkan.md); GL: one sample, hard lines. No IDs/normals: same-depth contacts get no line; a few ground seams still do.
 - Materials (`glcustom.cpp`, `shaders/materials.ini`): [types] (pddi shader name, `pglMat::SetTypeName`), [files]
   (chunk file name, '/'-separated, case as opened), [materials] (tShader name via RAD_LINUX hook in p3d/shader.cpp ->
   `pglSetMaterialName`); fnmatch -> GLSL defining `vec4 ShadeMaterial()`. User rules, then each mod's `Shaders/`.
