@@ -63,6 +63,7 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   program/blend/colour mask/fill/a2c/samples/topology class; the rest is dynamic state.
 - Post (vkpost.cpp): pass images bottom-up like GL's (frame blitted in flipped, uDepth via flipped R32F copy, last
   pass draws with flipped viewport) so vUV/gl_FragCoord/ViewPosition match; show_depth identical to GL.
+- Per-sample depth for post (`#pragma shar_depth_samples`, not GL: its MS depth is a renderbuffer): `msTarget.depth` has SAMPLED usage where `sampledImageDepthSampleCounts` allows (`pvkCore::DepthSamples`, 0 otherwise); the prelude adds `SHAR_DEPTH_SAMPLES`, `uDepthMS`, `DepthSample` (y flipped, clamped). Contents kept across the resolve; read-only layout after `pvkPostRun`, BeginRendering/ResolveTarget move it back. A pass is rebuilt in `pvkPostRun` when the count changes. outline.glsl 1080p 8x, RTX 5060: +0.26 ms (+0.6 with creases).
 - SPIR-V post passes (`*.spv` in post.ini, shaders/README.md): `BuildSpirvProgram` (vkpost.cpp) loads them as they
   are with `s_spirvVertexSource` (vUV location 0), fixed block offsets (`s_spirvOffsets`, 160 bytes), sampler slots =
   binding - 1 from the module's OpDecorate Binding; pragmas from the `.frag` beside it. glpost.cpp skips them.

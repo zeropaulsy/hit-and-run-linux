@@ -126,6 +126,10 @@ public:
     pvkTarget& Target() { return msActive ? msTarget : scene; }
     int ActiveSamples() const { return msActive ? targetSamples : 1; }  // of Target(): pipelines are made for it
     pvkTarget& Scene() { return scene; }        // the single-sampled one (what is presented)
+    // for post passes (shar_depth_samples): the multisampled depth buffer, kept after the resolve, and its samples per
+    // pixel (0: anti-aliasing off, or the device can't sample depth at this count)
+    pvkImage& MultisampledDepth() { return msTarget.depth; }
+    int DepthSamples() const { return msDepthSampled ? targetSamples : 0; }
     // dynamic rendering into the current target (contents kept); EndRendering before transfers
     void BeginRendering();
     void EndRendering();
@@ -189,6 +193,7 @@ private:
     int width, height;              // draw targets' size
     int requestedSamples, targetSamples, reportedSamples;
     pvkTarget scene, msTarget;
+    bool msDepthSampled;            // msTarget.depth can be sampled
     bool msActive;                  // this frame draws into msTarget (until ResolveTarget)
     bool rendering;
     unsigned renderingGeneration;

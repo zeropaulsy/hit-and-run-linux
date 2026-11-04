@@ -29,6 +29,7 @@ pvkCore::pvkCore()
     pthread_mutex_init(&memoryLock, NULL);
     pthread_mutex_init(&retireLock, NULL);
     requestedSamples = targetSamples = 1;
+    msDepthSampled = false;
     reportedSamples = 0;
 }
 
@@ -1123,14 +1124,20 @@ bool pvkCore::CreateTargets()
         return false;
 
     targetSamples = 1;
+    msDepthSampled = false;
     VkSampleCountFlagBits samples = SampleBits(requestedSamples, sampleCounts);
     if(samples > 1)
     {
+        const bool sampled = (properties.limits.sampledImageDepthSampleCounts & samples) != 0;
         if(CreateImage(width, height, 1, VK_FORMAT_R8G8B8A8_UNORM, samples, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                        VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &msTarget.colour) &&
            CreateImage(width, height, 1, depthFormat, samples, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                       VK_IMAGE_USAGE_TRANSFER_DST_BIT, depthAspect, &msTarget.depth))
+                       VK_IMAGE_USAGE_TRANSFER_DST_BIT | (sampled ? VK_IMAGE_USAGE_SAMPLED_BIT : 0), depthAspect,
+                       &msTarget.depth))
+        {
             targetSamples = samples;
+            msDepthSampled = sampled;
+        }
         else
         {
             fprintf(stderr, "PDDI: %dx anti-aliasing unavailable at %dx%d: off\n", (int)samples, width, height);
