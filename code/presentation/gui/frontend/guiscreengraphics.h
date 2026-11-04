@@ -48,6 +48,8 @@ protected:
 
 private:
     // in row order (labels and values: the constructor's switch)
+    void BuildShaderPackList();
+
     enum eMenuItem
     {
         MENU_ITEM_RENDERER,
@@ -58,6 +60,10 @@ private:
         NUM_MENU_ITEMS
     };
 
+    enum { MAX_SHADER_PACKS = 15 };     // Off comes first in the menu
+
+    char m_shaderPacks[ MAX_SHADER_PACKS ][ 64 ];
+    int m_numShaderPacks;
     CGuiMenu* m_pMenu;
     bool m_inGame;
     bool m_changed;

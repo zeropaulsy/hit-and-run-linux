@@ -1,6 +1,20 @@
 # Shaders
 
-Two kinds of GLSL shaders of your own, both plain text files you can edit while the game runs (changes show up
+Shaders come in **packs**, one folder per look. Choose one in **Options > Graphics > Shaders**, which cycles through
+Off and every pack in this folder and switches at once:
+
+| Pack | Look |
+|---|---|
+| `soft-pack/` | the default: ambient occlusion, bloom and tone mapping, soft lighting on the characters |
+| `toon-pack/` | ink outlines and flat colours, banded light on car paint |
+| `vanilla-pack/` | every example shader below, to build your own from |
+
+To make a pack, add a folder here with a `post.ini` and/or a `materials.ini` and the shaders they name (copy what you
+need from `vanilla-pack/`): it shows up in the menu the next time the Graphics screen opens, named after the folder.
+Paths in those files are relative to the pack, so a pack holds only the shaders it uses. The choice is saved in
+`simpsons.ini` as `shaders=toon-pack` (`shaders=yes`: the default pack, `shaders=no`: off).
+
+A pack holds two kinds of GLSL shaders, both plain text files you can edit while the game runs (changes show up
 within a second):
 
 - **Post-processing** (`post.ini`, `post/`): passes over the picture each frame: anti-aliasing, bloom, colour
@@ -21,9 +35,12 @@ A shader that does not compile is reported on the console with its line numbers 
 
 ## Where they go
 
-The game reads the `shaders/` folder in its working directory (or the folder named by the `SHAR_SHADERS`
+The game reads the packs in the `shaders/` folder in its working directory (or the folder named by the `SHAR_SHADERS`
 environment variable). `port/play.sh` sets it up: your game folder's `shaders/` if it has one, otherwise a copy of
 this folder in `run/shaders/` (edit that copy, not this one). `SHAR_POST=0` turns post-processing off.
+
+A `post.ini` or `materials.ini` directly in that folder (a `shaders/` from before packs) still works: it is the menu's
+**Custom** entry and the default. `SHAR_SHADERS=shaders/toon-pack` runs one pack directly.
 
 ## Choosing passes: post.ini
 
@@ -96,7 +113,7 @@ stage always works at full size.
 
 `uDepth` is copied only when a pass uses it. In the final stage it also holds what the HUD and menus drew.
 
-## The examples (post/)
+## The examples (vanilla-pack/post/)
 
 | File | Stage | What it does |
 |------|-------|--------------|
@@ -230,7 +247,7 @@ Most of the world is unlit: its lighting is painted into the vertex colours and 
 then the same across each object), so lighting-based effects work on lit materials (characters, cars). `StandardColour()`
 and `vColour` are the way to include the world's own shading.
 
-## The examples (materials/)
+## The examples (vanilla-pack/materials/)
 
 | File | For | What it does |
 |------|-----|--------------|
@@ -260,7 +277,7 @@ Both kinds work this way: post-processing passes and material shaders.
 ## How it works
 
 1. Write the shader as a `.frag` file (examples: `post/vulkan/`, `materials/vulkan/`).
-2. Compile it: `python3 port/spirv.py post/vulkan/name.frag` writes `post/vulkan/name.spv` beside it. This uses the
+2. Compile it: `python3 port/spirv.py <pack>/post/vulkan/name.frag` writes `name.spv` beside it. This uses the
    game's own compiler (`libshar_glslang.so` from the build), so no Vulkan SDK is needed, and it expands
    `#include "file"` (relative to the source). Other compilers work too (`glslc`, `glslangValidator -V`), as long as
    they can find the include and keep the names (no stripping).

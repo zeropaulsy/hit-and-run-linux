@@ -6,6 +6,7 @@
 #include <pddi/gl/glpipeline.hpp>
 
 #include <SDL2/SDL.h>
+#include <dirent.h>
 #include <fnmatch.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -288,13 +289,146 @@ static void Load(pglCustomTarget* pipeline)
     }
 }
 
+static bool IsFolder(const char* path)
+{
+    struct stat st;
+    return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static char s_pack[64];     // the chosen pack (simpsons.ini shaders=, Options > Graphics); "": the default
+
+static const char* ShadersBase()
+{
+    const char* e = getenv("SHAR_SHADERS");
+    return e && *e ? e : "shaders";
+}
+
+// a pack, or the base folder itself as one: has a post.ini or materials.ini
+static bool HasShaderConfig(const char* folder)
+{
+    char path[800];
+    snprintf(path, sizeof(path), "%s/post.ini", folder);
+    if(FileTime(path) != 0)
+        return true;
+    snprintf(path, sizeof(path), "%s/materials.ini", folder);
+    return FileTime(path) != 0;
+}
+
+// simpsons.ini's shaders= before the first load: the config manager reads it after the first frames (it then sets the
+// same), and a load of the default pack first would compile shaders for nothing
+static void PreReadShaderPack()
+{
+    FILE* f = fopen("simpsons.ini", "r");
+    if(!f)
+        return;
+    char line[256];
+    while(fgets(line, sizeof(line), f))
+    {
+        if(strncasecmp(line, "shaders=", 8) != 0)
+            continue;
+        char* value = line + 8;
+        value[strcspn(value, "\r\n")] = 0;
+        if(strcasecmp(value, "yes") != 0 && strcasecmp(value, "on") != 0 && strcasecmp(value, "no") != 0 &&
+           strcasecmp(value, "off") != 0 && strcmp(value, "0") != 0 && strcmp(value, "1") != 0)
+            snprintf(s_pack, sizeof(s_pack), "%s", value);
+        break;
+    }
+    fclose(f);
+}
+
+void pglShaderFolder(char* folder, size_t size)
+{
+    static bool s_preRead = false;
+    if(!s_preRead)
+    {
+        s_preRead = true;
+        PreReadShaderPack();
+    }
+    const char* base = ShadersBase();
+    char path[800];
+    if(s_pack[0])
+    {
+        snprintf(path, sizeof(path), "%s/%s", base, s_pack);
+        if(IsFolder(path))
+        {
+            snprintf(folder, size, "%s", path);
+            return;
+        }
+        static char s_missing[64];          // said once per name: this runs every second
+        if(strcmp(s_missing, s_pack) != 0)
+        {
+            fprintf(stderr, "PDDI: shader pack %s: no such folder\n", path);
+            snprintf(s_missing, sizeof(s_missing), "%s", s_pack);
+        }
+    }
+    // the default: a base folder that is a pack itself, else soft-pack, else vanilla-pack
+    snprintf(folder, size, "%s", base);
+    static const char* const defaults[] = { "soft-pack", "vanilla-pack" };
+    for(int i = 0; i < 2 && !HasShaderConfig(base); i++)
+    {
+        snprintf(path, sizeof(path), "%s/%s", base, defaults[i]);
+        if(IsFolder(path))
+        {
+            snprintf(folder, size, "%s", path);
+            return;
+        }
+    }
+}
+
+void pglSetShaderPack(const char* name)
+{
+    snprintf(s_pack, sizeof(s_pack), "%s", name);
+}
+
+const char* pglGetShaderPack()
+{
+    return s_pack;
+}
+
+void pglCurrentShaderPack(char* name, size_t size)
+{
+    char folder[512];
+    pglShaderFolder(folder, sizeof(folder));
+    size_t base = strlen(ShadersBase());
+    snprintf(name, size, "%s", strlen(folder) > base + 1 ? folder + base + 1 : "");
+}
+
+int pglListShaderPacks(char (*names)[64], int max)
+{
+    const char* base = ShadersBase();
+    int count = 0;
+    if(HasShaderConfig(base) && count < max)
+        names[count++][0] = 0;
+    int first = count;
+    DIR* d = opendir(base);
+    if(!d)
+        return count;
+    while(struct dirent* e = readdir(d))
+    {
+        char path[800];
+        snprintf(path, sizeof(path), "%s/%s", base, e->d_name);
+        if(count >= max || e->d_name[0] == '.' || strlen(e->d_name) >= 64 || !IsFolder(path) || !HasShaderConfig(path))
+            continue;
+        int k = count++;    // by name: readdir's order is the file system's
+        while(k > first && strcmp(names[k - 1], e->d_name) > 0)
+        {
+            memcpy(names[k], names[k - 1], 64);
+            k--;
+        }
+        snprintf(names[k], 64, "%s", e->d_name);
+    }
+    closedir(d);
+    return count;
+}
+
 void pglCustomUpdate(pglCustomTarget* pipeline)
 {
+    char folder[512];
     if(!s_loaded)
     {
         s_loaded = true;
-        const char* folder = getenv("SHAR_SHADERS");
-        snprintf(s_folder, sizeof(s_folder), "%s", folder && *folder ? folder : "shaders");
+        pglShaderFolder(s_folder, sizeof(s_folder));
+        fprintf(stderr, "PDDI: shaders from %s\n", s_folder);
         snprintf(s_iniPath, sizeof(s_iniPath), "%s/materials.ini", s_folder);
         s_lastCheck = SDL_GetTicks();
         Load(pipeline);
@@ -306,7 +440,15 @@ void pglCustomUpdate(pglCustomTarget* pipeline)
     if(now - s_lastCheck < 1000)
         return;
     s_lastCheck = now;
-    bool changed = FileTime(s_iniPath) != s_iniTime;
+    pglShaderFolder(folder, sizeof(folder));
+    bool changed = strcmp(folder, s_folder) != 0;
+    if(changed)
+    {
+        snprintf(s_folder, sizeof(s_folder), "%s", folder);
+        snprintf(s_iniPath, sizeof(s_iniPath), "%s/materials.ini", s_folder);
+        fprintf(stderr, "PDDI: shaders from %s\n", s_folder);
+    }
+    changed = changed || FileTime(s_iniPath) != s_iniTime;
     for(int i = 0; i < s_fileCount && !changed; i++)
         changed = s_files[i].path[0] && FileTime(s_files[i].path) != s_files[i].mtime;
     if(changed)

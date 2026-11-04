@@ -52,7 +52,11 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
   transforms every frame, so Translate is lost).
 
 ## User shaders (format: shaders/README.md). M toggles all (`pglToggleUserShaders`; generation bump)
-- Post (`glpost.cpp`, `shaders/post.ini`): [scene] passes in `RenderManager` before the GUI layer (only if a lower
+- Packs: `pglShaderFolder` (glcustom.cpp), read by glcustom/glpost/vkpost on load and each second (a change reloads).
+  Chosen by `pglSetShaderPack` (ini `shaders=name`, `CGuiScreenGraphics::BuildShaderPackList`; pre-read in
+  `PreReadShaderPack`: the config manager reads the ini after the first frames). None chosen or gone: base folder if it
+  has post.ini/materials.ini (old layout: menu "Custom"; `cp -rn` in play.sh adds packs beside it), else soft-pack, else vanilla-pack.
+- Post (`glpost.cpp`, `post.ini`): [scene] passes in `RenderManager` before the GUI layer (only if a lower
   layer drew and no FMV), [final] in `SwapBuffers` before gamma. Ping-pong FBOs; depth copied only if a pass uses
   uDepth (depth 0-1: game never calls SetZRange). `pglScreenPassState` saves/restores touched state incl. tex units
   0-2. Reload on mtime change. Pragmas: `shar_original` (input = uOriginal), `shar_scale <f>` (own smaller target, not
@@ -61,7 +65,7 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
 - SSAO: half size, 8 samples, 4x4 Bayer rotations, log distance in G/B; apply = exact 4x4 box (5x5 weighted taps),
   depth-weighted. 0.27 ms at 1080p (RTX 5060). Tonemap: LDR widen x/(1-0.6x) + ACES/Hable/Reinhard; LUTs ReShade 1024x32.
 - Outlines (`post/outline.glsl`): depth only, off by default. Silhouette = second difference of 1/z (0 on planes), near side only, gated by height above the plane behind (ground seams read as big steps at low angles); creases from depth-derived normals. Compared sample for sample with `#pragma shar_depth_samples` (vulkan.md); GL: one sample, hard lines. No IDs/normals: same-depth contacts get no line; a few ground seams still do.
-- Materials (`glcustom.cpp`, `shaders/materials.ini`): [types] (pddi shader name, `pglMat::SetTypeName`), [files]
+- Materials (`glcustom.cpp`, `materials.ini`): [types] (pddi shader name, `pglMat::SetTypeName`), [files]
   (chunk file name, '/'-separated, case as opened), [materials] (tShader name via RAD_LINUX hook in p3d/shader.cpp ->
   `pglSetMaterialName`); fnmatch -> GLSL defining `vec4 ShadeMaterial()`. User rules, then each mod's `Shaders/`.
   Up to 32 program slots (`BuildCustomProgram`); prelude: StandardColour, BaseTexture, LightVector, FinishFragment.

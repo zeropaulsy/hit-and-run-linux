@@ -25,7 +25,7 @@ code/, libs/, build/   dump's sources + VS projects (git-tracked)
 port/                  everything added: gen_cmake.py (-> CMakeLists.txt, never edit by hand), check.py, run.sh,
                        play.sh, memcheck.sh, package.sh, compat/ (shims, srr2.map, shar_mod*.cpp),
                        third_party/ (lua, glslang, stb, dejavu: console font)
-shaders/               example post/material shaders (shaders/README.md)
+shaders/               shader packs: vanilla-pack (all examples), soft-pack, toon-pack (shaders/README.md)
 build-linux/ release   build-linux-debug/ asserts   build-linux-asan/   build-linux-audit/ all warnings   (x86-64)
 build-linux32[-debug]/ legacy 32-bit (-DSHAR_64BIT=OFF; play.sh/package.sh --32)
 run/                   run dir (ignored, user's ini/saves). Experiments: own run dir in scratchpad via SHAR_RUN
