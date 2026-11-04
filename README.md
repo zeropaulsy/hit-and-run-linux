@@ -226,6 +226,10 @@ misbehaves, report the mod's name and version along with `run/logs/last-session.
 | macOS (Apple silicon / Intel) | **In progress.** Builds and runs on an Apple M2 (Vulkan through MoltenVK) and on Intel with Big Sur (OpenGL). No full play session yet |
 | Android / handhelds | Possible later: the renderer and input layers already allow it |
 
+## Extra docs
+
+- [Shaders](shaders/README.md): shader packs, and writing your own post-processing and material shaders
+
 ## Credits
 
 - [Donut Team](https://donutteam.com/), for Lucas' Simpsons Hit & Run Mod Launcher and their years of work on
