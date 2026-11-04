@@ -71,7 +71,7 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
 - SPIR-V materials (`*.spv` in materials.ini): glcustom calls `pglCustomTarget::BuildCustomSpirv` (default: skip, GL).
   vkpipeline `BuildCustomSpirv` compiles the game's CUSTOM program with a standard ShadeMaterial, then `FitSpirv`
   patches the user's fragment by OpName/OpMemberName: input Location <- vertex output of that name, block member
-  Offset <- `p.offset[u]`, sampler Binding <- `p.binding[]`, set 0. `shaders/materials/vulkan/shar_material.glsl` =
+  Offset <- `p.offset[u]`, sampler Binding <- `p.binding[]`, set 0. `shaders/vanilla-pack/materials/vulkan/shar_material.glsl` =
   pglFragmentPrelude (REFLECTION, CUSTOM) + FinishFragment as main: keep in step with glshaders.cpp.
 - 32-bit: non-dispatchable handles are all uint64_t (no overloads on handle type).
 - Pipeline cache: one `pvkCore::pipelineCache` for every pipeline (game, post, sun, present), file

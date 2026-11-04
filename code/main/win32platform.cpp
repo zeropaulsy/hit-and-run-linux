@@ -22,6 +22,10 @@ void pglSetAntialiasing( int samples );     // pddi/gl/display_linux/gldisplay.c
 void pglSetTextureFiltering( int mipmaps, int anisotropy );     // and texture filtering
 void pglSetUserShaders( bool on );          // pddi/gl/glcustom.cpp: the user's shaders (shaders/)
 bool pglGetUserShaders();
+void pglSetShaderPack( const char* name );  // and which of the shader packs in it
+const char* pglGetShaderPack();
+void pglCurrentShaderPack( char* name, size_t size );
+int pglListShaderPacks( char (*names)[ 64 ], int max );
 void pvkSunSetQuality( int quality );       // pddi/vk/vksun.cpp: the sun's shadows (Vulkan): 0 off, 1 low, 2 high
 int pvkSunQuality();
 #endif
@@ -1206,8 +1210,12 @@ void Win32Platform::LoadConfig( ConfigString& config )
         }
         else if( _stricmp( property, "shaders" ) == 0 )
         {
-            // Linux port: the user's post-processing and material shaders (shaders/; the M key toggles them)
-            pglSetUserShaders( _stricmp( value, "no" ) != 0 && strcmp( value, "0" ) != 0 );
+            // Linux port: the post-processing and material shaders: a pack in shaders/ by name, yes for the default
+            // one, or no (the M key toggles them)
+            const bool off = _stricmp( value, "no" ) == 0 || _stricmp( value, "off" ) == 0 || strcmp( value, "0" ) == 0;
+            const bool defaultPack = _stricmp( value, "yes" ) == 0 || _stricmp( value, "on" ) == 0 || strcmp( value, "1" ) == 0;
+            pglSetUserShaders( !off );
+            pglSetShaderPack( off || defaultPack ? "" : value );
         }
         else if( _stricmp( property, "renderer" ) == 0 )
         {
@@ -1346,7 +1354,7 @@ void Win32Platform::SaveConfig( ConfigString& config )
     char anisotropy[ 20 ];
     sprintf( anisotropy, "%d", mAnisotropy );
     config.WriteProperty( "anisotropy", anisotropy );
-    config.WriteProperty( "shaders", pglGetUserShaders() ? "yes" : "no" );
+    config.WriteProperty( "shaders", !pglGetUserShaders() ? "no" : pglGetShaderPack()[ 0 ] ? pglGetShaderPack() : "yes" );
     config.WriteProperty( "renderer", mRenderer == RENDERER_VULKAN ? "vulkan" : "opengl" );
     static const char* const SHADOWS[] = { "off", "low", "high" };
     config.WriteProperty( "shadows", SHADOWS[ pvkSunQuality() ] );
@@ -1380,6 +1388,21 @@ void Win32Platform::SetUserShaders( bool on )
 bool Win32Platform::GetUserShaders() const
 {
     return pglGetUserShaders();
+}
+
+void Win32Platform::SetShaderPack( const char* name )
+{
+    pglSetShaderPack( name );
+}
+
+void Win32Platform::GetCurrentShaderPack( char* name, size_t size ) const
+{
+    pglCurrentShaderPack( name, size );
+}
+
+int Win32Platform::ListShaderPacks( char (*names)[ 64 ], int max ) const
+{
+    return pglListShaderPacks( names, max );
 }
 
 void Win32Platform::SetShadows( int quality )

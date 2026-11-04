@@ -702,9 +702,16 @@ static void CheckForChanges()
             s_state = -1;
             return;
         }
-        const char* folder = getenv("SHAR_SHADERS");
-        snprintf(s_folder, sizeof(s_folder), "%s", folder && *folder ? folder : "shaders");
+        pglShaderFolder(s_folder, sizeof(s_folder));
         s_state = 1;
+        LoadConfig();
+        return;
+    }
+    char folder[512];
+    pglShaderFolder(folder, sizeof(folder));
+    if(strcmp(folder, s_folder) != 0)       // another pack
+    {
+        snprintf(s_folder, sizeof(s_folder), "%s", folder);
         LoadConfig();
         return;
     }
