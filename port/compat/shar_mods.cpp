@@ -29,8 +29,8 @@ struct ModFile
     int order;              // mod index * large + discovery order, so earlier mods sort first among equal keys
 };
 
-// CustomFiles.ini rules: [PathRedirections] / [AdditionalFiles] src=dst (open dst, a game path, instead) and
-// [Miscellaneous] OccludedPath=path (the file does not exist)
+// CustomFiles.ini rules: [PathRedirections] src=dst (open dst, a game path, instead) and
+// [Miscellaneous] OccludedPath=path (the file does not exist). [AdditionalFiles] are not rules: Additional below.
 struct Rule
 {
     char* key;              // normalised source path
@@ -59,6 +59,15 @@ ModFile* s_Files = NULL;
 int s_NumFiles = 0, s_CapFiles = 0;
 Rule* s_Rules = NULL;
 int s_NumRules = 0, s_CapRules = 0;
+
+// CustomFiles.ini [AdditionalFiles] src=dst: loading src also loads dst. In mod order.
+struct Additional
+{
+    char* key;              // normalised source path
+    char* target;           // game path, single backslashes
+};
+Additional* s_Additional = NULL;
+int s_NumAdditional = 0, s_CapAdditional = 0;
 KeyEntry* s_FileKeys = NULL;
 int s_NumFileKeys = 0;
 KeyEntry* s_RuleKeys = NULL;
@@ -564,8 +573,10 @@ void OnMeta( const char* section, const char* key, const char* value, void* user
         }
         else if ( strcasecmp( key, "Type" ) == 0 )
         {
-            s.type = strcasecmp( value, "Boolean" ) == 0 ? MOD_SETTING_BOOLEAN
+            // a TickBox is a Lua boolean: mods test "if Settings.X then", and 0 is true in Lua
+            s.type = strcasecmp( value, "Boolean" ) == 0 || strcasecmp( value, "TickBox" ) == 0 ? MOD_SETTING_BOOLEAN
                    : ( strcasecmp( value, "Text" ) == 0 || strcasecmp( value, "String" ) == 0 ) ? MOD_SETTING_TEXT
+                   : strcasecmp( value, "MultipleChoice" ) == 0 ? MOD_SETTING_CHOICE
                    : MOD_SETTING_NUMBER;
         }
         return;
@@ -573,6 +584,10 @@ void OnMeta( const char* section, const char* key, const char* value, void* user
     if ( strcasecmp( section, "Miscellaneous" ) != 0 )
     {
         return;
+    }
+    if ( strcasecmp( key, "Version" ) == 0 )
+    {
+        snprintf( mod->version, sizeof( mod->version ), "%s", value );
     }
     if ( strcasecmp( key, "Title" ) == 0 )
     {
@@ -602,7 +617,10 @@ void OnMeta( const char* section, const char* key, const char* value, void* user
             Append( s_RequiredHacks, sizeof( s_RequiredHacks ), value );
             return;
         }
-        Append( meta->requiredMods, sizeof( meta->requiredMods ), value );
+        if ( !ModSettingHackCovered( value ) )
+        {
+            Append( meta->requiredMods, sizeof( meta->requiredMods ), value );
+        }
     }
 }
 
@@ -676,6 +694,26 @@ void AddRule( const char* path, const char* target, int modIndex )
     s_NumRules++;
 }
 
+void AddAdditional( const char* path, const char* target )
+{
+    Grow( s_Additional, s_NumAdditional, s_CapAdditional, 16 );
+    char key[ PATH_MAX ];
+    ModNormalise( path, key, sizeof( key ) );
+    Additional& a = s_Additional[ s_NumAdditional++ ];
+    a.key = ModDup( key );
+    a.target = ModDup( target );
+    // the inis double their backslashes; the target goes to the loaders as it is
+    char* out = a.target;
+    for ( const char* in = target; *in != '\0'; in++ )
+    {
+        if ( !( *in == '\\' && out > a.target && out[ -1 ] == '\\' ) )
+        {
+            *out++ = *in;
+        }
+    }
+    *out = '\0';
+}
+
 struct CustomFilesInfo
 {
     Mod* mod;
@@ -689,9 +727,13 @@ void OnCustomFiles( const char* section, const char* key, const char* value, voi
     {
         return;
     }
-    if ( strcasecmp( section, "PathRedirections" ) == 0 || strcasecmp( section, "AdditionalFiles" ) == 0 )
+    if ( strcasecmp( section, "PathRedirections" ) == 0 )
     {
         AddRule( key, value, info->mod->index );
+    }
+    else if ( strcasecmp( section, "AdditionalFiles" ) == 0 )
+    {
+        AddAdditional( key, value );
     }
     else if ( strcasecmp( section, "Miscellaneous" ) == 0 && strcasecmp( key, "OccludedPath" ) == 0 )
     {
@@ -1293,6 +1335,14 @@ bool ModWildcardMatch( const char* pattern, const char* key )
     return *pattern == '\0';
 }
 
+// Launcher setting hacks that mods require as mods (RequiredMod=, IsModEnabled) and that make no sense to install here.
+// Direct3D9: the port's own renderer takes its place. LensFlare: only answers the check, the flares aren't drawn
+// (the PC never drew them; the hack gives them the console's behaviour).
+bool ModSettingHackCovered( const char* name )
+{
+    return strcasecmp( name, "Direct3D9" ) == 0 || strcasecmp( name, "LensFlare" ) == 0;
+}
+
 bool ModHackLoaded( const char* hack )
 {
     return IsSupportedHack( hack );
@@ -1367,11 +1417,115 @@ int ModVfsLocate( const char* vpath, SharModFile* file, char* gamePath, size_t g
     return 1;
 }
 
+namespace {
+
+// The game's .rcf archives, for /GameData reads of files that are only in one (a mod's Lua reading sound\scripts\*.spt).
+// On disk (cementLibrary.hpp): u32 header position @0x24; header: u32 file count, 3 more u32s, then
+// { u32 key, u32 offset, u32 size } sorted by key.
+struct RcfEntry
+{
+    uint32_t key, offset, size;
+};
+struct Rcf
+{
+    char* path;
+    RcfEntry* entries;
+    uint32_t count;
+};
+Rcf* s_Rcfs = NULL;
+int s_NumRcfs = 0, s_CapRcfs = 0;
+pthread_once_t s_RcfOnce = PTHREAD_ONCE_INIT;
+
+void AddRcf( const char* path )
+{
+    int fd = open( path, O_RDONLY | O_CLOEXEC );
+    if ( fd < 0 )
+    {
+        return;
+    }
+    uint32_t pos = 0, count = 0;
+    RcfEntry* entries = NULL;
+    if ( pread( fd, &pos, 4, 0x24 ) == 4 && pread( fd, &count, 4, pos ) == 4 && count < 1000000 )
+    {
+        entries = (RcfEntry*)malloc( count * sizeof( RcfEntry ) + 1 );
+        if ( pread( fd, entries, count * sizeof( RcfEntry ), pos + 16 ) != (ssize_t)( count * sizeof( RcfEntry ) ) )
+        {
+            free( entries );
+            entries = NULL;
+        }
+    }
+    close( fd );
+    if ( entries != NULL )
+    {
+        Grow( s_Rcfs, s_NumRcfs, s_CapRcfs, 16 );
+        Rcf& r = s_Rcfs[ s_NumRcfs++ ];
+        r.path = ModDup( path );
+        r.entries = entries;
+        r.count = count;
+    }
+}
+
+void LoadRcfs( void )
+{
+    DIR* dir = opendir( s_GameRoot );
+    if ( dir == NULL )
+    {
+        return;
+    }
+    while ( struct dirent* e = readdir( dir ) )
+    {
+        size_t n = strlen( e->d_name );
+        if ( n > 4 && strcasecmp( e->d_name + n - 4, ".rcf" ) == 0 )
+        {
+            char path[ PATH_MAX + 256 ];
+            snprintf( path, sizeof( path ), "%s/%s", s_GameRoot, e->d_name );
+            AddRcf( path );
+        }
+    }
+    closedir( dir );
+}
+
+bool FindInRcfs( const char* gamePath, SharModFile* file )
+{
+    pthread_once( &s_RcfOnce, LoadRcfs );
+    uint32_t key = KeyOf( gamePath );
+    for ( int i = 0; i < s_NumRcfs; i++ )
+    {
+        uint32_t low = 0, high = s_Rcfs[ i ].count;
+        while ( low < high )
+        {
+            uint32_t mid = low + ( high - low ) / 2;
+            const RcfEntry& e = s_Rcfs[ i ].entries[ mid ];
+            if ( e.key == key )
+            {
+                file->path = s_Rcfs[ i ].path;
+                file->offset = e.offset;
+                file->size = e.size;
+                file->packaged = 1;
+                file->fd = -1;
+                return true;
+            }
+            if ( e.key < key )
+            {
+                low = mid + 1;
+            }
+            else
+            {
+                high = mid;
+            }
+        }
+    }
+    return false;
+}
+
+} // namespace
+
 bool ModVfsRead( const char* vpath, char** data, size_t* size )
 {
     SharModFile file;
     char gamePath[ PATH_MAX ];
-    if ( ModVfsLocate( vpath, &file, gamePath, sizeof( gamePath ) ) != 1 )
+    int found = ModVfsLocate( vpath, &file, gamePath, sizeof( gamePath ) );
+    if ( found != 1 && !( found == 2 && FindInRcfs( gamePath, &file ) ) )
     {
         return false;
     }
@@ -1541,7 +1695,8 @@ bool ModVfsExists( const char* vpath, bool* isDir )
 {
     SharModFile file;
     char gamePath[ PATH_MAX ];
-    if ( ModVfsLocate( vpath, &file, gamePath, sizeof( gamePath ) ) == 1 )
+    int located = ModVfsLocate( vpath, &file, gamePath, sizeof( gamePath ) );
+    if ( located == 1 || ( located == 2 && FindInRcfs( gamePath, &file ) ) )
     {
         *isDir = false;
         return true;
@@ -1736,6 +1891,25 @@ extern "C" int shar_ModVfsResolve( const char* vpath, SharModFile* file, const c
         return SHAR_MOD_REDIRECT;
     }
     return SHAR_MOD_MISSING;
+}
+
+extern "C" const char* shar_ModAdditionalFile( const char* gamePath, int nth )
+{
+    pthread_once( &s_Once, Init );
+    if ( s_NumAdditional == 0 )
+    {
+        return NULL;
+    }
+    char key[ PATH_MAX ];
+    ModNormalise( gamePath, key, sizeof( key ) );
+    for ( int i = 0; i < s_NumAdditional; i++ )
+    {
+        if ( strcmp( s_Additional[ i ].key, key ) == 0 && nth-- == 0 )
+        {
+            return s_Additional[ i ].target;
+        }
+    }
+    return NULL;
 }
 
 extern "C" int shar_ModsLoaded( void )

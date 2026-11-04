@@ -21,7 +21,7 @@ struct ModHandler           /* CustomFiles.ini [PathHandlers] */
     char* script;           /* mod-relative path of the Lua script */
 };
 
-enum ModSettingType { MOD_SETTING_NUMBER, MOD_SETTING_BOOLEAN, MOD_SETTING_TEXT };
+enum ModSettingType { MOD_SETTING_NUMBER, MOD_SETTING_BOOLEAN, MOD_SETTING_TEXT, MOD_SETTING_CHOICE };
 
 struct ModSetting           /* Meta.ini [Setting] */
 {
@@ -35,6 +35,7 @@ struct Mod
     int index;
     char name[ 128 ];       /* InternalName (or the folder/package name) */
     char title[ 256 ];
+    char version[ 64 ];     /* Meta.ini Version */
     char* root;             /* the folder, or the .lmlm package */
     bool packaged;
     int fd;                 /* package: open for the whole session */
@@ -57,6 +58,7 @@ char* ModDup( const char* s );
 void ModNormalise( const char* in, char* out, size_t size );   /* see shar_mods.cpp */
 bool ModWildcardMatch( const char* pattern, const char* key );  /* both normalised; '*' crosses '/' */
 bool ModHackLoaded( const char* hack );
+bool ModSettingHackCovered( const char* name );
 bool ModLogEnabled( void );
 
 /* Virtual file system, as the Mod Launcher's: /Mods/<InternalName>/... (a mod's own files), /GameData/... (the
