@@ -549,6 +549,16 @@ void ParkedCarManager::FindParkedCarInfo( Vehicle* v, ParkedCarInfo*& info, bool
 //=============================================================================
 void ParkedCarManager::OnProcessRequestsComplete( void* pUserData )
 {
+    mFreeCarLoading = false;
+
+    // Linux port: RemoveFreeCar took the locator while this car was loading: nowhere to put it
+    if ( mFreeCarLocator == NULL )
+    {
+        mFreeCar.mLoadedZoneUID = 0;
+        p3d::inventory->RemoveSectionElements( FREE_CAR_SECTION );
+        return;
+    }
+
     if ( mFreeCar.mLoadedZoneUID != static_cast< tUID >( 0 ) )
     {
         //Create the car.
@@ -685,8 +695,12 @@ void ParkedCarManager::AddFreeCar( const char* name, CarStartLocator* loc )
         return;
     }
     
-    if ( mFreeCar.mCar == NULL )
+    // Linux port: not while one is loading either. A second free car (a mod's map can queue two, FCM's triggers) took
+    // over its name, so the first load's callback looked for a model that wasn't loaded and crashed in GetArt.
+    if ( mFreeCar.mCar == NULL && !mFreeCarLoading )
     {
+        mFreeCarLoading = true;
+
         unsigned int nameLen = strlen( name ) > MAX_CAR_NAME_LEN ? MAX_CAR_NAME_LEN : strlen( name );
         strncpy( mFreeCar.mName, name, nameLen );
         mFreeCar.mName[ nameLen ] = '\0';
@@ -801,7 +815,8 @@ ParkedCarManager::ParkedCarManager() :
     mNumParkedCars( 0 ),
     mNumLocators( 0 ),
     mLoadingZoneUID( 0 ),
-    mFreeCarLocator( NULL )
+    mFreeCarLocator( NULL ),
+    mFreeCarLoading( false )
 {
     GetEventManager()->AddListener( this, EVENT_DUMP_DYNA_SECTION );
     GetEventManager()->AddListener( this, EVENT_DYNAMIC_ZONE_LOAD_ENDED );
