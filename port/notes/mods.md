@@ -13,6 +13,10 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
 - `[AdditionalFiles] a=b`: loading a also loads b, never a redirect (`LoadingManager::AddRequest`/`LoadSync` queue b first, same
   section, so a's callback finds both; FCM's `_H` husks). Only loads through LoadingManager. The `AdditionalFiles/` folder: not done.
 - Sound opens by key (decimal radMakeCaseInsensitiveKey32 of backslashed path): files/rules indexed by key too.
+- RequiredMod / IsModEnabled: Direct3D9 and LensFlare answer yes (`ModSettingHackCovered`); LensFlare only as the check, no flares
+  drawn. A failed assert in a mod's CustomFiles.lua stops the rest of it (FCM: `Game` nil in every redirected script).
+- TickBox settings are Lua booleans; MultipleChoice is 0-based in GetSetting, 1-based in GetSettings. Lua `ReadFile`/`Exists` on
+  /GameData also see files only in .rcf archives (`FindInRcfs`). `Alert` goes to the log.
 - Lua 5.4.8 (`port/third_party/lua`): one sandboxed state per mod, launcher API subset, VFS /Mods /GameData /GameDir
   (`shar_modlua.cpp`).
 - `Main=1` mods save to ModSaves/<InternalName>/. Settings = Meta.ini defaults unless ModSettings.ini overrides.
