@@ -57,7 +57,7 @@ in between. Hacks a mod requires but the port lacks are listed at startup (`mods
 ### Platforms
 - [ ] **Windows x64**
 - [ ] **macOS** (Apple silicon and Intel)
-- [ ] **Packaging**: an AppImage-style bundle per platform (Linux has a tarball from `port/package.sh`)
+- [ ] **Packaging**: an AppImage-style bundle per platform (Linux has a tarball and an AppImage from `port/package.sh`)
 
 ### Renderer extras
 - [ ] Sun shadows on GL (Vulkan only: ray queries or its baked shadow map; GL would need shadow maps)

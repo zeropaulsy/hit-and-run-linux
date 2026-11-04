@@ -7,17 +7,22 @@
 # --noble: build and package inside an Ubuntu 24.04 container (podman, port/noble.Containerfile; build dirs
 # build-linux[32]-noble), so the game and its bundled libraries need only 24.04's glibc and the package runs on
 # Ubuntu 24.04 / Linux Mint 22 and newer. Without it the package needs this machine's glibc.
+# --appimage: also make dist/shar-linux-x86_64-<date>.AppImage of the same bundle (x86-64 only; needs mksquashfs and,
+# the first time, curl for the runtime). Settings and saves go in ~/.local/share/simpsons-hit-and-run, or next to the
+# AppImage when it sits in the game data folder.
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-SUFFIX=; NOBLE=
+SUFFIX=; NOBLE=; APPIMAGE=
 for a in "$@"; do
     case "$a" in
         --32) SUFFIX=32 ;;
         --64) ;;
         --noble) NOBLE=1 ;;
-        *) echo "usage: port/package.sh [--32] [--noble]" >&2; exit 1 ;;
+        --appimage) APPIMAGE=1 ;;
+        *) echo "usage: port/package.sh [--32] [--noble] [--appimage]" >&2; exit 1 ;;
     esac
 done
+if [ -n "$APPIMAGE" ] && [ -n "$SUFFIX" ]; then echo "--appimage is x86-64 only" >&2; exit 1; fi
 if [ -n "$NOBLE" ] && [ -z "$SHAR_IN_NOBLE" ]; then
     podman build -q -t shar-noble -f "$ROOT/port/noble.Containerfile" "$ROOT/port" > /dev/null
     exec podman run --rm --userns=keep-id -e SHAR_IN_NOBLE=1 -v "$ROOT:$ROOT" -w "$ROOT" shar-noble port/package.sh "$@"
@@ -57,18 +62,36 @@ cat > "$OUT/run.sh" <<'EOF'
 # simpsons.ini, the saves and logs/ in that folder.
 # --mod MOD loads a Mod Launcher mod: a .lmlm file or an extracted mod folder. Repeat it for several; when two mods
 # change the same file, the one given first wins.
+# As an AppImage (this script is its AppRun, on a read-only mount): the run folder is
+# ~/.local/share/simpsons-hit-and-run, or the game data folder when the AppImage sits in it. With no terminal, a dialog
+# asks for the game data folder.
 HERE=$(cd "$(dirname "$0")" && pwd)
 RUN=$HERE/run
+HOMEDIR=$HERE
+INAPPIMAGE=
+if [ "$(basename "$0")" = AppRun ]; then
+    INAPPIMAGE=1
+    RUN=${XDG_DATA_HOME:-$HOME/.local/share}/simpsons-hit-and-run
+    HOMEDIR=$(dirname "${APPIMAGE:-$HERE}")
+fi
+# An error, shown in a dialog too when an AppImage was started without a terminal
+die() {
+    echo "$1" >&2
+    if [ -n "$INAPPIMAGE" ] && [ ! -t 2 ]; then
+        { LD_LIBRARY_PATH= zenity --error --no-markup --text="$1" || LD_LIBRARY_PATH= kdialog --error "$1"; } 2>/dev/null
+    fi
+    exit 1
+}
 MODS=; ARGS=()
 while [ $# -gt 0 ]; do
     case "$1" in
-        --mod) [ $# -ge 2 ] || { echo "--mod needs a .lmlm file or a mod folder" >&2; exit 1; }; M=$2; shift 2 ;;
+        --mod) [ $# -ge 2 ] || die "--mod needs a .lmlm file or a mod folder"; M=$2; shift 2 ;;
         --mod=*) M=${1#--mod=}; shift ;;
         *) ARGS+=("$1"); shift; continue ;;
     esac
-    [ -e "$M" ] || { echo "Mod not found: $M" >&2; exit 1; }
+    [ -e "$M" ] || die "Mod not found: $M"
     M=$(cd "$(dirname "$M")" && pwd)/$(basename "$M")
-    case "$M" in *:*) echo "Mod paths cannot contain ':': $M" >&2; exit 1 ;; esac
+    case "$M" in *:*) die "Mod paths cannot contain ':': $M" ;; esac
     MODS=${MODS:+$MODS:}$M
 done
 set -- "${ARGS[@]}"
@@ -77,13 +100,17 @@ set -- "${ARGS[@]}"
 has_data() { [ -n "$(find -L "$1" -maxdepth 1 -type d -iname art)" ] && [ -n "$(find -L "$1" -maxdepth 1 -type d -iname scripts)" ]; }
 DATA=
 if [ -n "$1" ] && [ -d "$1" ]; then DATA=$1; shift
-elif has_data "$HERE"; then RUN=$HERE    # extracted into the game data folder: run in place
+elif has_data "$HOMEDIR"; then RUN=$HOMEDIR    # in the game data folder: run in place
 elif [ -f "$RUN/.data" ]; then DATA=$(cat "$RUN/.data"); fi
-if [ "$RUN" != "$HERE" ]; then
+if [ "$RUN" != "$HOMEDIR" ]; then
+    if [ -n "$INAPPIMAGE" ] && [ ! -t 0 ] && { [ -z "$DATA" ] || [ ! -d "$DATA" ]; }; then
+        T="Choose your Simpsons: Hit & Run game folder (holding art/, scripts/ and the .rcf files)"
+        DATA=$({ zenity --file-selection --directory --title="$T" || kdialog --getexistingdirectory "$HOME" --title "$T"; } 2>/dev/null)
+        [ -z "$DATA" ] || has_data "$DATA" || die "No art/ and scripts/ folders in $DATA"
+    fi
     if [ -z "$DATA" ] || [ ! -d "$DATA" ]; then
-        echo "usage: ./run.sh /path/to/game-data [options]   (the folder holding art/, scripts/ and *.rcf)" >&2
-        echo "       or extract this package into the game data folder and run ./run.sh there" >&2
-        exit 1
+        die "usage: $(basename "${APPIMAGE:-./run.sh}") /path/to/game-data [options]   (the folder holding art/, scripts/ and *.rcf)
+       or put this package in the game data folder and run it there"
     fi
     DATA=$(cd "$DATA" && pwd)
     mkdir -p "$RUN"
@@ -95,7 +122,10 @@ if [ "$RUN" != "$HERE" ]; then
     for f in simpsons.ini Save1 Save2 Save3 Save4; do
         [ -e "$DATA/$f" ] && [ ! -e "$RUN/$f" ] && cp "$DATA/$f" "$RUN/$f"
     done
-    [ -e "$RUN/shaders" ] || ln -s "$HERE/shaders" "$RUN/shaders"
+fi
+# A link, not a copy, and renewed each start: an AppImage mounts somewhere new every time. Your own shaders/ folder stays.
+if [ "$RUN" != "$HERE" ] && { [ -L "$RUN/shaders" ] || [ ! -e "$RUN/shaders" ]; }; then
+    ln -sfn "$HERE/shaders" "$RUN/shaders"
 fi
 mkdir -p "$RUN/logs"
 cd "$RUN"
@@ -110,9 +140,8 @@ done
 export LD_LIBRARY_PATH="$LIBS${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 MISSING=$(ldd "$HERE/srr2" "$LIBS"/* 2>/dev/null | awk '/not found/ { print $1 }' | sort -u)
 if [ -n "$MISSING" ]; then
-    echo "These system libraries are missing:" $MISSING >&2
-    echo "See the README for the packages to install." >&2
-    exit 1
+    die "These system libraries are missing: $(echo $MISSING)
+See the README for the packages to install."
 fi
 "$HERE/srr2" "$@" 2>&1 | tee "$RUN/logs/last-session.log"
 EOF
@@ -164,3 +193,46 @@ EOF
 tar -C "$ROOT/dist" -czf "$ROOT/dist/$NAME.tar.gz" "$NAME"
 echo "$OUT"
 echo "$ROOT/dist/$NAME.tar.gz ($(du -h "$ROOT/dist/$NAME.tar.gz" | cut -f1)), $(ls "$OUT/lib" | wc -l) libraries"
+
+if [ -n "$APPIMAGE" ]; then
+    # An AppImage is its runtime (mounts what follows it, needs fusermount but no libfuse) + a squashfs of the AppDir.
+    RUNTIME_TAG=20251108
+    RUNTIME_SHA256=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+    RUNTIME=$ROOT/dist/.cache/appimage-runtime-$RUNTIME_TAG-x86_64
+    if [ ! -f "$RUNTIME" ]; then
+        mkdir -p "$(dirname "$RUNTIME")"
+        curl -fsSL -o "$RUNTIME.part" "https://github.com/AppImage/type2-runtime/releases/download/$RUNTIME_TAG/runtime-x86_64"
+        mv "$RUNTIME.part" "$RUNTIME"
+    fi
+    echo "$RUNTIME_SHA256  $RUNTIME" | sha256sum -c --quiet - || { rm -f "$RUNTIME"; echo "AppImage runtime: bad checksum" >&2; exit 1; }
+
+    APPDIR=$ROOT/dist/$NAME.AppDir
+    rm -rf "$APPDIR"
+    cp -r "$OUT" "$APPDIR"
+    mv "$APPDIR/run.sh" "$APPDIR/AppRun"
+    rm "$APPDIR/README.txt"
+    cat > "$APPDIR/simpsons-hit-and-run.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=The Simpsons: Hit & Run
+Exec=AppRun
+Icon=simpsons-hit-and-run
+Terminal=false
+Categories=Game;
+EOF
+    cat > "$APPDIR/simpsons-hit-and-run.svg" <<'EOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<rect width="256" height="256" rx="40" fill="#ffd90f"/>
+<circle cx="128" cy="128" r="88" fill="#f48fb1"/><circle cx="128" cy="128" r="34" fill="#ffd90f"/>
+</svg>
+EOF
+    ln -s simpsons-hit-and-run.svg "$APPDIR/.DirIcon"
+
+    IMAGE=$ROOT/dist/$NAME.AppImage
+    rm -f "$IMAGE.squashfs"
+    mksquashfs "$APPDIR" "$IMAGE.squashfs" -all-root -noappend -no-progress -quiet -comp zstd -Xcompression-level 19 > /dev/null
+    cat "$RUNTIME" "$IMAGE.squashfs" > "$IMAGE"
+    rm -rf "$IMAGE.squashfs" "$APPDIR"
+    chmod +x "$IMAGE"
+    echo "$IMAGE ($(du -h "$IMAGE" | cut -f1))"
+fi

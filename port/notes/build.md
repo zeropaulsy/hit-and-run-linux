@@ -142,5 +142,8 @@ Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
 - Packaged `run.sh` puts only bundled libs the system lacks (same soname per `ldconfig -p`, per arch) on the path
   (`run/.lib`): older bundled glib/librsvg over newer system ones aborted libdecor's GTK plugin on Wayland.
 - Don't bundle glibc parts (`libmvec`).
+- `--appimage`: type2 runtime (pinned tag + sha256, cached in `dist/.cache/`) + zstd squashfs of the bundle, `run.sh` as
+  `AppRun`. Mount is read-only and moves each start: run dir `~/.local/share/simpsons-hit-and-run` (or the AppImage's
+  folder if it holds the data), `shaders` link renewed each start. Needs fusermount, not libfuse2.
 - `dist.sh`: tarball for GitHub Releases on a separate binaries-only public repo (dist/release/); never commit
   binaries to a branch of this repo (a release tag here would expose the source).
