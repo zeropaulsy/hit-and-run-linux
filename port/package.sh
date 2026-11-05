@@ -54,7 +54,7 @@ done
 
 cat > "$OUT/run.sh" <<'EOF'
 #!/bin/bash
-# Start the game. usage: ./run.sh [/path/to/game-data] [--mod MOD]... [game options...]
+# Start the game. usage: ./run.sh [/path/to/game-data] [--mod MOD]... [--ini_config "key=value,..."] [game options...]
 # game-data is your copy's PC data folder (holding art/, scripts/ and the .rcf files). The first time, a run/ folder
 # is made next to this script with links to the data and copies of simpsons.ini and the saves (the game writes
 # those); the shaders/ folder here is used too. Console output goes to run/logs/last-session.log.
@@ -62,6 +62,10 @@ cat > "$OUT/run.sh" <<'EOF'
 # simpsons.ini, the saves and logs/ in that folder.
 # --mod MOD loads a Mod Launcher mod: a .lmlm file or an extracted mod folder. Repeat it for several; when two mods
 # change the same file, the one given first wins.
+# --ini_config "language=spanish,disabletutorials=yes" sets those values in simpsons.ini (the one of the run folder)
+# before starting. It may be repeated. Every line of that key is changed (some keys repeat per controller); a key that
+# is not in the file is added. A comma starts a new pair only when it is followed by "key=". The change stays: the
+# game saves simpsons.ini when it exits. If an item is wrong nothing is changed and the game does not start.
 # As an AppImage (this script is its AppRun, on a read-only mount): the run folder is
 # ~/.local/share/simpsons-hit-and-run, or the game data folder when the AppImage sits in it. With no terminal, a dialog
 # asks for the game data folder.
@@ -82,11 +86,59 @@ die() {
     fi
     exit 1
 }
-MODS=; ARGS=()
+# set_ini KEY VALUE FILE: change every "KEY=" line of FILE (any case; the file's own spelling and line ending are kept),
+# or add the line at the end. KEY is already checked ([A-Za-z_][A-Za-z0-9_]*); VALUE goes through the environment, so
+# no character in it is interpreted. On a problem it sets INI_ERR and returns 1.
+set_ini() {
+    local key=$1 value=$2 file=$3 cr=
+    if [ "${key,,}" = buttonmap ]; then
+        INI_ERR="--ini_config: buttonmap is a table with one line per button; edit simpsons.ini for it"; return 1
+    fi
+    [ -f "$file" ] || : > "$file"
+    grep -q $'\r' "$file" && cr=$'\r'
+    if grep -qi "^$key=" "$file"; then
+        KEY=$key VALUE=$value awk 'BEGIN { k = tolower(ENVIRON["KEY"]); v = ENVIRON["VALUE"] }
+            { i = index($0, "="); eol = ($0 ~ /\r$/) ? "\r" : ""
+              if (i > 0 && tolower(substr($0, 1, i - 1)) == k) print substr($0, 1, i - 1) "=" v eol; else print }' \
+            "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+    else
+        # the file may end without a line break
+        [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ] && printf '%s\n' "$cr" >> "$file"
+        printf '%s=%s%s\n' "$key" "$value" "$cr" >> "$file"
+    fi
+}
+# apply_ini_config "k=v,k=v" FILE: split into pairs and set each one; returns 1 (with INI_ERR) on a malformed item
+# (empty item from a leading, doubled or trailing comma, a line break, text before the first key=)
+apply_ini_config() {
+    local spec=$1 file=$2 piece key value have=0
+    local -a pieces
+    case $spec in
+        *$'\n'*|*$'\r'*) INI_ERR="--ini_config: no line breaks allowed"; return 1 ;;
+    esac
+    # the extra comma keeps read from dropping an empty last item ("a=1," would pass as "a=1")
+    IFS=',' read -ra pieces <<< "$spec,"
+    for piece in "${pieces[@]}"; do
+        if [[ $piece =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            if [ "$have" = 1 ]; then set_ini "$key" "$value" "$file" || return 1; fi
+            key=${BASH_REMATCH[1]}; value=${BASH_REMATCH[2]}; have=1
+        elif [ -z "$piece" ]; then
+            INI_ERR="--ini_config: empty item (leading, doubled or trailing comma) in: $spec"; return 1
+        elif [ "$have" = 1 ]; then
+            value+=",$piece"        # a comma inside a value
+        else
+            INI_ERR="--ini_config: expected key=value, got: $piece"; return 1
+        fi
+    done
+    set_ini "$key" "$value" "$file"
+}
+MODS=; ARGS=(); INI_ITEMS=()
 while [ $# -gt 0 ]; do
     case "$1" in
         --mod) [ $# -ge 2 ] || die "--mod needs a .lmlm file or a mod folder"; M=$2; shift 2 ;;
         --mod=*) M=${1#--mod=}; shift ;;
+        --ini_config) [ $# -ge 2 ] || die "--ini_config needs \"key=value,key=value\""
+                      INI_ITEMS+=("$2"); shift 2; continue ;;
+        --ini_config=*) INI_ITEMS+=("${1#--ini_config=}"); shift; continue ;;
         *) ARGS+=("$1"); shift; continue ;;
     esac
     [ -e "$M" ] || die "Mod not found: $M"
@@ -128,6 +180,15 @@ if [ "$RUN" != "$HERE" ] && { [ -L "$RUN/shaders" ] || [ ! -e "$RUN/shaders" ]; 
     ln -sfn "$HERE/shaders" "$RUN/shaders"
 fi
 mkdir -p "$RUN/logs"
+# --ini_config: all or nothing (the changes go to a copy that replaces simpsons.ini only if every item is valid)
+if [ ${#INI_ITEMS[@]} -gt 0 ]; then
+    NEWINI=$RUN/simpsons.ini.new
+    if [ -f "$RUN/simpsons.ini" ]; then cp "$RUN/simpsons.ini" "$NEWINI"; else : > "$NEWINI"; fi
+    for item in "${INI_ITEMS[@]}"; do
+        apply_ini_config "$item" "$NEWINI" || { rm -f "$NEWINI"; die "$INI_ERR"; }
+    done
+    mv "$NEWINI" "$RUN/simpsons.ini"
+fi
 cd "$RUN"
 # Only the bundled libraries the system lacks go on the path: a system library of the same name is ABI-compatible and
 # at least as new, and the system's own plugins (GL driver, GTK for window decorations) need it, not an older copy.
@@ -184,6 +245,7 @@ $NEEDS
    Or extract this package's contents into the game folder and run ./run.sh there: no run/ folder is made, and
    settings, saves and logs/ are written in the game folder.
    Mods (Mod Launcher .lmlm files or mod folders):  ./run.sh --mod MyMod.lmlm --mod OtherMod
+   Settings from the command line:  ./run.sh --ini_config "language=spanish,disabletutorials=yes"
 
 Settings: run/simpsons.ini (#System: display, resolution, antialiasing, mipmaps, anisotropy).
 Shaders: packs in shaders/ (see shaders/README.md): Options > Graphics > Shaders; M in the game turns them off and on.
