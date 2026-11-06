@@ -33,6 +33,9 @@ HudEventHandler::HudEventHandler( Scrooby::Group* drawableGroup )
 {
     rAssert( drawableGroup != NULL );
     drawableGroup->SetVisible( false );
+
+    // Linux port: on a window wider (or taller) than 4:3 the group moves out to the edge of the window it lies on
+    drawableGroup->AnchorToPageSide();
 }
 
 HudEventHandler::~HudEventHandler()

@@ -77,6 +77,18 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
 - `p3d/displayaspect.hpp`: 4:3 cameras render Hor+ (Vert+ when narrower) via effective values in `tCamera`; `GetFOV`
   still returns 4:3 (cutscenes read it); culling uses `GetEffectiveFOV`. Scrooby UI in centred 4:3, clipped;
   full-width polys stretch; full-page `FePure3dObject` fills; TV frame `Sprite::SetStretchToWindow`.
+- HUD edge anchor (`widehud=yes` or Options > Graphics > Wide HUD, off by default; window wider or taller than 4:3):
+  `Drawable::SetEdgeAnchor(sideX, sideY)`, -1 left / bottom, +1 right / top; `AnchorToPageSide()` takes the half of the
+  640x480 page the element's box is entirely in (boxes are measured from the bottom), 0 for an axis it crosses the
+  middle of. `p3d::GetEdgeShift()` / `GetEdgeShiftY()` are how far an anchored element moves out of the 4:3 area (0
+  with the option off, and 0 on the axis the window is not extended on, which makes everything below inert).
+  `FeOwner::Display` shifts an anchored element by them and draws it unclipped (`FeDrawable::sEdgeShiftX/Y`, read by
+  `FePure3dObject`, which has its own view). Only the outermost anchor counts, so a group anchored as a whole moves
+  what it holds. Set in `CGuiScreenHud::Init` (overlays; not the help message and the action prompt), `CHudMap` (map,
+  radar, icons), `HudEventHandler` (event groups), `HudCardCollected` (its parts), `HudMissionObjective` (the icon:
+  it starts beside the message and rests at the top, so on a tall window `GetIconPopUpOffset` brings it back down
+  until it slides up), the coin counters, and `CoinManager::SetHUDCoin` / `HUDRender` (the coin beside the counter,
+  the cull limit, the flight target, which is approximate).
 - Resolution enum indexes a runtime table (`linuxplatform_sdl.cpp`): enum's 10, common sizes, desktop, ini WxH.
   `BuildResolutionList` shows those fitting the desktop. `display=borderless|fullscreen|window`; exclusive fullscreen
   sets closest mode (leave fullscreen first or XWayland keeps size). Exclusive -> borderless also leaves first: Wayland

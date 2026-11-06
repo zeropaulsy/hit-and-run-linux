@@ -269,6 +269,19 @@ MEMTRACK_PUSH_GROUP( "CHudMap" );
     m_iconsGroup = pPage->GetGroup( name );
     rAssert( m_iconsGroup != NULL );
 
+    // Linux port: on a window wider (or taller) than 4:3 the map and its radar, cone and icons move out together to
+    // the edge of the window the map lies on
+    m_p3dMap->AnchorToPageSide();
+    int edgeX = m_p3dMap->GetEdgeAnchorX();
+    int edgeY = m_p3dMap->GetEdgeAnchorY();
+    if( m_p3dHole != NULL )
+    {
+        m_p3dHole->SetEdgeAnchor( edgeX, edgeY );
+    }
+    m_radar->SetEdgeAnchor( edgeX, edgeY );
+    m_radarCone->SetEdgeAnchor( edgeX, edgeY );
+    m_iconsGroup->SetEdgeAnchor( edgeX, edgeY );
+
 #ifdef DEBUGWATCH
     ::radDbgWatchAddFloat( &MIN_CAMERA_HEIGHT,
                            "Mininum Camera Height",

@@ -13,13 +13,18 @@
 #include "FeScreen.h"
 #include "utility/debugMessages.h"
 
+float FeDrawable::sEdgeShiftX = 0.0f;
+float FeDrawable::sEdgeShiftY = 0.0f;
+
 FeDrawable::FeDrawable( const tName& name )       
 :
     mParent( NULL ),
     mColour( 255, 255, 255, 255 ),
     mAlpha( 1.0f ),
     mPosX( 0.0f ),
-    mPosY( 0.0f )
+    mPosY( 0.0f ),
+    mEdgeAnchorX( 0 ),
+    mEdgeAnchorY( 0 )
 {   
     FeEntity::SetNameObject( name );
     
@@ -28,6 +33,25 @@ FeDrawable::FeDrawable( const tName& name )
     // a constructor.
     //
     FeDrawable::Reset();
+}
+
+// Linux port: the side of the page the box lies in, along one axis: -1 entirely in the low half (left, bottom), +1
+// entirely in the high half (right, top), 0 when it crosses the middle (a centred element stays where it is)
+static int GetSide( int low, int high, int size )
+{
+    return ( high <= size / 2 ) ? -1 : ( ( low >= size / 2 ) ? 1 : 0 );
+}
+
+// A box is measured from the bottom of the page
+void FeDrawable::AnchorToPageSide()
+{
+    int xMin = 0;
+    int yMin = 0;
+    int xMax = 0;
+    int yMax = 0;
+    this->GetBoundingBox( xMin, yMin, xMax, yMax );
+    mEdgeAnchorX = GetSide( xMin, xMax, static_cast< int >( FeApp::GetInstance()->GetScreenWidth() ) );
+    mEdgeAnchorY = GetSide( yMin, yMax, static_cast< int >( FeApp::GetInstance()->GetScreenHeight() ) );
 }
 
 FeDrawable::~FeDrawable()

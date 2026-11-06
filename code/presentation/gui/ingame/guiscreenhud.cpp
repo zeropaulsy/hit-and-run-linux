@@ -400,6 +400,13 @@ MEMTRACK_PUSH_GROUP( "CGUIScreenHud" );
         rAssert( m_overlays[ i ] );
         m_overlays[ i ]->SetVisible( false );
 
+        // Linux port: on a window wider (or taller) than 4:3 each overlay moves out to the edge of the window it lies
+        // on. The help message and the action prompt stay where they are, in the 4:3 area, as they sit by the player.
+        if( i != HUD_MESSAGE && i != HUD_ACTION_BUTTON )
+        {
+            m_overlays[ i ]->AnchorToPageSide();
+        }
+
         m_elapsedTime[ i ] = 0;
     }
 
@@ -1464,6 +1471,10 @@ CGuiScreenHud::SetNumCoinsDisplay( Scrooby::Sprite* pSprite )
         pSprite->SetBitmapTextSpacing( NUMERIC_TEXT_SPACING );
         pSprite->SetVisible( false ); // hide by default
 
+        // Linux port: on a window wider (or taller) than 4:3 the counter moves out to the edge of the window it lies
+        // on (CoinManager::SetHUDCoin follows it)
+        pSprite->AnchorToPageSide();
+
 #ifdef RAD_WIN32
         pSprite->ResetTransformation();
         pSprite->Translate( 70, 0 );
@@ -1482,7 +1493,8 @@ CGuiScreenHud::UpdateNumCoinsDisplay( int numCoins, bool show )
 
     static int coinPosX = CGuiScreen::IsWideScreenDisplay() ? 540 : 605;
     static int coinPosY = 432;
-    GetCoinManager()->SetHUDCoin( coinPosX, coinPosY, show );
+    GetCoinManager()->SetHUDCoin( coinPosX, coinPosY, show, s_numCoinsDisplay->GetEdgeAnchorX(),
+                                    s_numCoinsDisplay->GetEdgeAnchorY() );
 
     if( show )
     {

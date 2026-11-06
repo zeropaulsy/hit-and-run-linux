@@ -56,6 +56,7 @@ private:
         MENU_ITEM_ANTIALIASING,
         MENU_ITEM_SHADERS,
         MENU_ITEM_SHADOWS,          // a row below the Display page's (in the hidden gamma slider's place)
+        MENU_ITEM_WIDE_HUD,         // the HUD at the window's edges on a wide window (simpsons.ini widehud)
 
         NUM_MENU_ITEMS
     };
