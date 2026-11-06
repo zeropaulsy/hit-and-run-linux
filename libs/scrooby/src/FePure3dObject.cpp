@@ -481,6 +481,13 @@ void FePure3dObject::Render()
         r = 0.5f + ( r - 0.5f ) * sx;
         t = 0.5f + ( t - 0.5f ) * sy;
         b = 0.5f + ( b - 0.5f ) * sy;
+
+        // anchored to a window edge, or inside a group that is (FeOwner::Display): shifted out to it. The view has
+        // its own scissor (SetClip below), so nothing else is needed. Up is smaller in these coordinates.
+        l += FeDrawable::sEdgeShiftX * sx;
+        r += FeDrawable::sEdgeShiftX * sx;
+        t -= FeDrawable::sEdgeShiftY * sy;
+        b -= FeDrawable::sEdgeShiftY * sy;
         tCamera::SetTargetAspect( p3d::DESIGN_ASPECT );
     }
 

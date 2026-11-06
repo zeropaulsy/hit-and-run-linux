@@ -25,6 +25,7 @@
 #include "tLinearTable.h"
 #include <raddebug.hpp>
 #include <p3d/utility.hpp>
+#include <p3d/displayaspect.hpp>
 #include "utility/debugMessages.h"
 #include "string.h"
 
@@ -127,6 +128,25 @@ void FeOwner::Display()
                 float y = 0.0f;
 
                 p3d::stack->Push();
+
+                // Linux port: an anchored element (and what it holds) is shifted out to the edge of a window wider
+                // (or taller) than 4:3, past the centred page area, and drawn unclipped. Only the outermost anchor
+                // counts.
+                float shiftX = drawable->GetEdgeAnchorX() * p3d::GetEdgeShift();
+                float shiftY = drawable->GetEdgeAnchorY() * p3d::GetEdgeShiftY();
+                bool outermost = ( FeDrawable::sEdgeShiftX == 0.0f ) && ( FeDrawable::sEdgeShiftY == 0.0f );
+                bool anchored = ( shiftX != 0.0f || shiftY != 0.0f ) && outermost;
+                pddiRect pageScissor;
+                if( anchored )
+                {
+                    FeDrawable::sEdgeShiftX = shiftX;
+                    FeDrawable::sEdgeShiftY = shiftY;
+                    // the page is 1 wide and 1 / DESIGN_ASPECT high in these units
+                    p3d::stack->Translate( shiftX, shiftY / p3d::DESIGN_ASPECT, 0.0f );
+                    p3d::pddi->GetScissor( &pageScissor );
+                    pddiRect displayRect = p3d::GetDisplayRect();
+                    p3d::pddi->SetScissor( &displayRect );
+                }
             
                 // Apply the user transforms
                 rmt::Matrix* userMatrix = drawable->GetMatrix();
@@ -142,6 +162,13 @@ void FeOwner::Display()
                 drawable->SetColour( newColour );
                 drawable->Display();
                 drawable->SetColour( originalColour );
+
+                if( anchored )
+                {
+                    p3d::pddi->SetScissor( &pageScissor );
+                    FeDrawable::sEdgeShiftX = 0.0f;
+                    FeDrawable::sEdgeShiftY = 0.0f;
+                }
 
                 p3d::stack->Pop();
             }

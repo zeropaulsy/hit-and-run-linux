@@ -400,6 +400,13 @@ MEMTRACK_PUSH_GROUP( "CGUIScreenHud" );
         rAssert( m_overlays[ i ] );
         m_overlays[ i ]->SetVisible( false );
 
+        // Linux port: on a window wider (or taller) than 4:3 each overlay moves out to the edge of the window it lies
+        // on. The help message and the action prompt stay where they are, in the 4:3 area, as they sit by the player.
+        if( i != HUD_MESSAGE && i != HUD_ACTION_BUTTON )
+        {
+            m_overlays[ i ]->AnchorToPageSide();
+        }
+
         m_elapsedTime[ i ] = 0;
     }
 
