@@ -75,11 +75,14 @@ if [ "$(basename "$0")" = AppRun ]; then
     HOMEDIR=$(dirname "${APPIMAGE:-$HERE}")
 fi
 # An error, shown in a dialog too when an AppImage was started without a terminal
-die() {
+show_error() {
     echo "$1" >&2
     if [ -n "$INAPPIMAGE" ] && [ ! -t 2 ]; then
         { LD_LIBRARY_PATH= zenity --error --no-markup --text="$1" || LD_LIBRARY_PATH= kdialog --error "$1"; } 2>/dev/null
     fi
+}
+die() {
+    show_error "$1"
     exit 1
 }
 MODS=; ARGS=()
@@ -144,6 +147,12 @@ if [ -n "$MISSING" ]; then
 See the README for the packages to install."
 fi
 "$HERE/srr2" "$@" 2>&1 | tee "$RUN/logs/last-session.log"
+# The exit status of the game, not of tee. A crash or an error is shown in a dialog (without a terminal) with the log's
+# place; closing the game with a signal (hangup, Ctrl-C, terminate) is not an error.
+STATUS=${PIPESTATUS[0]}
+case $STATUS in 0|129|130|143) ;; *) show_error "The game stopped with an error (exit code $STATUS).
+The log is $RUN/logs/last-session.log" ;; esac
+exit "$STATUS"
 EOF
 if [ $ARCH = x86_64 ]; then X64=1; else X64=0; fi
 sed -i "s/@X64@/$X64/" "$OUT/run.sh"
