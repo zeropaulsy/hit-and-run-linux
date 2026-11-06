@@ -1471,6 +1471,10 @@ CGuiScreenHud::SetNumCoinsDisplay( Scrooby::Sprite* pSprite )
         pSprite->SetBitmapTextSpacing( NUMERIC_TEXT_SPACING );
         pSprite->SetVisible( false ); // hide by default
 
+        // Linux port: on a window wider (or taller) than 4:3 the counter moves out to the edge of the window it lies
+        // on (CoinManager::SetHUDCoin follows it)
+        pSprite->AnchorToPageSide();
+
 #ifdef RAD_WIN32
         pSprite->ResetTransformation();
         pSprite->Translate( 70, 0 );
@@ -1489,7 +1493,8 @@ CGuiScreenHud::UpdateNumCoinsDisplay( int numCoins, bool show )
 
     static int coinPosX = CGuiScreen::IsWideScreenDisplay() ? 540 : 605;
     static int coinPosY = 432;
-    GetCoinManager()->SetHUDCoin( coinPosX, coinPosY, show );
+    GetCoinManager()->SetHUDCoin( coinPosX, coinPosY, show, s_numCoinsDisplay->GetEdgeAnchorX(),
+                                    s_numCoinsDisplay->GetEdgeAnchorY() );
 
     if( show )
     {
