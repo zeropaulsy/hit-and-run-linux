@@ -85,8 +85,10 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
   `FeOwner::Display` shifts an anchored element by them and draws it unclipped (`FeDrawable::sEdgeShiftX/Y`, read by
   `FePure3dObject`, which has its own view). Only the outermost anchor counts, so a group anchored as a whole moves
   what it holds. Set in `CGuiScreenHud::Init` (overlays; not the help message and the action prompt), `CHudMap` (map,
-  radar, icons), the coin counters and `CoinManager::SetHUDCoin` / `HUDRender`
-  (the coin beside the counter, the cull limit, the flight target, which is approximate).
+  radar, icons), `HudEventHandler` (event groups), `HudCardCollected` (its parts), `HudMissionObjective` (the icon:
+  it starts beside the message and rests at the top, so on a tall window `GetIconPopUpOffset` brings it back down
+  until it slides up), the coin counters, and `CoinManager::SetHUDCoin` / `HUDRender` (the coin beside the counter,
+  the cull limit, the flight target, which is approximate).
 - Resolution enum indexes a runtime table (`linuxplatform_sdl.cpp`): enum's 10, common sizes, desktop, ini WxH.
   `BuildResolutionList` shows those fitting the desktop. `display=borderless|fullscreen|window`; exclusive fullscreen
   sets closest mode (leave fullscreen first or XWayland keeps size). Exclusive -> borderless also leaves first: Wayland
