@@ -131,7 +131,7 @@ MEMTRACK_PUSH_GROUP( "CGuiScreenGraphics" );
         Scrooby::Text* displayValue = group->GetText( itemName );
         rAssert( displayLabel != NULL && displayValue != NULL );
 
-        // shared with the Display screen's menu, which already scaled them (AddMenuItem would again)
+        // shared with the Display screen's menu, which scales them too (see after AddMenuItem)
         sprintf( itemName, "%s_ArrowL", DISPLAY_ROWS[ row ] );
         m_arrows[ i ][ 0 ] = group->GetSprite( itemName );
         sprintf( itemName, "%s_ArrowR", DISPLAY_ROWS[ row ] );
@@ -224,8 +224,14 @@ MEMTRACK_PUSH_GROUP( "CGuiScreenGraphics" );
                               m_arrows[ i ][ 1 ],
                               SELECTION_ENABLED | VALUES_WRAPPED | TEXT_OUTLINE_ENABLED );
 
-        m_arrows[ i ][ 0 ]->SetTransform( arrowTransforms[ 0 ] );
-        m_arrows[ i ][ 1 ]->SetTransform( arrowTransforms[ 1 ] );
+        // The page's own arrows are also the Display screen's menu's, which scales them as well: AddMenuItem's scaling
+        // is undone for them. The copies past the page's rows are only this menu's, and keep it: restored too, they
+        // would stay at full size, twice as big as the others.
+        if( i < NUM_DISPLAY_ROWS )
+        {
+            m_arrows[ i ][ 0 ]->SetTransform( arrowTransforms[ 0 ] );
+            m_arrows[ i ][ 1 ]->SetTransform( arrowTransforms[ 1 ] );
+        }
     }
 
     m_gamma = pPage->GetGroup( "Gamma" );
