@@ -194,6 +194,14 @@ MEMTRACK_PUSH_GROUP( "CGuiScreenGraphics" );
                 numValues = 3;
                 break;
             }
+            case MENU_ITEM_WIDE_HUD:
+            {
+                static const char* const WIDE_HUD_VALUES[] = { "Off", "On" };
+                label = "Wide HUD";
+                values = WIDE_HUD_VALUES;
+                numValues = 2;
+                break;
+            }
         }
 
         sprintf( itemName, "Graphics%d", i );
@@ -311,6 +319,11 @@ void CGuiScreenGraphics::HandleMessage
                         plat->SetShadows( value );
                         break;
                     }
+                    case MENU_ITEM_WIDE_HUD:
+                    {
+                        plat->SetWideHud( value != 0 );
+                        break;
+                    }
                 }
                 m_changed = true;
                 break;
@@ -368,6 +381,7 @@ void CGuiScreenGraphics::InitIntro()
     }
     m_pMenu->SetSelectionValue( MENU_ITEM_SHADERS, shaders );
     m_pMenu->SetSelectionValue( MENU_ITEM_SHADOWS, plat->GetShadows() );
+    m_pMenu->SetSelectionValue( MENU_ITEM_WIDE_HUD, plat->GetWideHud() ? 1 : 0 );
 
     this->ShowPage( true );
 }
