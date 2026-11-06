@@ -30,6 +30,7 @@ void pvkSunSetQuality( int quality );       // pddi/vk/vksun.cpp: the sun's shad
 int pvkSunQuality();
 #endif
 // Pure 3D
+#include <p3d/displayaspect.hpp>
 #include <p3d/anim/compositedrawable.hpp>
 #include <p3d/anim/expression.hpp>
 #include <p3d/anim/multicontroller.hpp>
@@ -1223,6 +1224,12 @@ void Win32Platform::LoadConfig( ConfigString& config )
             // the setting the options menu shows and saves
             mRenderer = _stricmp( value, "vulkan" ) == 0 ? RENDERER_VULKAN : RENDERER_OPENGL;
         }
+        else if( _stricmp( property, "widehud" ) == 0 )
+        {
+            // Linux port: on a window wider or taller than 4:3, the HUD (map, counters...) at the edge of the window it
+            // lies on instead of the centred 4:3 area: yes or no (default)
+            SetWideHud( _stricmp( value, "yes" ) == 0 || _stricmp( value, "on" ) == 0 || strcmp( value, "1" ) == 0 );
+        }
         else if( _stricmp( property, "language" ) == 0 )
         {
             // Linux port: the text and speech language: english, french, german or spanish (English otherwise)
@@ -1358,6 +1365,7 @@ void Win32Platform::SaveConfig( ConfigString& config )
     config.WriteProperty( "renderer", mRenderer == RENDERER_VULKAN ? "vulkan" : "opengl" );
     static const char* const SHADOWS[] = { "off", "low", "high" };
     config.WriteProperty( "shadows", SHADOWS[ pvkSunQuality() ] );
+    config.WriteProperty( "widehud", GetWideHud() ? "yes" : "no" );
     {
         const Scrooby::XLLanguage lang = CGuiTextBible::GetStartupLanguage();
         config.WriteProperty( "language", lang == Scrooby::XL_FRENCH ? "french" : lang == Scrooby::XL_GERMAN ? "german" :
@@ -1368,7 +1376,7 @@ void Win32Platform::SaveConfig( ConfigString& config )
 
 #ifdef RAD_LINUX
 //=============================================================================
-// Win32Platform::SetAntialiasing, SetUserShaders, GetUserShaders, SetShadows, GetShadows
+// Win32Platform::SetAntialiasing, SetUserShaders, GetUserShaders, SetShadows, GetShadows, SetWideHud, GetWideHud
 //=============================================================================
 // Description: Graphics settings, applied at once (SaveConfig writes them).
 //
@@ -1413,6 +1421,16 @@ void Win32Platform::SetShadows( int quality )
 int Win32Platform::GetShadows() const
 {
     return pvkSunQuality();
+}
+
+void Win32Platform::SetWideHud( bool on )
+{
+    p3d::WideHudEnabled() = on;
+}
+
+bool Win32Platform::GetWideHud() const
+{
+    return p3d::WideHudEnabled();
 }
 #endif
 
