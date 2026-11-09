@@ -62,10 +62,9 @@ cat > "$OUT/run.sh" <<'EOF'
 # simpsons.ini, the saves and logs/ in that folder.
 # --mod MOD loads a Mod Launcher mod: a .lmlm file or an extracted mod folder. Repeat it for several; when two mods
 # change the same file, the one given first wins.
-# --ini_config "language=spanish,disabletutorials=yes" sets those values in simpsons.ini (the one of the run folder)
-# before starting. It may be repeated. Every line of that key is changed (some keys repeat per controller); a key that
-# is not in the file is added. A comma starts a new pair only when it is followed by "key=". The change stays in
-# the file. If an item is wrong nothing is changed and the game does not start.
+# --ini_config "language=spanish,disabletutorials=yes" sets simpsons.ini values in the run folder before starting.
+# Repeatable. Keys that repeat per controller all change; missing keys are added. A comma starts a new pair only before
+# "key=". If an item is invalid, nothing changes and the game does not start.
 # As an AppImage (this script is its AppRun, on a read-only mount): the run folder is
 # ~/.local/share/simpsons-hit-and-run, or the game data folder when the AppImage sits in it. With no terminal, a dialog
 # asks for the game data folder.
@@ -89,9 +88,8 @@ die() {
     show_error "$1"
     exit 1
 }
-# set_ini KEY VALUE FILE: change every "KEY=" line of FILE (any case; the file's own spelling and line ending are kept),
-# or add the line at the end. KEY is already checked ([A-Za-z_][A-Za-z0-9_]*); VALUE goes through the environment, so
-# no character in it is interpreted. On a problem it sets INI_ERR and returns 1.
+# set_ini KEY VALUE FILE: change every KEY= line (any case, keeping its spelling and line ending) or append one.
+# KEY is already validated; VALUE goes through the environment so awk doesn't interpret it. Sets INI_ERR on error.
 set_ini() {
     local key=$1 value=$2 file=$3 cr=
     if [ "${key,,}" = buttonmap ]; then
@@ -110,15 +108,14 @@ set_ini() {
         printf '%s=%s%s\n' "$key" "$value" "$cr" >> "$file"
     fi
 }
-# apply_ini_config "k=v,k=v" FILE: split into pairs and set each one; returns 1 (with INI_ERR) on a malformed item
-# (empty item from a leading, doubled or trailing comma, a line break, text before the first key=)
+# apply_ini_config "k=v,k=v" FILE: set each pair; returns 1 with INI_ERR on a malformed item
 apply_ini_config() {
     local spec=$1 file=$2 piece key value have=0
     local -a pieces
     case $spec in
         *$'\n'*|*$'\r'*) INI_ERR="--ini_config: no line breaks allowed"; return 1 ;;
     esac
-    # the extra comma keeps read from dropping an empty last item ("a=1," would pass as "a=1")
+    # the extra comma stops read dropping an empty last item
     IFS=',' read -ra pieces <<< "$spec,"
     for piece in "${pieces[@]}"; do
         if [[ $piece =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
@@ -170,9 +167,7 @@ if [ "$RUN" != "$HOMEDIR" ]; then
     DATA=$(cd "$DATA" && pwd)
     mkdir -p "$RUN"
     echo "$DATA" > "$RUN/.data"
-    # The links follow the data folder: one that points elsewhere, or nowhere, is renewed, and one whose file the new
-    # folder lacks is removed. Anything that is not a link (a file or folder of your own) stays.
-    # (not when the data folder is the run folder itself: each link would be replaced by a link to itself)
+    # Links follow the data folder; real files and folders stay. Skipped when the data folder is the run folder.
     [ "$DATA" -ef "$RUN" ] || for f in ambience.rcf carsound.rcf dialog.rcf dialogf.rcf dialogg.rcf dialogs.rcf music00.rcf music01.rcf \
              music02.rcf music03.rcf nis.rcf scripts.rcf soundfx.rcf opening.bnr art movies scripts sound; do
         if [ -e "$DATA/$f" ]; then
@@ -188,11 +183,10 @@ if [ "$RUN" != "$HERE" ] && { [ -L "$RUN/shaders" ] || [ ! -e "$RUN/shaders" ]; 
     ln -sfn "$HERE/shaders" "$RUN/shaders"
 fi
 mkdir -p "$RUN/logs"
-# --ini_config: all or nothing (the changes go to a copy that replaces simpsons.ini only if every item is valid)
+# --ini_config: all or nothing, on a copy
 if [ ${#INI_ITEMS[@]} -gt 0 ]; then
     NEWINI=$RUN/simpsons.ini.new
-    # A file that does not start with a section is not read at all, and the game then skips its defaults too: a new one
-    # starts with the #System section (where added keys go) and what a first start without a file would choose.
+    # The game ignores an ini with no leading section: a new one starts with #System and the first-start settings
     if [ -s "$RUN/simpsons.ini" ]; then cp "$RUN/simpsons.ini" "$NEWINI"
     else printf '#System\r\ndisplay=borderless\r\ngamma=1.000000\r\n' > "$NEWINI"; fi
     for item in "${INI_ITEMS[@]}"; do
@@ -216,8 +210,7 @@ if [ -n "$MISSING" ]; then
 See the README for the packages to install."
 fi
 "$HERE/srr2" "$@" 2>&1 | tee "$RUN/logs/last-session.log"
-# The exit status of the game, not of tee. A crash or an error is shown in a dialog (without a terminal) with the log's
-# place; closing the game with a signal (hangup, Ctrl-C, terminate) is not an error.
+# The game's status, not tee's. Hangup, Ctrl-C and terminate are the player closing it, not errors.
 STATUS=${PIPESTATUS[0]}
 case $STATUS in 0|129|130|143) ;; *) show_error "The game stopped with an error (exit code $STATUS).
 The log is $RUN/logs/last-session.log" ;; esac
