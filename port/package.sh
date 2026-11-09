@@ -172,7 +172,8 @@ if [ "$RUN" != "$HOMEDIR" ]; then
     echo "$DATA" > "$RUN/.data"
     # The links follow the data folder: one that points elsewhere, or nowhere, is renewed, and one whose file the new
     # folder lacks is removed. Anything that is not a link (a file or folder of your own) stays.
-    for f in ambience.rcf carsound.rcf dialog.rcf dialogf.rcf dialogg.rcf dialogs.rcf music00.rcf music01.rcf \
+    # (not when the data folder is the run folder itself: each link would be replaced by a link to itself)
+    [ "$DATA" -ef "$RUN" ] || for f in ambience.rcf carsound.rcf dialog.rcf dialogf.rcf dialogg.rcf dialogs.rcf music00.rcf music01.rcf \
              music02.rcf music03.rcf nis.rcf scripts.rcf soundfx.rcf opening.bnr art movies scripts sound; do
         if [ -e "$DATA/$f" ]; then
             if [ -L "$RUN/$f" ] || [ ! -e "$RUN/$f" ]; then ln -sfn "$DATA/$f" "$RUN/$f"; fi

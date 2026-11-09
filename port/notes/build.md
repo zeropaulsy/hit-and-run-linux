@@ -146,6 +146,6 @@ Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
   `AppRun`. Mount is read-only and moves each start: run dir `~/.local/share/simpsons-hit-and-run` (or the AppImage's
   folder if it holds the data), `shaders` link renewed each start. Needs fusermount, not libfuse2.
   `run.sh` also renews the game-data links when the data folder changes (a link to a missing file is removed; files and
-  folders that are not links are left alone).
+  folders that are not links are left alone; nothing is relinked when the data folder is the run folder).
 - `dist.sh`: tarball for GitHub Releases on a separate binaries-only public repo (dist/release/); never commit
   binaries to a branch of this repo (a release tag here would expose the source).
