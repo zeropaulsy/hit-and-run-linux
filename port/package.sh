@@ -64,8 +64,8 @@ cat > "$OUT/run.sh" <<'EOF'
 # change the same file, the one given first wins.
 # --ini_config "language=spanish,disabletutorials=yes" sets those values in simpsons.ini (the one of the run folder)
 # before starting. It may be repeated. Every line of that key is changed (some keys repeat per controller); a key that
-# is not in the file is added. A comma starts a new pair only when it is followed by "key=". The change stays: the
-# game saves simpsons.ini when it exits. If an item is wrong nothing is changed and the game does not start.
+# is not in the file is added. A comma starts a new pair only when it is followed by "key=". The change stays in
+# the file. If an item is wrong nothing is changed and the game does not start.
 # As an AppImage (this script is its AppRun, on a read-only mount): the run folder is
 # ~/.local/share/simpsons-hit-and-run, or the game data folder when the AppImage sits in it. With no terminal, a dialog
 # asks for the game data folder.
@@ -191,7 +191,10 @@ mkdir -p "$RUN/logs"
 # --ini_config: all or nothing (the changes go to a copy that replaces simpsons.ini only if every item is valid)
 if [ ${#INI_ITEMS[@]} -gt 0 ]; then
     NEWINI=$RUN/simpsons.ini.new
-    if [ -f "$RUN/simpsons.ini" ]; then cp "$RUN/simpsons.ini" "$NEWINI"; else : > "$NEWINI"; fi
+    # A file that does not start with a section is not read at all, and the game then skips its defaults too: a new one
+    # starts with the #System section (where added keys go) and what a first start without a file would choose.
+    if [ -s "$RUN/simpsons.ini" ]; then cp "$RUN/simpsons.ini" "$NEWINI"
+    else printf '#System\r\ndisplay=borderless\r\ngamma=1.000000\r\n' > "$NEWINI"; fi
     for item in "${INI_ITEMS[@]}"; do
         apply_ini_config "$item" "$NEWINI" || { rm -f "$NEWINI"; die "$INI_ERR"; }
     done
