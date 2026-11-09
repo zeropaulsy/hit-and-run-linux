@@ -7,17 +7,22 @@
 # --noble: build and package inside an Ubuntu 24.04 container (podman, port/noble.Containerfile; build dirs
 # build-linux[32]-noble), so the game and its bundled libraries need only 24.04's glibc and the package runs on
 # Ubuntu 24.04 / Linux Mint 22 and newer. Without it the package needs this machine's glibc.
+# --appimage: also make dist/shar-linux-x86_64-<date>.AppImage of the same bundle (x86-64 only; needs mksquashfs and,
+# the first time, curl for the runtime). Settings and saves go in ~/.local/share/simpsons-hit-and-run, or next to the
+# AppImage when it sits in the game data folder.
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-SUFFIX=; NOBLE=
+SUFFIX=; NOBLE=; APPIMAGE=
 for a in "$@"; do
     case "$a" in
         --32) SUFFIX=32 ;;
         --64) ;;
         --noble) NOBLE=1 ;;
-        *) echo "usage: port/package.sh [--32] [--noble]" >&2; exit 1 ;;
+        --appimage) APPIMAGE=1 ;;
+        *) echo "usage: port/package.sh [--32] [--noble] [--appimage]" >&2; exit 1 ;;
     esac
 done
+if [ -n "$APPIMAGE" ] && [ -n "$SUFFIX" ]; then echo "--appimage is x86-64 only" >&2; exit 1; fi
 if [ -n "$NOBLE" ] && [ -z "$SHAR_IN_NOBLE" ]; then
     podman build -q -t shar-noble -f "$ROOT/port/noble.Containerfile" "$ROOT/port" > /dev/null
     exec podman run --rm --userns=keep-id -e SHAR_IN_NOBLE=1 -v "$ROOT:$ROOT" -w "$ROOT" shar-noble port/package.sh "$@"
@@ -49,7 +54,7 @@ done
 
 cat > "$OUT/run.sh" <<'EOF'
 #!/bin/bash
-# Start the game. usage: ./run.sh [/path/to/game-data] [--mod MOD]... [game options...]
+# Start the game. usage: ./run.sh [/path/to/game-data] [--mod MOD]... [--ini_config "key=value,..."] [game options...]
 # game-data is your copy's PC data folder (holding art/, scripts/ and the .rcf files). The first time, a run/ folder
 # is made next to this script with links to the data and copies of simpsons.ini and the saves (the game writes
 # those); the shaders/ folder here is used too. Console output goes to run/logs/last-session.log.
@@ -57,18 +62,88 @@ cat > "$OUT/run.sh" <<'EOF'
 # simpsons.ini, the saves and logs/ in that folder.
 # --mod MOD loads a Mod Launcher mod: a .lmlm file or an extracted mod folder. Repeat it for several; when two mods
 # change the same file, the one given first wins.
+# --ini_config "language=spanish,disabletutorials=yes" sets simpsons.ini values in the run folder before starting.
+# Repeatable. Keys that repeat per controller all change; missing keys are added. A comma starts a new pair only before
+# "key=". If an item is invalid, nothing changes and the game does not start.
+# As an AppImage (this script is its AppRun, on a read-only mount): the run folder is
+# ~/.local/share/simpsons-hit-and-run, or the game data folder when the AppImage sits in it. With no terminal, a dialog
+# asks for the game data folder.
 HERE=$(cd "$(dirname "$0")" && pwd)
 RUN=$HERE/run
-MODS=; ARGS=()
+HOMEDIR=$HERE
+INAPPIMAGE=
+if [ "$(basename "$0")" = AppRun ]; then
+    INAPPIMAGE=1
+    RUN=${XDG_DATA_HOME:-$HOME/.local/share}/simpsons-hit-and-run
+    HOMEDIR=$(dirname "${APPIMAGE:-$HERE}")
+fi
+# An error, shown in a dialog too when an AppImage was started without a terminal
+show_error() {
+    echo "$1" >&2
+    if [ -n "$INAPPIMAGE" ] && [ ! -t 2 ]; then
+        { LD_LIBRARY_PATH= zenity --error --no-markup --text="$1" || LD_LIBRARY_PATH= kdialog --error "$1"; } 2>/dev/null
+    fi
+}
+die() {
+    show_error "$1"
+    exit 1
+}
+# set_ini KEY VALUE FILE: change every KEY= line (any case, keeping its spelling and line ending) or append one.
+# KEY is already validated; VALUE goes through the environment so awk doesn't interpret it. Sets INI_ERR on error.
+set_ini() {
+    local key=$1 value=$2 file=$3 cr=
+    if [ "${key,,}" = buttonmap ]; then
+        INI_ERR="--ini_config: buttonmap is a table with one line per button; edit simpsons.ini for it"; return 1
+    fi
+    [ -f "$file" ] || : > "$file"
+    grep -q $'\r' "$file" && cr=$'\r'
+    if grep -qi "^$key=" "$file"; then
+        KEY=$key VALUE=$value awk 'BEGIN { k = tolower(ENVIRON["KEY"]); v = ENVIRON["VALUE"] }
+            { i = index($0, "="); eol = ($0 ~ /\r$/) ? "\r" : ""
+              if (i > 0 && tolower(substr($0, 1, i - 1)) == k) print substr($0, 1, i - 1) "=" v eol; else print }' \
+            "$file" > "$file.tmp" && mv "$file.tmp" "$file"
+    else
+        # the file may end without a line break
+        [ -s "$file" ] && [ -n "$(tail -c1 "$file")" ] && printf '%s\n' "$cr" >> "$file"
+        printf '%s=%s%s\n' "$key" "$value" "$cr" >> "$file"
+    fi
+}
+# apply_ini_config "k=v,k=v" FILE: set each pair; returns 1 with INI_ERR on a malformed item
+apply_ini_config() {
+    local spec=$1 file=$2 piece key value have=0
+    local -a pieces
+    case $spec in
+        *$'\n'*|*$'\r'*) INI_ERR="--ini_config: no line breaks allowed"; return 1 ;;
+    esac
+    # the extra comma stops read dropping an empty last item
+    IFS=',' read -ra pieces <<< "$spec,"
+    for piece in "${pieces[@]}"; do
+        if [[ $piece =~ ^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+            if [ "$have" = 1 ]; then set_ini "$key" "$value" "$file" || return 1; fi
+            key=${BASH_REMATCH[1]}; value=${BASH_REMATCH[2]}; have=1
+        elif [ -z "$piece" ]; then
+            INI_ERR="--ini_config: empty item (leading, doubled or trailing comma) in: $spec"; return 1
+        elif [ "$have" = 1 ]; then
+            value+=",$piece"        # a comma inside a value
+        else
+            INI_ERR="--ini_config: expected key=value, got: $piece"; return 1
+        fi
+    done
+    set_ini "$key" "$value" "$file"
+}
+MODS=; ARGS=(); INI_ITEMS=()
 while [ $# -gt 0 ]; do
     case "$1" in
-        --mod) [ $# -ge 2 ] || { echo "--mod needs a .lmlm file or a mod folder" >&2; exit 1; }; M=$2; shift 2 ;;
+        --mod) [ $# -ge 2 ] || die "--mod needs a .lmlm file or a mod folder"; M=$2; shift 2 ;;
         --mod=*) M=${1#--mod=}; shift ;;
+        --ini_config) [ $# -ge 2 ] || die "--ini_config needs \"key=value,key=value\""
+                      INI_ITEMS+=("$2"); shift 2; continue ;;
+        --ini_config=*) INI_ITEMS+=("${1#--ini_config=}"); shift; continue ;;
         *) ARGS+=("$1"); shift; continue ;;
     esac
-    [ -e "$M" ] || { echo "Mod not found: $M" >&2; exit 1; }
+    [ -e "$M" ] || die "Mod not found: $M"
     M=$(cd "$(dirname "$M")" && pwd)/$(basename "$M")
-    case "$M" in *:*) echo "Mod paths cannot contain ':': $M" >&2; exit 1 ;; esac
+    case "$M" in *:*) die "Mod paths cannot contain ':': $M" ;; esac
     MODS=${MODS:+$MODS:}$M
 done
 set -- "${ARGS[@]}"
@@ -77,27 +152,48 @@ set -- "${ARGS[@]}"
 has_data() { [ -n "$(find -L "$1" -maxdepth 1 -type d -iname art)" ] && [ -n "$(find -L "$1" -maxdepth 1 -type d -iname scripts)" ]; }
 DATA=
 if [ -n "$1" ] && [ -d "$1" ]; then DATA=$1; shift
-elif has_data "$HERE"; then RUN=$HERE    # extracted into the game data folder: run in place
+elif has_data "$HOMEDIR"; then RUN=$HOMEDIR    # in the game data folder: run in place
 elif [ -f "$RUN/.data" ]; then DATA=$(cat "$RUN/.data"); fi
-if [ "$RUN" != "$HERE" ]; then
+if [ "$RUN" != "$HOMEDIR" ]; then
+    if [ -n "$INAPPIMAGE" ] && [ ! -t 0 ] && { [ -z "$DATA" ] || [ ! -d "$DATA" ]; }; then
+        T="Choose your Simpsons: Hit & Run game folder (holding art/, scripts/ and the .rcf files)"
+        DATA=$({ zenity --file-selection --directory --title="$T" || kdialog --getexistingdirectory "$HOME" --title "$T"; } 2>/dev/null)
+        [ -z "$DATA" ] || has_data "$DATA" || die "No art/ and scripts/ folders in $DATA"
+    fi
     if [ -z "$DATA" ] || [ ! -d "$DATA" ]; then
-        echo "usage: ./run.sh /path/to/game-data [options]   (the folder holding art/, scripts/ and *.rcf)" >&2
-        echo "       or extract this package into the game data folder and run ./run.sh there" >&2
-        exit 1
+        die "usage: $(basename "${APPIMAGE:-./run.sh}") /path/to/game-data [options]   (the folder holding art/, scripts/ and *.rcf)
+       or put this package in the game data folder and run it there"
     fi
     DATA=$(cd "$DATA" && pwd)
     mkdir -p "$RUN"
     echo "$DATA" > "$RUN/.data"
-    for f in ambience.rcf carsound.rcf dialog.rcf dialogf.rcf dialogg.rcf dialogs.rcf music00.rcf music01.rcf \
+    # Links follow the data folder; real files and folders stay. Skipped when the data folder is the run folder.
+    [ "$DATA" -ef "$RUN" ] || for f in ambience.rcf carsound.rcf dialog.rcf dialogf.rcf dialogg.rcf dialogs.rcf music00.rcf music01.rcf \
              music02.rcf music03.rcf nis.rcf scripts.rcf soundfx.rcf opening.bnr art movies scripts sound; do
-        [ -e "$DATA/$f" ] && [ ! -e "$RUN/$f" ] && ln -s "$DATA/$f" "$RUN/$f"
+        if [ -e "$DATA/$f" ]; then
+            if [ -L "$RUN/$f" ] || [ ! -e "$RUN/$f" ]; then ln -sfn "$DATA/$f" "$RUN/$f"; fi
+        elif [ -L "$RUN/$f" ]; then rm -f "$RUN/$f"; fi
     done
     for f in simpsons.ini Save1 Save2 Save3 Save4; do
         [ -e "$DATA/$f" ] && [ ! -e "$RUN/$f" ] && cp "$DATA/$f" "$RUN/$f"
     done
-    [ -e "$RUN/shaders" ] || ln -s "$HERE/shaders" "$RUN/shaders"
+fi
+# A link, not a copy, and renewed each start: an AppImage mounts somewhere new every time. Your own shaders/ folder stays.
+if [ "$RUN" != "$HERE" ] && { [ -L "$RUN/shaders" ] || [ ! -e "$RUN/shaders" ]; }; then
+    ln -sfn "$HERE/shaders" "$RUN/shaders"
 fi
 mkdir -p "$RUN/logs"
+# --ini_config: all or nothing, on a copy
+if [ ${#INI_ITEMS[@]} -gt 0 ]; then
+    NEWINI=$RUN/simpsons.ini.new
+    # The game ignores an ini with no leading section: a new one starts with #System and the first-start settings
+    if [ -s "$RUN/simpsons.ini" ]; then cp "$RUN/simpsons.ini" "$NEWINI"
+    else printf '#System\r\ndisplay=borderless\r\ngamma=1.000000\r\n' > "$NEWINI"; fi
+    for item in "${INI_ITEMS[@]}"; do
+        apply_ini_config "$item" "$NEWINI" || { rm -f "$NEWINI"; die "$INI_ERR"; }
+    done
+    mv "$NEWINI" "$RUN/simpsons.ini"
+fi
 cd "$RUN"
 # Only the bundled libraries the system lacks go on the path: a system library of the same name is ABI-compatible and
 # at least as new, and the system's own plugins (GL driver, GTK for window decorations) need it, not an older copy.
@@ -110,11 +206,15 @@ done
 export LD_LIBRARY_PATH="$LIBS${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 MISSING=$(ldd "$HERE/srr2" "$LIBS"/* 2>/dev/null | awk '/not found/ { print $1 }' | sort -u)
 if [ -n "$MISSING" ]; then
-    echo "These system libraries are missing:" $MISSING >&2
-    echo "See the README for the packages to install." >&2
-    exit 1
+    die "These system libraries are missing: $(echo $MISSING)
+See the README for the packages to install."
 fi
 "$HERE/srr2" "$@" 2>&1 | tee "$RUN/logs/last-session.log"
+# The game's status, not tee's. Hangup, Ctrl-C and terminate are the player closing it, not errors.
+STATUS=${PIPESTATUS[0]}
+case $STATUS in 0|129|130|143) ;; *) show_error "The game stopped with an error (exit code $STATUS).
+The log is $RUN/logs/last-session.log" ;; esac
+exit "$STATUS"
 EOF
 if [ $ARCH = x86_64 ]; then X64=1; else X64=0; fi
 sed -i "s/@X64@/$X64/" "$OUT/run.sh"
@@ -155,6 +255,7 @@ $NEEDS
    Or extract this package's contents into the game folder and run ./run.sh there: no run/ folder is made, and
    settings, saves and logs/ are written in the game folder.
    Mods (Mod Launcher .lmlm files or mod folders):  ./run.sh --mod MyMod.lmlm --mod OtherMod
+   Settings from the command line:  ./run.sh --ini_config "language=spanish,disabletutorials=yes"
 
 Settings: run/simpsons.ini (#System: display, resolution, antialiasing, mipmaps, anisotropy).
 Shaders: packs in shaders/ (see shaders/README.md): Options > Graphics > Shaders; M in the game turns them off and on.
@@ -164,3 +265,46 @@ EOF
 tar -C "$ROOT/dist" -czf "$ROOT/dist/$NAME.tar.gz" "$NAME"
 echo "$OUT"
 echo "$ROOT/dist/$NAME.tar.gz ($(du -h "$ROOT/dist/$NAME.tar.gz" | cut -f1)), $(ls "$OUT/lib" | wc -l) libraries"
+
+if [ -n "$APPIMAGE" ]; then
+    # An AppImage is its runtime (mounts what follows it, needs fusermount but no libfuse) + a squashfs of the AppDir.
+    RUNTIME_TAG=20251108
+    RUNTIME_SHA256=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+    RUNTIME=$ROOT/dist/.cache/appimage-runtime-$RUNTIME_TAG-x86_64
+    if [ ! -f "$RUNTIME" ]; then
+        mkdir -p "$(dirname "$RUNTIME")"
+        curl -fsSL -o "$RUNTIME.part" "https://github.com/AppImage/type2-runtime/releases/download/$RUNTIME_TAG/runtime-x86_64"
+        mv "$RUNTIME.part" "$RUNTIME"
+    fi
+    echo "$RUNTIME_SHA256  $RUNTIME" | sha256sum -c --quiet - || { rm -f "$RUNTIME"; echo "AppImage runtime: bad checksum" >&2; exit 1; }
+
+    APPDIR=$ROOT/dist/$NAME.AppDir
+    rm -rf "$APPDIR"
+    cp -r "$OUT" "$APPDIR"
+    mv "$APPDIR/run.sh" "$APPDIR/AppRun"
+    rm "$APPDIR/README.txt"
+    cat > "$APPDIR/simpsons-hit-and-run.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=The Simpsons: Hit & Run
+Exec=AppRun
+Icon=simpsons-hit-and-run
+Terminal=false
+Categories=Game;
+EOF
+    cat > "$APPDIR/simpsons-hit-and-run.svg" <<'EOF'
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<rect width="256" height="256" rx="40" fill="#ffd90f"/>
+<circle cx="128" cy="128" r="88" fill="#f48fb1"/><circle cx="128" cy="128" r="34" fill="#ffd90f"/>
+</svg>
+EOF
+    ln -s simpsons-hit-and-run.svg "$APPDIR/.DirIcon"
+
+    IMAGE=$ROOT/dist/$NAME.AppImage
+    rm -f "$IMAGE.squashfs"
+    mksquashfs "$APPDIR" "$IMAGE.squashfs" -all-root -noappend -no-progress -quiet -comp zstd -Xcompression-level 19 > /dev/null
+    cat "$RUNTIME" "$IMAGE.squashfs" > "$IMAGE"
+    rm -rf "$IMAGE.squashfs" "$APPDIR"
+    chmod +x "$IMAGE"
+    echo "$IMAGE ($(du -h "$IMAGE" | cut -f1))"
+fi
