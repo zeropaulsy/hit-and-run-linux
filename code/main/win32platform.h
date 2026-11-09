@@ -203,8 +203,7 @@ public:
     Renderer GetRenderer() const { return mRenderer; }
     void SetShadows( int quality );
     int GetShadows() const;
-    // widehud=: on a window wider or taller than 4:3, the HUD at the edge of the window it lies on instead of the
-    // centred 4:3 area (p3d::WideHudEnabled), applied at once; off (default)
+    // widehud=: HUD at the window edges on non-4:3 windows (p3d::WideHudEnabled); applied at once, default off
     void SetWideHud( bool on );
     bool GetWideHud() const;
 private:

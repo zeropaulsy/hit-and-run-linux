@@ -129,9 +129,8 @@ void FeOwner::Display()
 
                 p3d::stack->Push();
 
-                // Linux port: an anchored element (and what it holds) is shifted out to the edge of a window wider
-                // (or taller) than 4:3, past the centred page area, and drawn unclipped. Only the outermost anchor
-                // counts.
+                // Linux port: Wide HUD, an anchored element and its children shift out and draw unclipped. Only the
+                // outermost anchor counts.
                 float shiftX = drawable->GetEdgeAnchorX() * p3d::GetEdgeShift();
                 float shiftY = drawable->GetEdgeAnchorY() * p3d::GetEdgeShiftY();
                 bool outermost = ( FeDrawable::sEdgeShiftX == 0.0f ) && ( FeDrawable::sEdgeShiftY == 0.0f );

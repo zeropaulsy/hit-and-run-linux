@@ -66,8 +66,7 @@ public:
 
     void AddWorldCoin( const rmt::Vector& Position, tUID Sector ); // Place a coin to sit happily in a zone until the zone unloads.
 
-    // EdgeAnchor, EdgeAnchorY: the side (-1, 0, +1) the counter beside it is anchored to on a window wider, or taller,
-    // than 4:3 (Drawable::GetEdgeAnchorX, GetEdgeAnchorY)
+    // EdgeAnchor, EdgeAnchorY: the counter's Wide HUD side, -1, 0 or +1 (Drawable::GetEdgeAnchorX/Y)
     void SetHUDCoin( int X, int Y, bool IsShowing = true, int EdgeAnchor = 0, int EdgeAnchorY = 0 );
     void AddFlyDownCoin(void); // Create an animation of a single coin zipping down from the HUD counter.
 	void ClearHUDCoins(void); // Remove all HUD coins.

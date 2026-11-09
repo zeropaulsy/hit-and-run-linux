@@ -53,7 +53,7 @@ HudCoinCollected::HudCoinCollected( Scrooby::Page* pPage )
     m_itemsCount = pPage->GetGroup( "ItemsCount" );
     rAssert( m_itemsCount != NULL );
 
-    // Linux port: the count is out at the edge of the window it lies on (CoinManager::SetHUDCoin: the coin beside it)
+    // Linux port: Wide HUD; CoinManager::SetHUDCoin keeps the coin beside the count
     m_itemsCount->AnchorToPageSide();
 
     m_numCoins = m_itemsCount->GetSprite( "ItemsCount" );

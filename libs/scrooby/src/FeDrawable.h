@@ -96,9 +96,8 @@ public:
     virtual void AnchorToPageSide();
     virtual int GetEdgeAnchorX() const { return mEdgeAnchorX; }
     virtual int GetEdgeAnchorY() const { return mEdgeAnchorY; }
-    // How far the element being drawn is shifted to a window edge, in page widths and heights (signed: right and up
-    // are positive): set by FeOwner::Display while it draws an anchored element and what it holds, read by
-    // FePure3dObject, which draws in its own view
+    // Current element's edge shift in page widths/heights (right and up positive). Set by FeOwner::Display, read by
+    // FePure3dObject, which draws in its own view.
     static float sEdgeShiftX;
     static float sEdgeShiftY;
 

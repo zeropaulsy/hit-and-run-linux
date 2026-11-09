@@ -99,10 +99,8 @@ class Drawable
         //resets the position, and translates to the position
         virtual void Translate( int x, int y ) = 0;
 
-        // Linux port: the page is drawn in a centred 4:3 area of the window. On a window wider (or taller) than that,
-        // an element anchored to a side is drawn shifted out to that edge of the window instead: sideX -1 is the
-        // left, +1 the right, sideY -1 the bottom, +1 the top, 0 not anchored. AnchorToPageSide anchors it to the
-        // sides of the page it lies on: the half its box is entirely in, 0 for an axis it crosses the middle of.
+        // Linux port: Wide HUD, drawn shifted out to a window edge on non-4:3 windows. sideX: -1 left, +1 right; sideY:
+        // -1 bottom, +1 top; 0 not anchored. AnchorToPageSide picks the half of the page the box is entirely in.
         virtual void SetEdgeAnchor( int sideX, int sideY ) = 0;
         virtual void AnchorToPageSide() = 0;
         virtual int GetEdgeAnchorX() const = 0;

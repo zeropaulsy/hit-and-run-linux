@@ -88,8 +88,7 @@ HudCardCollected::HudCardCollected( Scrooby::Page* pPage )
     rAssert(m_itemsUnlocked != NULL );
     m_itemsUnlocked->SetTextMode( Scrooby::TEXT_WRAP );
 
-    // Linux port: the group as a whole spans the page (HudEventHandler leaves it where it is), so on a window wider
-    // or taller than 4:3 each part moves out to the edge it lies on
+    // Linux port: Wide HUD. The group spans the page, so anchor each part.
     Scrooby::Drawable* parts[] = { m_cardImage, m_cardText, m_itemsCount, m_itemsComplete };
     for( int i = 0; i < 4; i++ )
     {

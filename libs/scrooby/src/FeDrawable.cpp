@@ -35,8 +35,7 @@ FeDrawable::FeDrawable( const tName& name )
     FeDrawable::Reset();
 }
 
-// Linux port: the side of the page the box lies in, along one axis: -1 entirely in the low half (left, bottom), +1
-// entirely in the high half (right, top), 0 when it crosses the middle (a centred element stays where it is)
+// Linux port: -1 box entirely in the low half (left, bottom), +1 in the high half (right, top), 0 crosses the middle
 static int GetSide( int low, int high, int size )
 {
     return ( high <= size / 2 ) ? -1 : ( ( low >= size / 2 ) ? 1 : 0 );

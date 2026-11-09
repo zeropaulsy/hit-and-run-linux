@@ -927,9 +927,8 @@ void CoinManager::ClearHUDCoins(void)
 	}
 }
 
-// Linux port: how far a counter anchored to a window edge sits out past the 4:3 area, in the units of the HUD coin's
-// position (mHUDCoinX, mHUDCoinY: the area is +-1; it is drawn at 0.5 * hudScale * coinX, so a page is 2 wide and, at
-// 3 / 4 of that, 1.5 high). 0 on the axis the window is not extended on, or with Wide HUD off.
+// Linux port: Wide HUD shift of a counter past the 4:3 area, in HUD coin units (mHUDCoinX/Y: the page is 2 wide, 1.5
+// high). 0 when off or on the axis the window isn't extended on.
 static void GetHUDEdgeExtent( float& x, float& y )
 {
     x = p3d::GetEdgeShift() * 2.0f;
@@ -962,10 +961,8 @@ void CoinManager::Render( void )
                     camera->WorldToView( c.Position, &c.Position );
                     // Linux port: the HUD sits in the centred 4:3 area of the window
                     float hudScale = p3d::GetDesignScaleX();
-                    // and the counter is at the edge of the window, not of the 4:3 area: past it by the counter's
-                    // shift (these units are half the coin's, see GetHUDEdgeExtent). This keeps the landing spot where
-                    // it is relative to the counter's coin (measured: the same offset in 4:3 and in 16:9); that spot
-                    // is not on the coin even in 4:3, as in the original
+                    // Wide HUD: the target moves with the counter (these units are half the coin's, see
+                    // GetHUDEdgeExtent)
                     float extentX, extentY;
                     GetHUDEdgeExtent( extentX, extentY );
                     float edgeX = mHUDCoinEdgeAnchor * extentX * 0.5f * hudScale;
@@ -1066,8 +1063,7 @@ void CoinManager::HUDRender( void )
         return;
     }
     bool renderHUDCoin = false;
-    // Linux port: a counter anchored to an edge of the window sits out past the 4:3 area, which is +-1 here: the coin
-    // goes with it, and shows up to the window's edge. It is worked out here, so it follows a resized window.
+    // Linux port: Wide HUD moves the coin with its counter; worked out per frame to follow window resizes
     float extentX, extentY;
     GetHUDEdgeExtent( extentX, extentY );
     float coinX = mHUDCoinX + mHUDCoinEdgeAnchor * extentX;

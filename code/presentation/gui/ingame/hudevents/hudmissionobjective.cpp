@@ -38,9 +38,8 @@
 
 const int HUD_ICON_SLIDE_DISTANCE = 310; // vertical distance in pixels
 
-// Linux port: the icon rests at the top of the page, anchored to the top edge of a window taller than 4:3 (Wide HUD),
-// which moves it up. It starts beside the message, so until it slides up it is moved back down by as much (in pixels
-// of the 640x480 page), and the slide covers it too.
+// Linux port: Wide HUD anchors the icon to the top edge of a tall window. It starts beside the message, so offset it
+// back down (page pixels) until it slides up.
 static const float PAGE_HEIGHT = 480.0f;
 
 static int GetIconPopUpOffset()
@@ -64,9 +63,8 @@ HudMissionObjective::HudMissionObjective( Scrooby::Page* pPage )
     m_missionIcon = pPage->GetSprite( "ObjectiveIcon" );
     rAssert( m_missionIcon != NULL );
 
-    // Linux port: the group also holds what stays in the 4:3 area (the message), so not the group but only the icon is
-    // anchored (HudEventHandler anchored the group): to its side, and to the top, where it rests
-    // (GetIconPopUpOffset), not to the bottom, where it lies.
+    // Linux port: the group holds the message, which stays in the 4:3 area, so anchor only the icon: to the top, where
+    // it rests (GetIconPopUpOffset).
     m_drawableGroup->SetEdgeAnchor( 0, 0 );
     m_missionIcon->AnchorToPageSide();
     m_missionIcon->SetEdgeAnchor( m_missionIcon->GetEdgeAnchorX(), 1 );

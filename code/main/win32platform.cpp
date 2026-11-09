@@ -1226,8 +1226,7 @@ void Win32Platform::LoadConfig( ConfigString& config )
         }
         else if( _stricmp( property, "widehud" ) == 0 )
         {
-            // Linux port: on a window wider or taller than 4:3, the HUD (map, counters...) at the edge of the window it
-            // lies on instead of the centred 4:3 area: yes or no (default)
+            // Linux port: yes = HUD at the window edges on non-4:3 windows; default no
             SetWideHud( _stricmp( value, "yes" ) == 0 || _stricmp( value, "on" ) == 0 || strcmp( value, "1" ) == 0 );
         }
         else if( _stricmp( property, "language" ) == 0 )

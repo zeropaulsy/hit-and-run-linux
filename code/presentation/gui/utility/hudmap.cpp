@@ -269,8 +269,7 @@ MEMTRACK_PUSH_GROUP( "CHudMap" );
     m_iconsGroup = pPage->GetGroup( name );
     rAssert( m_iconsGroup != NULL );
 
-    // Linux port: on a window wider (or taller) than 4:3 the map and its radar, cone and icons move out together to
-    // the edge of the window the map lies on
+    // Linux port: Wide HUD; the radar, cone and icons go with the map
     m_p3dMap->AnchorToPageSide();
     int edgeX = m_p3dMap->GetEdgeAnchorX();
     int edgeY = m_p3dMap->GetEdgeAnchorY();

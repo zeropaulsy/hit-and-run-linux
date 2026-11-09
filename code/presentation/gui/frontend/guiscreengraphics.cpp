@@ -232,9 +232,8 @@ MEMTRACK_PUSH_GROUP( "CGuiScreenGraphics" );
                               m_arrows[ i ][ 1 ],
                               SELECTION_ENABLED | VALUES_WRAPPED | TEXT_OUTLINE_ENABLED );
 
-        // The page's own arrows are also the Display screen's menu's, which scales them as well: AddMenuItem's scaling
-        // is undone for them. The copies past the page's rows are only this menu's, and keep it: restored too, they
-        // would stay at full size, twice as big as the others.
+        // The Display screen's menu scales the page's own arrows too, so undo AddMenuItem's scaling for those. The
+        // cloned rows are only in this menu and keep it.
         if( i < NUM_DISPLAY_ROWS )
         {
             m_arrows[ i ][ 0 ]->SetTransform( arrowTransforms[ 0 ] );
