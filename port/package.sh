@@ -1,4 +1,7 @@
 #!/bin/bash
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 # Package the release build for another machine: dist/shar-linux-<arch>-<date>/ and a .tar.gz of it, holding the
 # game, the libraries it needs (except the ones that must come from the target system: glibc, the OpenGL / X11 /
 # Wayland stack, which goes with the graphics driver), the example shaders and a launcher (run.sh).
