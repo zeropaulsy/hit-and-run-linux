@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Mod Launcher-format mods: mod list, file index, virtual file system, open resolution. See shar_mods.h.
 // The Lua side (CustomFiles.lua, path handlers) is in shar_modlua.cpp.
 #include "shar_mods_internal.h"
