@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Resolve the backtrace in a game log (crash report from port/compat/shar_crash.cpp) to functions and source lines.
 usage: port/crash_symbolize.py BINARY [LOG]     (LOG defaults to stdin; the log is printed with lines resolved)
 Frames in BINARY's module get "-> function (file:line)" appended, inlined callers included; others keep the

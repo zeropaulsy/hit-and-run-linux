@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Outlines: dark lines round objects and along sharp corners, from the depth buffer alone (no change to the materials).
 // Put it after the tone mapping. With the Vulkan renderer and anti-aliasing on, the lines are anti-aliased with it (each
 // sample of a pixel decides for itself, the pixel gets the share that are on a line); with OpenGL or anti-aliasing off

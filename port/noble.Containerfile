@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 # Ubuntu 24.04 build environment for release packages (port/package.sh --noble). Building against 24.04's glibc (2.39)
 # and libraries lets the package run on Ubuntu 24.04 / Linux Mint 22 and anything newer.
 FROM docker.io/library/ubuntu:24.04

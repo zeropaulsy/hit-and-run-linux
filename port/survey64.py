@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """64-bit survey: g++ -fsyntax-only on every source with its exact flags from build-linux/compile_commands.json
 (configure it first: cmake -B build-linux -G Ninja), with the pointer-size diagnostics on.
 Lists each site once (headers are reported by every source that includes them), grouped by kind and library.

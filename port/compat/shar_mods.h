@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Mods in the format of Lucas' Simpsons Hit & Run Mod Launcher (port/compat/shar_mods.cpp, shar_modlua.cpp).
  * SHAR_MODS lists mods, ':'-separated, each an extracted mod folder or a .lmlm package (read in place);
  * earlier mods win when two provide the same file (port/play.sh --mod sets it).

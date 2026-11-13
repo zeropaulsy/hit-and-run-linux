@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Rewrite #include paths to the real on-disk case and use forward slashes.
 Windows resolves includes case-insensitively; Linux does not. Search order mimics MSVC for "":
 the including file's directory first, then every project's include directories."""

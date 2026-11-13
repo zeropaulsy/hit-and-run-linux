@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Flat colours, like the cartoon: each part is one even colour (its texture colour) instead of being shaded light to
 // dark across the model. Meant for the characters ([files] *chars/* in materials.ini).
 //

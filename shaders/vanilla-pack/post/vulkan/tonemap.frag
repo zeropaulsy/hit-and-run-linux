@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Tone mapping: a filmic response curve, as films and modern games use, for softer highlights, richer midtones and
 // deeper shadows. The game's picture has no brightness beyond white, so it is first widened into a range above white
 // (the brightest parts become brighter than white), then run through the curve, which brings it back in gently.

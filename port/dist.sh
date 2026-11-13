@@ -1,4 +1,7 @@
 #!/bin/bash
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 # Make the x86-64 release tarball for the GitHub Releases page: dist/release/shar-linux-x86_64-<date>.tar.gz
 #
 # It's the `package.sh --noble` bundle with the binary stripped and renamed Simpsons, and README.md from

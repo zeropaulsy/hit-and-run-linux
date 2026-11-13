@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Minimal reader for the Mod Launcher's XML config files (CustomShopSupport.xml, ...): walks the start tags in
  * document order. No allocation, no entities beyond the five predefined ones, comments, <?...?> and <!...> skipped.
  * Enough for the flat attribute-and-text style these files use.

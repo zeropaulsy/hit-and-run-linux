@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //=============================================================================
 // Linux port: the Mod Launcher's VideoTextureSupport. A shader texture named by a path in the mods' virtual
 // file system ("/GameData/movies/x.bik", shader.cpp) plays that Bink file, looped and silent, into a texture

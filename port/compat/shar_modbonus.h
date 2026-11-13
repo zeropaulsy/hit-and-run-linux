@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Mod Launcher CustomBonusMissionSupport: a mod's CustomBonusMissionSupport.ini (port/compat/shar_modbonus.cpp)
  *
  *   [Miscellaneous] StreetRaceIntroDialogueMissionIndex=11     dialogue mission of other race hosts' intros

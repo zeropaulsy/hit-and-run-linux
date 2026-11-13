@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Generate CMakeLists.txt for the Linux build (x86-64; legacy 32-bit x86) from the original VS2013 Win32 projects.
 Re-run after changing the mapping rules below; the generated file is not hand-edited."""
 import os

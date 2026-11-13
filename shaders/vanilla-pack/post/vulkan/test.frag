@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // A post pass written for Vulkan: standard Vulkan GLSL with its own declarations (no header is put in front of it),
 // compiled ahead of time to SPIR-V (test.spv, the file post.ini names): python3 port/spirv.py
 // shaders/post/vulkan/test.frag. Vulkan renderer only; the OpenGL renderer skips .spv passes.

@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //=============================================================================
 // Linux port: Mod Launcher AdditionalScriptFunctionality passengers: characters a mod seats on a joint of a car,
 // by mission script (AddStageVehicleCharacter) or by the car's CON file (AddVehicleCharacter). Kept here so both

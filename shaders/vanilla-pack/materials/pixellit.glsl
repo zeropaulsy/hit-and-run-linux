@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Per-pixel lighting: the game's own lighting (its lights, its material colours, Direct3D 8's equations), worked out
 // for every pixel instead of only at the corners of each polygon. Low-polygon characters and cars lose their blotchy,
 // faceted shading, and point lights and highlights fall smoothly across surfaces. Unlit materials (most of the

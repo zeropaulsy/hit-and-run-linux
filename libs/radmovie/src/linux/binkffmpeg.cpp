@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //=============================================================================
 // Linux port: the subset of the Bink 1.5 SDK that radmovie's binkmovieplayer.cpp uses, implemented on
 // FFmpeg (libavformat's Bink demuxer, libavcodec's Bink video/audio decoders).

@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Car paint: the game's paint and reflection, plus a sharp per-pixel highlight from each light and a stronger
 // reflection at grazing angles (Fresnel). For spheremap / environment materials (car bodies, chrome).
 

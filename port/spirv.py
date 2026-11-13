@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Compile Vulkan GLSL (#version 450) post passes to SPIR-V for the Vulkan renderer, with the game's own glslang
 (libshar_glslang.so, so no glslangValidator/glslc needed): python3 port/spirv.py FILE.frag... [-o OUT.spv]
 Writes FILE.spv beside each source. The interfaces: shaders/README.md (Vulkan passes, Vulkan material shaders).
