@@ -1,4 +1,7 @@
 #!/bin/bash
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 # Run the game under valgrind memcheck to find reads of uninitialised memory, then summarise the reports by
 # where the memory came from (which allocation / stack frame), most frequent first.
 # usage: port/memcheck.sh [seconds] [game args...]          e.g. port/memcheck.sh 330 skipfe

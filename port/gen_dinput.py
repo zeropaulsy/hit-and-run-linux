@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Generate port/compat/dinput.h: the DirectInput 8 constants and data structures the game uses, extracted
 from the DX8 SDK header bundled with Pure3D (libs/pure3d/sdks/dx8/dinput.h). No API is generated."""
 import os

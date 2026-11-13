@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Mod Launcher CustomCarSupport: a mod's CustomCarSupport.ini (port/compat/shar_modcars.cpp), per car either
  *
  *   [Car]                 (Mod Launcher 1.26+)        or     [fry_v]            (older: the section is the name)

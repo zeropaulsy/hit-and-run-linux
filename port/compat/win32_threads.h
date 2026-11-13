@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Win32 thread, synchronisation and timer API subset implemented on POSIX (port/compat/win32_threads.cpp).
  * Only what radcore uses: critical sections, semaphores, threads (incl. CREATE_SUSPENDED start),
  * waits with timeouts, Sleep, and the performance counter.

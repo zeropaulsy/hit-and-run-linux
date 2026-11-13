@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // The game's side of a Vulkan (SPIR-V) material shader: #include "shar_material.glsl" after #version 450, then define
 // vec4 ShadeMaterial(). Everything the GLSL material shaders get (shaders/README.md, Material shaders) is here, with
 // the same names and meaning; main() below applies fog and the alpha test to what ShadeMaterial() returns, as the

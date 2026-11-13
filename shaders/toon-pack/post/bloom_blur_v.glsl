@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Bloom, pass 3 of 4: blurs the bright parts (vertical half of a Gaussian blur).
 
 const float RADIUS = 2.0;               // blur width, in pixels per tap

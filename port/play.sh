@@ -1,4 +1,7 @@
 #!/bin/bash
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 # Build (if needed) and start the game normally: no gdb, no timeout.
 # usage: port/play.sh --data DIR [--mod MOD]... [--debug] [--32] [--no-build] [game args...]
 #   --data DIR   your copy's PC game data dir (the one holding art/, scripts/, *.rcf); required

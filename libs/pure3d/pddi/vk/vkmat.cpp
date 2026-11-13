@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //=============================================================================
 // Linux port: Vulkan renderer materials (see vkmat.hpp): glmat.cpp's pddi logic, with the GL state it set going to
 // pvkPipeline. Keep the two in step.

@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Linux stand-in for MSVC's <crtdbg.h> (debug heap): the macros used by debug builds, as no-ops.
    _ASSERT/_ASSERTE map to assert(). */
 #ifndef SHAR_COMPAT_CRTDBG_H

@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Contrast-adaptive sharpening: sharpens more where the picture is flat, less at strong edges (no halos).
 
 const float SHARPNESS = 0.5;            // 0 = off, 1 = strong

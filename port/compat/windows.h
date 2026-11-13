@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Linux stand-in for <windows.h>: basic Win32 TYPES only, so files that include windows.h just for
  * types compile unchanged. Win32 FUNCTIONS are deliberately not declared: every compile or link error
  * from a missing one marks code that needs a real RAD_LINUX implementation. */

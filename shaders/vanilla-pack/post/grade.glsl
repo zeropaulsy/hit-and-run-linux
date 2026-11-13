@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Colour grading: white balance, exposure, contrast, saturation and vibrance, lift / gamma / gain (shadows, midtones,
 // highlights) and split toning. Every setting at its neutral value leaves the picture unchanged. Put it in [scene]
 // (the HUD stays as it is), after tonemap.glsl if you use both.

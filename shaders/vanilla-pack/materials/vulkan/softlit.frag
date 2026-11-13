@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Soft lighting for low-polygon models (characters): per-pixel lighting that hides the polygons. With few polygons
 // the lighting changes in steps from face to face (blotchy shading); this
 //   - wraps the light further round the model (WRAP), so the fall-off from light to dark is wide and gentle instead

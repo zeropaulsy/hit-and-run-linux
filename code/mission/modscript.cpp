@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //=============================================================================
 // Linux port: Mod Launcher AdditionalScriptFunctionality (see modscript.h). Command names, argument counts and
 // behaviour follow the hack's documentation (version 1.27).

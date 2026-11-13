@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Cartoon outlines (inverted hull): an extra pass draws the model again, pushed outwards along its normals, keeping
 // only the parts whose normals point away from the camera, in the outline colour. The model covers the middle of
 // that shell; around its edges the shell shows as a line. (The parts are told apart by their normals, not by which
