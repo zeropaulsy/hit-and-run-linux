@@ -141,10 +141,10 @@ misbehaves, report the mod's name and version along with `run/logs/last-session.
 
 ## License
 
-The port's own work is licensed under the [GNU General Public License v3.0](LICENSE): everything under `port/`
+The port's own work is licensed under the [Mozilla Public License 2.0](LICENSE): everything under `port/`
 (except `port/third_party/`), `shaders/` and `mod/`, and the files the port adds elsewhere.
 
-The GPL does not cover the original game. Its source in `code/` and `libs/` is © Radical Entertainment
+The MPL does not cover the original game. Its source in `code/` and `libs/` is © Radical Entertainment
 (see the notices in those files), and the port's changes to those files do not change their copyright. No game
 data is included. Third-party code in `port/third_party/` (Lua, glslang, stb, DejaVu) keeps its own license, found
 next to it.
