@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Force-included into every translation unit of the Linux build (see port/gen_cmake.py).
  * Maps MSVC compiler built-ins and CRT names onto GCC/POSIX equivalents so the original
  * source compiles unchanged. Must stay valid C and C++98. */

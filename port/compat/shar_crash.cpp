@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Crash reports, see shar_crash.h. The handler only formats into stack buffers and write()s; snprintf, dladdr
 // and backtrace are not async-signal-safe on paper but are fine in practice, and the process is dying anyway.
 

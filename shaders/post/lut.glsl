@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Colour grading with a lookup table (LUT): any grade made in an image editor, applied exactly. The table is an image
 // of 32 x 32 x 32 colours laid out as a 1024 x 32 strip (the layout ReShade uses; lut/neutral.png changes nothing).
 //

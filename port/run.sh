@@ -1,4 +1,7 @@
 #!/bin/bash
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 # Rebuild, then run the game from the run directory under gdb; on a crash print the backtrace.
 # usage: port/run.sh [seconds] [game args...]     (run directory: $SHAR_RUN, default run/)
 set -e

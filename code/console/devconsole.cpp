@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //=============================================================================
 // Linux port: the developer console (devconsole.h). Text is DejaVu Sans Mono (port/third_party/dejavu), rasterised
 // with stb_truetype into a texture at the window's pixel size, so it is sharp at any resolution, works in release

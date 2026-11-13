@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Mod Launcher CustomShopSupport: the <PhoneBooth> and <SkinShop> entries of a mod's CustomShopSupport.xml
  * (port/compat/shar_modshops.cpp; <CarShop> is read in code/ai/actionbuttonhandler.cpp).
  *

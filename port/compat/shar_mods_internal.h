@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Shared by shar_mods.cpp (mod list, file index, virtual file system) and shar_modlua.cpp (Lua host).
  * Not for game code: that uses shar_mods.h. malloc only, like the rest of the compat layer. */
 #ifndef SHAR_COMPAT_SHAR_MODS_INTERNAL_H

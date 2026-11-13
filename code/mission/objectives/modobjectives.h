@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //=============================================================================
 // Linux port: the objective types Lucas' Mod Launcher's AdditionalScriptFunctionality hack adds for mods' mission
 // scripts (docs.donutteam.com, Hacks/AdditionalScriptFunctionality/MissionObjectives). Their script commands are in

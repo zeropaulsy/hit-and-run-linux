@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //=============================================================================
 // Linux port of win32/win32typeinfovfcall.cpp: call virtual method number `vtbloffset` of pThat with
 // `numParams` 32-bit parameters taken from pParams.

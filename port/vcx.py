@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 """Read the VS2013 .vcxproj files of the original Win32 build (paths are case-insensitive on Windows)."""
 import os
 import re

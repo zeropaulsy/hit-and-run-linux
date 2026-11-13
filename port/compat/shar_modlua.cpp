@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Lua for mods (the Mod Launcher's LuaSupport / CustomFiles Lua): one Lua 5.4 state per mod, its CustomFiles.lua
 // run at load, path handlers (CustomFiles.ini [PathHandlers]) run in the same state when the game opens a
 // matching file. The launcher's API subset mods use is below. Sandboxed: no io, package, debug or os other than

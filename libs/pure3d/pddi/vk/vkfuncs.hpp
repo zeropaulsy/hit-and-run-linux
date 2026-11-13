@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 //=============================================================================
 // Linux port: Vulkan renderer (pddi/vk). The Vulkan library is loaded at run time (SDL_Vulkan_LoadLibrary), so the
 // game starts on machines without it and uses OpenGL there; the entry points are fetched into these pointers. They

@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Crash reports (port/compat/shar_crash.cpp): on SIGSEGV, SIGBUS, SIGILL, SIGFPE or SIGABRT the game prints a
  * report to stderr (signal, fault address, thread, faulting PC and backtrace as module+offset), then dies with the
  * same signal. port/play.sh keeps the console output and, when the game crashes, saves it with the backtrace

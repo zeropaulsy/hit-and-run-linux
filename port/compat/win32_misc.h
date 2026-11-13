@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 /* Win32 user-interface odds and ends used by the engine's error paths (port/compat/win32_misc.cpp).
  * MessageBox prints to stderr and answers as if the user chose the non-fatal option (Ignore / OK / No),
  * so a failed assert is logged and the game keeps going. Set SHAR_ASSERT_ABORT=1 to abort instead

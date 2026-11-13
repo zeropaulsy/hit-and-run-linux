@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // Shows the depth buffer: near = black, far = white. An example of uDepth and LinearDepth (scene stage only;
 // in the final stage the depth buffer also holds whatever the HUD and menus drew).
 

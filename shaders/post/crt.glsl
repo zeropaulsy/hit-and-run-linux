@@ -1,3 +1,6 @@
+// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+// was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
 // An old TV: curved screen, scanlines and a shadow mask. Put it in [final] so the HUD is on the TV too.
 
 const float CURVATURE = 0.08;           // 0 = flat
