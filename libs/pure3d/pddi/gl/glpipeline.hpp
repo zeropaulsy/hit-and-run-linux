@@ -145,6 +145,9 @@ public:
     // refraction: copies the frame drawn so far, on the frame's first call (later refracting draws see the same copy,
     // as on the PS2) or the first after pglRecaptureScreen, and binds the copy to texture unit 2
     void CaptureScreen();
+    // binds a 1x1 white texture to the active unit, for a material without a texture: the programs still declare
+    // the sampler, and Apple's GL warns about an incomplete texture (texture 0) there even when it isn't sampled
+    void BindWhiteTexture();
 
     // after GL calls outside the pipeline that change the program or vertex array object (the gamma pass)
     void Unbind() { bound = 0; }
@@ -191,6 +194,7 @@ private:
 
     // CaptureScreen's copy
     GLuint screenTexture, screenFbo;
+    GLuint whiteTexture;
     int screenWidth, screenHeight;
     unsigned screenFrame;
 

@@ -53,8 +53,7 @@ Status: native on an Apple M2, Vulkan via MoltenVK by default, OpenGL 4.1 as fal
   ~165 fps; with the example shaders ~85 fps. Vulkan with the example shaders ~167 fps (GL ~80 in the same run), + `SHAR_SUN=low`
   ~133 fps. A self-running demo, not real play: the user's own test is still to do.
 - Next: the user plays on Vulkan, then step 9.
-- Open: Apple GL logged `unit 0 GLD_TEXTURE_INDEX_2D is unloadable` once (a draw with an incomplete texture; cause not
-  found). 30 scripted methods return float, `InvokeVf64` reads the integer register (as on x86-64). Linux x86-64 rechecked after these changes: builds with GCC 15, `gen_cmake.py` output unchanged, scripted runs pass on both renderers.
+- Linux x86-64 rechecked after these changes: builds with GCC 15, `gen_cmake.py` output unchanged, scripted runs pass on both renderers.
 - Linux: the user built this branch there with no issues and it works on the surface; not extensively played.
 - Linux builds have no optimisation either: `gen_cmake.py` sets no build type there, and play.sh/package.sh pass none.
   GCC `-O2` needs `-fno-lifetime-dse`: without it `AnimatedIcon::operator new`'s `mAllocated = true` is dropped, a pool slot is
@@ -111,7 +110,9 @@ Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
   that returns memory the game would free (`nm -u srr2 | c++filt`), so `std::string` etc. must stay out of game code.
 - radscript `InvokeVf64` on Apple arm64: `this` + 7 ints in x0-x7, 8 floats in v0-v7. Stack args are packed to natural
   size, so one signature can't place them: `TypeInfoMethod.cpp` aborts on a method needing them. `srrtypes.typ` (454
-  methods, at most 6 parameters) has none.
+  methods, at most 6 parameters) has none. Float returns (30 radsound `Get*` methods) come back wrong on every
+  platform (Win32's was in ST0, not EAX), but it doesn't matter: every `Invoke` caller ignores the result
+  (`radscript.hpp OnMethod`, typeinfodistributor), game code never calls the API, and `scripts.rcf` only calls setters.
 - GL debug output (`SHAR_GL_DEBUG`) is compiled out: macOS OpenGL stops at 4.1.
 - Vulkan via MoltenVK: 1.4.2 on an M2 reports Vulkan 1.4, so `vkcore.cpp`'s 1.3 check passes. `__APPLE__` code enables
   `VK_KHR_portability_enumeration` + `VK_KHR_portability_subset` (features as offered). `pointPolygons` is false: point fill draws solid
