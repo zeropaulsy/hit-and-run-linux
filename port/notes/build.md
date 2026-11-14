@@ -89,9 +89,11 @@ Order of events (each step needs the one before; Linux builds must keep working 
    - Sun: no ray queries, so Low only (`SHAR_SUN=1` runs Low): bridge girder shadows seen in `demo l1`.
    - User confirmed on Vulkan: Low shadows, gamma. Not reported: stutter on first use, Cmd+Q, a full play session.
    - Validation (`SHAR_VK_DEBUG=1`, Homebrew `vulkan-validationlayers` 1.4.363): no messages on boot movies and front end;
-     with `VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true` none on `demo l1`-`l7`, MSAA 0/2/4x, shaders off, window resize + minimise. Only
-     MoltenVK's own `VK_ERROR_FEATURE_NOT_PRESENT: Metal does not support disabling primitive restart` (from
-     `vkCmdSetPrimitiveRestartEnable(FALSE)`, vkpipeline.cpp): harmless while no strip index is 0xFFFF (16-bit indices).
+     with `VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true` none on `demo l1`-`l7`, MSAA 0/2/4x, shaders off, window resize + minimise. MoltenVK's
+     `Metal does not support disabling primitive restart` (each `vkCmdSetPrimitiveRestartEnable(FALSE)`) is filtered in
+     `vkcore.cpp DebugMessage`: it used up the 300-message cap. Harmless: needs index 0xFFFF in a strip (65536-vertex buffer,
+     the data's largest is ~1200 in L1-L7). Static restart off warns per pipeline instead; restart on for lists needs
+     `VK_EXT_primitive_topology_list_restart`, which MoltenVK 1.4.2 lacks.
 9. Hardening: ASan, TSan for memory-order bugs, long play sessions.
 10. Ship: `.app` packaging and signing; update README and TODO.
 
