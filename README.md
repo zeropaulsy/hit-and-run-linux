@@ -86,11 +86,24 @@ never adapted for PC keys.
 ## Building from source
 
 ### Linux:
+Debian / Ubuntu:
 ```bash
 sudo apt install cmake ninja-build python3 build-essential \
     libsdl2-dev libgl-dev libvulkan-dev libopenal-dev \
     libavformat-dev libavcodec-dev libswscale-dev libswresample-dev libavutil-dev
 ```
+Arch (pacman; headers ship in the runtime packages):
+```bash
+sudo pacman -S --needed cmake ninja python base-devel \
+    sdl2 libglvnd vulkan-headers vulkan-icd-loader openal ffmpeg
+```
+Fedora / RHEL (dnf; `ffmpeg-free-devel` is Fedora's own FFmpeg, or use `ffmpeg-devel` from RPM Fusion):
+```bash
+sudo dnf install cmake ninja-build python3 gcc-c++ \
+    SDL2-devel libglvnd-devel vulkan-headers vulkan-loader-devel openal-soft-devel ffmpeg-free-devel
+```
+On RHEL, enable EPEL and CRB first (`sudo dnf config-manager --set-enabled crb`); FFmpeg and SDL2 may need RPM Fusion.
+
 Then:
 ```bash
 cmake -B build-linux -G Ninja                              # release build

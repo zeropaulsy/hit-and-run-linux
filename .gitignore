@@ -22,3 +22,10 @@ build-macos*/
 game-files/
 bin/
 .DS_Store
+
+# IDEs
+.code/
+.vs/
+.idea/
+.codium/
+.zed/
