@@ -1,0 +1,9 @@
+# ThreadSanitizer suppressions: TSAN_OPTIONS=suppressions=$PWD/port/tsan.supp (notes: port/notes/build.md, macOS step 9).
+# Each entry is an audited, harmless race in code the port keeps as the original. A match on any frame of either
+# stack suppresses the report, so keep entries to functions that only touch the fields named.
+
+# radsound's software listener (hal/common, the original): the game thread writes a positional group's
+# volume/pan/pitch adjustments and the reverb on/off flag; the Linux mixer (linuxhal.cpp, SDL audio thread) reads
+# them without the device lock. Aligned 4-byte values, at worst one block stale; the mixer ramps gains.
+race:radSoundHalListener::CalculatePositionalInformation
+race:radSoundHalListener::SetEnvEffectsEnabled

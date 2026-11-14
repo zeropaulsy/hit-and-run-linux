@@ -158,6 +158,23 @@ static const unsigned int MAX_ACTIVE_VOICES = 256;
 static radSoundHalVoiceLinux* s_ActiveVoices[ MAX_ACTIVE_VOICES ];
 static unsigned int s_NumActiveVoices = 0;
 
+// A value the game thread sets and the mixer reads without the device lock (voice volume, pan, pitch...): relaxed
+// atomic loads and stores, the same instructions as plain ones, but defined behaviour and visible to TSan. A reader
+// may see the previous value for one block; the mixer ramps gains, so that's inaudible.
+template< typename T > class radSoundShared
+{
+public:
+    radSoundShared( void ) { }
+    radSoundShared( T x ) : m_Value( x ) { }
+    operator T( void ) const { T x; __atomic_load( &m_Value, &x, __ATOMIC_RELAXED ); return x; }
+    radSoundShared& operator=( T x ) { __atomic_store( &m_Value, &x, __ATOMIC_RELAXED ); return *this; }
+    radSoundShared& operator+=( T x ) { return *this = T( *this ) + x; }   // one writer at a time
+    radSoundShared& operator-=( T x ) { return *this = T( *this ) - x; }
+    radSoundShared( const radSoundShared& o ) : m_Value( T( o ) ) { }
+private:
+    T m_Value;
+};
+
 struct radSoundMixLock
 {
     radSoundMixLock( void ) { if ( s_AudioDevice != 0 ) SDL_LockAudioDevice( s_AudioDevice ); }
@@ -266,7 +283,7 @@ struct radSoundLinuxReverbParams
     float reverbDelay, diffusion;
 };
 
-static float s_AuxGain[ RSD_LINUX_MAX_AUX_SENDS ] = { 1.0f, 1.0f, 1.0f, 1.0f };    // system aux send gains
+static radSoundShared< float > s_AuxGain[ RSD_LINUX_MAX_AUX_SENDS ] = { 1.0f, 1.0f, 1.0f, 1.0f };    // system aux send gains
 static unsigned int s_ReverbAux = 0xFFFFFFFF;  // aux send the reverb effect is attached to
 static float* s_WetIn = NULL;                  // per-callback mono reverb send, s_WetCapacity frames
 static int s_WetCapacity = 0;
@@ -513,9 +530,10 @@ public:
 
     virtual void Play( void )
     {
-        if ( m_refBuffer == NULL || m_Playing ) return;
+        if ( m_refBuffer == NULL ) return;
         {
             radSoundMixLock lock;
+            if ( m_Playing ) return;                    // checked under the lock: the mixer may just have finished it
             if ( s_NumActiveVoices >= MAX_ACTIVE_VOICES )
             {
                 if ( SoundLogOn( ) ) fprintf( stderr, "soundlog: mixer: voice not played, %u voices already playing\n", s_NumActiveVoices );
@@ -571,9 +589,9 @@ public:
     virtual float GetPitch( void ) { return m_Pitch; }
 
     virtual void SetAuxMode( unsigned int aux, radSoundAuxMode mode ) { if ( aux < RSD_LINUX_MAX_AUX_SENDS ) m_AuxMode[ aux ] = mode; }
-    virtual radSoundAuxMode GetAuxMode( unsigned int aux ) { return aux < RSD_LINUX_MAX_AUX_SENDS ? m_AuxMode[ aux ] : radSoundAuxMode_PostFader; }
+    virtual radSoundAuxMode GetAuxMode( unsigned int aux ) { return aux < RSD_LINUX_MAX_AUX_SENDS ? radSoundAuxMode( m_AuxMode[ aux ] ) : radSoundAuxMode_PostFader; }
     virtual void SetAuxGain( unsigned int aux, float gain ) { if ( aux < RSD_LINUX_MAX_AUX_SENDS ) m_AuxGain[ aux ] = gain; }
-    virtual float GetAuxGain( unsigned int aux ) { return aux < RSD_LINUX_MAX_AUX_SENDS ? m_AuxGain[ aux ] : 0.0f; }
+    virtual float GetAuxGain( unsigned int aux ) { return aux < RSD_LINUX_MAX_AUX_SENDS ? float( m_AuxGain[ aux ] ) : 0.0f; }
 
     virtual void SetPositionalGroup( IRadSoundHalPositionalGroup* pGroup )
     {
@@ -781,18 +799,18 @@ public:
 
 private:
     unsigned int m_Priority;
-    volatile bool m_Playing;
+    radSoundShared< bool > m_Playing;       // set under the lock, read without it
     bool   m_InUpdateList;                  // main thread only
     int    m_ActiveIndex;                   // slot in s_ActiveVoices, -1 when not playing
-    volatile double m_PositionFrames;
+    radSoundShared< double > m_PositionFrames;
     float  m_LastGainL, m_LastGainR;        // gains at the end of the last mixed block (ramped)
     float  m_LastWet;                       // reverb send gain, likewise
-    volatile float m_WetDistanceFactor;     // main thread (OnApplyPositionalSettings)
-    float  m_Volume, m_Trim;
-    bool   m_Muted;
-    float  m_Pan, m_Pitch;
-    radSoundAuxMode m_AuxMode[ RSD_LINUX_MAX_AUX_SENDS ];
-    float  m_AuxGain[ RSD_LINUX_MAX_AUX_SENDS ];
+    radSoundShared< float > m_WetDistanceFactor;    // main thread (OnApplyPositionalSettings)
+    radSoundShared< float > m_Volume, m_Trim;
+    radSoundShared< bool > m_Muted;
+    radSoundShared< float > m_Pan, m_Pitch;
+    radSoundShared< radSoundAuxMode > m_AuxMode[ RSD_LINUX_MAX_AUX_SENDS ];
+    radSoundShared< float > m_AuxGain[ RSD_LINUX_MAX_AUX_SENDS ];
     ref< radSoundHalBufferLinux > m_refBuffer;
     ref< radSoundHalPositionalGroup > m_xPositionalGroup;
 };
@@ -1007,7 +1025,7 @@ public:
             fprintf( stderr, "[reverb] %s\n", gain > 0.0f ? "fading in" : "off" );
         s_AuxGain[ aux ] = gain;
     }
-    virtual float GetAuxGain( unsigned int aux ) { return aux < RSD_LINUX_MAX_AUX_SENDS ? s_AuxGain[ aux ] : 0.0f; }
+    virtual float GetAuxGain( unsigned int aux ) { return aux < RSD_LINUX_MAX_AUX_SENDS ? float( s_AuxGain[ aux ] ) : 0.0f; }
     virtual void SetOutputMode( radSoundOutputMode mode ) { }
     virtual radSoundOutputMode GetOutputMode( void ) { return radSoundOutputMode_Stereo; }
 

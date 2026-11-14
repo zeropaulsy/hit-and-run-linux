@@ -961,7 +961,11 @@ radThread::~radThread( void )
     // Here we must check if the thread is still running. This is the bad way
     // of killing a thread and should be avoided. However, we will try to deal with it.
     //
+#ifdef RAD_LINUX
+    if( __atomic_load_n( &m_IsRunning, __ATOMIC_ACQUIRE ) )     // Linux port: see InternalThreadEntry
+#else
     if( m_IsRunning )
+#endif
     {
         //
         // Here the thread is running. We will kill the thread. Need to deal with
@@ -1114,7 +1118,13 @@ radThread::~radThread( void )
     //
     // Here we consider the thread no longer running.
     //
+#ifdef RAD_LINUX
+    // Linux port: release, so a thread that sees it false also sees m_ReturnCode and the thread's other writes
+    // (arm64 reorders plain stores; IsRunning loads with acquire)
+    __atomic_store_n( &pThread->m_IsRunning, false, __ATOMIC_RELEASE );
+#else
     pThread->m_IsRunning = false;
+#endif
    
     //
     // Each OS has different return conventions. We don't use this stuff 
@@ -1359,7 +1369,11 @@ bool radThread::IsRunning
     // Check if running. If not return the return code. Care must be taken
     // here as these variables can be altered by the actual thread.
     //
+#ifdef RAD_LINUX
+    if( __atomic_load_n( &m_IsRunning, __ATOMIC_ACQUIRE ) )     // Linux port: see InternalThreadEntry
+#else
     if( m_IsRunning )
+#endif
     {
         return( true );
     }

@@ -145,6 +145,10 @@ namespace
     {
         if(t_altStack) return;
         stack_t ss;
+        // a thread that already has one keeps it: ASan installs its own per thread and munmaps it at thread exit
+        // (replaced by a malloc'd one, the main thread's exit failed with "failed to deallocate ... error code: 22")
+        if(sigaltstack(NULL, &ss) == 0 && !(ss.ss_flags & SS_DISABLE) && ss.ss_sp)
+            return;
         ss.ss_sp = malloc(kAltStackSize);     // malloc only: compat-layer rule
         if(!ss.ss_sp) return;
         ss.ss_size = kAltStackSize;

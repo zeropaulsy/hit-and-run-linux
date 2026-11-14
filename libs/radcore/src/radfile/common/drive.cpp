@@ -397,8 +397,13 @@ bool radDrive::CheckForErrorState( void )
 
 void radDrive::SetErrorState( void )
 {
+#ifdef RAD_LINUX
+    Lock( );
+    m_InError = true;       // Linux port: under the lock, as Service reads it (was set just before Lock: a data race)
+#else
     m_InError = true;
     Lock( );
+#endif
     if ( m_pErrorUserSemaphore != NULL )
     {
         Unlock( );
