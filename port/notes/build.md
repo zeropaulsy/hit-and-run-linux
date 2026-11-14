@@ -43,7 +43,7 @@
 - Saves layout-identical (CharacterSheet 7140, SaveGameInfoData 16).
 - Verified: L1-7, races, interiors, bonus game, mods, ASan clean; `package.sh`. Not yet: long sessions.
 
-## macOS arm64 (branch `mac-arm64`; in progress, steps 1-6 done, step 7 open items left, step 8 awaiting the user's play test)
+## macOS arm64 (branch `macOS`; in progress, steps 1-6 done, step 7 open items left, step 8 awaiting the user's play test)
 Status: native on an Apple M2, Vulkan via MoltenVK by default, OpenGL 4.1 as fallback. Scripted runs only on Vulkan; no full play session yet.
 - Build: `export PATH=/opt/homebrew/bin:$PATH; ninja -C build-macos -j8` (`cmake -S . -B build-macos -G Ninja` if missing).
 - Run (`run/` holds symlinks to `game-files/` and a copy of `shaders/`; both ignored by git):
@@ -55,6 +55,7 @@ Status: native on an Apple M2, Vulkan via MoltenVK by default, OpenGL 4.1 as fal
 - Next: the user plays on Vulkan, then step 9.
 - Open: Apple GL logged `unit 0 GLD_TEXTURE_INDEX_2D is unloadable` once (a draw with an incomplete texture; cause not
   found). 30 scripted methods return float, `InvokeVf64` reads the integer register (as on x86-64). Linux x86-64 rechecked after these changes: builds with GCC 15, `gen_cmake.py` output unchanged, scripted runs pass on both renderers.
+- Linux: the user built this branch there with no issues and it works on the surface; not extensively played.
 - Linux builds have no optimisation either: `gen_cmake.py` sets no build type there, and play.sh/package.sh pass none.
   GCC `-O2` needs `-fno-lifetime-dse`: without it `AnimatedIcon::operator new`'s `mAllocated = true` is dropped, a pool slot is
   handed out twice, SIGSEGV in `AnimatedIcon::Move` (`demo l1`, ~30 s). With the flag: `demo l1`-`l7` clean; ~24% less CPU, same fps on Iris Plus.
@@ -88,7 +89,10 @@ Order of events (each step needs the one before; Linux builds must keep working 
      ignores `SHAR_RESIZE_SCRIPT`), no ini = Vulkan, GL fallback with `SDL_VULKAN_LIBRARY=/nonexistent` and `VK_DRIVER_FILES=/nonexistent.json`.
    - Sun: no ray queries, so Low only (`SHAR_SUN=1` runs Low): bridge girder shadows seen in `demo l1`.
    - User confirmed on Vulkan: Low shadows, gamma. Not reported: stutter on first use, Cmd+Q, a full play session.
-   - Not checked: validation layer (`vulkan-validationlayers` not installed).
+   - Validation (`SHAR_VK_DEBUG=1`, Homebrew `vulkan-validationlayers` 1.4.363): no messages on boot movies and front end;
+     with `VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true` none on `demo l1`-`l7`, MSAA 0/2/4x, shaders off, window resize + minimise. Only
+     MoltenVK's own `VK_ERROR_FEATURE_NOT_PRESENT: Metal does not support disabling primitive restart` (from
+     `vkCmdSetPrimitiveRestartEnable(FALSE)`, vkpipeline.cpp): harmless while no strip index is 0xFFFF (16-bit indices).
 9. Hardening: ASan, TSan for memory-order bugs, long play sessions.
 10. Ship: `.app` packaging and signing; update README and TODO.
 
