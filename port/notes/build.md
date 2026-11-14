@@ -94,7 +94,19 @@ Order of events (each step needs the one before; Linux builds must keep working 
      `vkcore.cpp DebugMessage`: it used up the 300-message cap. Harmless: needs index 0xFFFF in a strip (65536-vertex buffer,
      the data's largest is ~1200 in L1-L7). Static restart off warns per pipeline instead; restart on for lists needs
      `VK_EXT_primitive_topology_list_restart`, which MoltenVK 1.4.2 lacks.
-9. Hardening: ASan, TSan for memory-order bugs, long play sessions.
+9. Hardening: ASan, TSan for memory-order bugs, long play sessions. ASan and TSan done on scripted runs; long sessions left.
+   - Builds: `cmake -S . -B build-macos-{asan,tsan} -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo` with
+     `-DCMAKE_{C,CXX}_FLAGS="-fsanitize=address|thread -fno-omit-frame-pointer"` and the same `-fsanitize=` in
+     `-DCMAKE_{EXE,SHARED}_LINKER_FLAGS`. TSan: `TSAN_OPTIONS=suppressions=$PWD/port/tsan.supp` (audited radsound listener races).
+     Run with `SDL_AUDIODRIVER=disk SDL_DISKAUDIOFILE=<scratch>` so the mixer thread runs without speakers.
+   - Clean (Vulkan unless noted): boot to menu (also GL), `demo l1`-`l7` (ASan all; TSan l1 l3-l7), GL `demo l1`, `skipfe l2 m1 nofail`,
+     `skipfe race1` driven (`SHAR_KEY_SCRIPT="28@30000-30300,28@36000-36300,28@42000-42300,17@44000-100000"`).
+   - ASan sees system malloc, stacks and globals, not overflows inside the game's heaps (dlmalloc on big blocks).
+   - Fixed: ASan munmapped the crash handler's malloc'd sigaltstack at main-thread exit (`shar_crash.cpp` keeps an
+     existing one); mixer voice settings are relaxed atomics (`radSoundShared`, linuxhal.cpp) and `Play` checks
+     `m_Playing` under the lock; `radThread::m_IsRunning` release/acquire (arm64 could see it before `m_ReturnCode`);
+     thread start hook atomic (`win32_threads.cpp`); `radDrive::SetErrorState` sets `m_InError` under the lock.
+   - With reports pending, TSan exits through abort(): the crash handler's SIGABRT report then is TSan's, not a crash.
 10. Ship: `.app` packaging and signing; update README and TODO.
 
 Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
