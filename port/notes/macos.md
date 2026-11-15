@@ -73,6 +73,11 @@ Order of events (each step needs the one before; Linux builds must keep working 
      Tested with `open -W -n -a <app> --env HOME=<scratch> FILE... --args ...` (two .lmlm in order, non-mod folder, no files); Finder drags user-confirmed.
      Tested: FHAR Demo alone, FCM Full Game Plus + FHAR Demo (order kept), relative/missing/no-arg errors.
      Unattended: `HOME=<scratch>` with a preset `.data`, a stub `osascript` first on `PATH` (dialogs block otherwise).
+   - DMG `shar-macos-<arch>-<date>.dmg` (same script): app + `/Applications` link + `.background/background.tiff` (arrow, hint),
+     laid out by Finder via AppleScript (asks once to let the terminal control Finder), ULFO, ad hoc signed. Quick Look
+     renders SVGs square: background drawn at 2x centred on 1280x1280, `sips -c` crop, 1x + 2x in one HiDPI TIFF.
+     Finder deletes `.VolumeIcon.icns` while writing the layout: copy it + `SetFile -a C` afterwards. Bounds height
+     includes the 28-pt title bar. Refuses to run while a volume of the same name is mounted. Check: `screencapture -R`.
    - Info.plist is XML: the `&` in the name must be `&amp;` (unescaped = crossed-out icon, "app is incomplete"); the script runs `plutil -lint`.
      `spctl -a` says `rejected` (ad hoc, not notarised): expected; `malformed` is a real bundle error.
    - Icon: dev's AppImage SVG in the macOS grid (824/1024), rendered by `qlmanage -t` (no librsvg). Work files in
