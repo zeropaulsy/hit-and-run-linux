@@ -7,7 +7,6 @@ Bug reports, testing and pull requests are all welcome.
 | Branch | Use |
 |---|---|
 | [`dev`](https://github.com/zeropaulsy/hit-and-run-linux/tree/dev) | Active development. **Open pull requests against this one.** |
-| [`macOS`](https://github.com/zeropaulsy/hit-and-run-linux/tree/macOS) | macOS port work. |
 | [`main`](https://github.com/zeropaulsy/hit-and-run-linux/tree/main) | The version for players. Changes reach it from `dev`. |
 
 ## Reporting a bug
