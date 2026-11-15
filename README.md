@@ -1,4 +1,4 @@
-# The Simpsons Hit & Run: Linux port
+# The Simpsons Hit & Run: Linux/macOS port
 
 <img width="2538" height="777" alt="Screenshot From 2026-11-02 18-21-11" src="https://github.com/user-attachments/assets/d17480cd-92df-433c-88dd-12667ec562f6" />
 
