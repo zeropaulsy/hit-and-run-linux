@@ -20,7 +20,7 @@ jobs:
     name: CMakeLists.txt up to date
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: python3 port/gen_cmake.py
       - name: gen_cmake.py output matches the committed file
         run: git diff --exit-code -- CMakeLists.txt
@@ -36,7 +36,7 @@ jobs:
           - { name: x86-64 debug, arch: amd64, cmake: "-DSHAR_RAD_DEBUG=ON" }
           - { name: x86 32-bit legacy, arch: i386, cmake: "-DSHAR_64BIT=OFF" }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install dependencies
         run: |
           pkgs="libsdl2-dev libgl-dev libopenal-dev libavformat-dev libavcodec-dev libswscale-dev libswresample-dev libavutil-dev"
@@ -62,7 +62,7 @@ jobs:
     name: macOS arm64
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install dependencies
         env:
           HOMEBREW_NO_AUTO_UPDATE: 1
