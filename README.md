@@ -85,20 +85,6 @@ never adapted for PC keys.
 
 ## Building from source
 
-### Linux:
-```bash
-sudo apt install cmake ninja-build python3 build-essential \
-    libsdl2-dev libgl-dev libvulkan-dev libopenal-dev \
-    libavformat-dev libavcodec-dev libswscale-dev libswresample-dev libavutil-dev
-```
-Then:
-```bash
-cmake -B build-linux -G Ninja                              # release build
-cmake -B build-linux-debug -G Ninja -DSHAR_RAD_DEBUG=ON    # debug build: asserts and Radical's debug output
-ninja -C build-linux
-port/play.sh --data DIR                                    # builds and runs it (configures build-linux if needed)
-```
-
 ### macOS (work in progress)
 
 You need the Xcode Command Line Tools and [Homebrew](https://brew.sh/), with `brew` on your `PATH`:
@@ -129,9 +115,7 @@ its headers.
 
 The game runs on Vulkan through MoltenVK, or OpenGL 4.1 if the GPU doesn't get Vulkan 1.3. On macOS, High shadows run as Low, and 8x anti-aliasing drops to 4x on an Apple M2.
 
-Boot movies only play in the release build. `port/package.sh` (`--32` legacy 32-bit build) makes a self-contained
-tarball for another Linux machine; add `--noble` to build it in an Ubuntu 24.04 container (needs `podman`) so it runs
-on Ubuntu 24.04 / Linux Mint 22 and newer, not just on systems as new as yours. The porting details are in [`CLAUDE.md`](CLAUDE.md).
+Boot movies only play in the release build. The porting details are in [`CLAUDE.md`](CLAUDE.md).
 
 `CMakeLists.txt` is generated from the original Visual Studio projects: change `port/gen_cmake.py`, never the generated file.
 
