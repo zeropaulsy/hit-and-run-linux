@@ -128,7 +128,7 @@ misbehaves, report the mod's name and version along with `run/logs/last-session.
 | Linux x86 (32-bit, legacy) | **Playable.** Tested through Level 1 - 7 |
 | Vulkan renderer | **Default.** Tested on NVIDIA and Mesa's software driver (lavapipe); AMD / Intel hardware not yet. OpenGL is the fallback |
 | Windows x64 | Planned |
-| macOS (Apple silicon / Intel) | **In development.** See the [`macOS` branch](https://github.com/zeropaulsy/hit-and-run-linux/tree/macOS) |
+| macOS (Apple silicon / Intel) | **In development** on the [`dev` branch](https://github.com/zeropaulsy/hit-and-run-linux/tree/dev). Builds and runs on an Apple M2 (Vulkan through MoltenVK) and on Intel with Big Sur (OpenGL). No full play session yet |
 | Android / handhelds | Possible later: the renderer and input layers already allow it |
 
 ## Credits
