@@ -107,7 +107,22 @@ Order of events (each step needs the one before; Linux builds must keep working 
      `m_Playing` under the lock; `radThread::m_IsRunning` release/acquire (arm64 could see it before `m_ReturnCode`);
      thread start hook atomic (`win32_threads.cpp`); `radDrive::SetErrorState` sets `m_InError` under the lock.
    - With reports pending, TSan exits through abort(): the crash handler's SIGABRT report then is TSan's, not a crash.
-10. Ship: `.app` packaging and signing; update README and TODO.
+10. Ship: `.app` packaging and signing; update README and TODO. Prerelease packaging done, the user's test of the zip on a clean Mac left.
+   - `port/package_macos.sh [--no-build]` -> `dist/macos/Simpsons Hit & Run.app` + `shar-macos-arm64-<date>.zip` (README from
+     `port/dist_README_macos.md`); symbols + dSYM in `dist/symbols/macos-arm64-<UUID>/`. `macos_bundle_libs.py` copies Homebrew
+     dylibs into Frameworks, rewrites them to `@rpath`, fails on any leftover outside reference. Ad hoc signed, not notarised.
+   - Run-time loads are bundled by hand: sdl2-compat dlopens `@loader_path/libSDL3.dylib`; the launcher sets `SDL_VULKAN_LIBRARY`
+     (bundled loader) and `VK_DRIVER_FILES` (Resources ICD json -> bundled MoltenVK).
+   - Executable `launch` is a Mach-O stub running `Resources/launch.sh` (a script as CFBundleExecutable can't be signed). The
+     script asks for the data folder (Option held: ask again), runs in `~/Library/Application Support/Simpsons Hit & Run/`.
+   - Info.plist is XML: the `&` in the name must be `&amp;` (unescaped = crossed-out icon, "app is incomplete"); the script runs `plutil -lint`.
+     `spctl -a` says `rejected` (ad hoc, not notarised): expected; `malformed` is a real bundle error.
+   - Icon: dev's AppImage SVG in the macOS grid (824/1024), rendered by `qlmanage -t` (no librsvg). Work files in
+     `dist/macos/work/`, overwritten each run; every `rm` in the script is guarded with `${VAR:?}`.
+   - `LSMinimumSystemVersion` is the highest bundled minos: 26.0 with Tahoe Homebrew bottles. Older macOS needs deps built
+     with a lower `MACOSX_DEPLOYMENT_TARGET`.
+   - Test unattended with `HOME=<scratch>` and a preset `.data`. `DYLD_*` doesn't reach the game through the launcher
+     (SIP strips it at `/bin/bash`): run `Contents/MacOS/Simpsons` directly with the two env vars to check loads.
 
 Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
 - Apple GL: `glBufferSubData` on a buffer in use submits and waits for the GPU, even in an unused region (60% of the main
@@ -134,7 +149,7 @@ Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
 - GL fallback: 3.3 core is available but deprecated on macOS; surfaceless worker contexts are Wayland-only (platform.md).
 - Hardware differences that can expose bugs: weak memory order (x86 forgave unsynchronised flag handoffs between
   threads); out-of-range float -> int saturates (x86: INT_MIN). `char` stays signed on Apple arm64.
-- Tools to replace: valgrind `memcheck.sh` (use ASan), `package.sh`/`--noble` (needs an .app, signing).
+- Tools to replace: valgrind `memcheck.sh` (use ASan); `package.sh` -> `package_macos.sh`.
 - Filesystem is case-insensitive by default: no two tracked paths may differ only in case.
 - Keep the checkout out of iCloud-synced folders (`~/Documents`, `~/Desktop`): sync conflicts leave `name 2.a` copies in build output and could do the same in `.git`. Use `~/Developer`.
 - Intel x86_64 Mac (Big Sur with MacPorts tested; Homebrew at `/usr/local` not): same build, `-DCMAKE_OSX_ARCHITECTURES=x86_64`.
