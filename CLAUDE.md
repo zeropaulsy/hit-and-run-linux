@@ -1,6 +1,6 @@
 # CLAUDE.md: The Simpsons Hit & Run, native Linux port
 
-Port of the 2003 source to Linux (x86-64 default, 32-bit legacy), SDL2 + Vulkan 1.3 (default) or OpenGL 3.3 core
+Port of the 2003 source to Linux (x86-64 default, 32-bit legacy) and macOS (arm64; Intel builds, `port/notes/macos.md`), SDL2 + Vulkan 1.3 (default) or OpenGL 3.3 core
 (fallback, `renderer=opengl`). Original dump:
 `~/Documents/Decomp/hitnrun_source/game` (never modify). Base game plays end to end (all story missions, bonus missions, street races); retail PC
 data works; Mod Launcher mods partly. Missing: steering-wheel FFB. `README.md` user overview, `TODO.md` checklist, `DONE.md` completed checklist,
@@ -9,7 +9,8 @@ data works; Mod Launcher mods partly. Missing: steering-wheel FFB. `README.md` u
 ## Notes: read only the file for the subsystem you touch
 | file | covers |
 |---|---|
-| `port/notes/build.md` | tools, gen_cmake rules, allocator isolation, GCC/MSVC differences, radscript, 64-bit, macOS arm64 port |
+| `port/notes/build.md` | tools, gen_cmake rules, allocator isolation, GCC/MSVC differences, radscript, 64-bit, Linux optimisation |
+| `port/notes/macos.md` | macOS arm64/Intel port: build, run, status, Apple toolchain/GL/MoltenVK rules, sanitizers, `.app` packaging |
 | `port/notes/renderer.md` | GL pipeline, D3D8 parity fixes, textures, MSAA, user post/material shaders, aspect/resolutions |
 | `port/notes/vulkan.md` | Vulkan renderer: status, goals, next steps, testing, design |
 | `port/notes/platform.md` | window/Wayland/GPU driver quirks, threads, frame timing/loading, input, audio, movies, files |
@@ -28,6 +29,7 @@ port/                  everything added: gen_cmake.py (-> CMakeLists.txt, never 
 shaders/               shader packs: vanilla-pack (all examples), soft-pack, toon-pack (shaders/README.md)
 build-linux/ release   build-linux-debug/ asserts   build-linux-asan/   build-linux-audit/ all warnings   (x86-64)
 build-linux32[-debug]/ legacy 32-bit (-DSHAR_64BIT=OFF; play.sh/package.sh --32)
+build-macos[-asan|-tsan]/ macOS (RelWithDebInfo by default)
 run/                   run dir (ignored, user's ini/saves). Experiments: own run dir in scratchpad via SHAR_RUN
 ```
 
