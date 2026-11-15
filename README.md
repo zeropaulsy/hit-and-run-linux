@@ -23,7 +23,9 @@ optional post-processing shaders.
 
 ## Running
 
-**Download the latest release, [v0.3.0](https://github.com/zeropaulsy/hit-and-run-linux/releases/tag/v0.3.0)**: a
+[![Latest release](https://img.shields.io/github/v/release/zeropaulsy/hit-and-run-linux?label=latest%20release)](https://github.com/zeropaulsy/hit-and-run-linux/releases/latest)
+
+**[Download the latest release](https://github.com/zeropaulsy/hit-and-run-linux/releases/latest)**: a
 Linux tarball and AppImage, and a macOS app (prerelease). The release notes explain how to start it; older builds
 are on the [Releases](https://github.com/zeropaulsy/hit-and-run-linux/releases) page.
 
