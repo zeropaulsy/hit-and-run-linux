@@ -290,3 +290,6 @@ Docs: docs.donutteam.com/docs/LucasSimpsonsHitAndRunModLauncher/
   426.5,36.3,-1145.9, Observatory -67.4,33.5,-991.1. Its L2/L5 interiors lie outside the L2 render tree (data issue).
   Bridge-road traffic unchecked.
 - SHAR Remastered 1.0: boots.
+- macOS arm64 (M2, Vulkan, scripted `skipfe l1`, read in place from .lmlm): FHAR Demo 0.1.3 reaches L1, Fry walks (HUD, radar);
+  FCM Full Game Plus (newer than 1.0.7) reaches the L1 tutorial: Lua redirects run, 14 files with entry flags 0x6, FileSystemRCFs
+  unsupported. Not hand-played on the Mac; FCM Full Game Plus content beyond L1 unchecked on any platform.

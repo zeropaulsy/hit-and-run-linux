@@ -29,6 +29,9 @@ GL pddi was never finished against D3D8 (shipped game used pddidx8): when someth
 - Mipmaps: glGenerateMipmap for uncompressed; trilinear + anisotropy (`pglTexture::SetSampling`; ini `mipmaps=`,
   `anisotropy=`; runtime-changeable). Alpha-tested non-blended: alpha +25% per mip level (uMipAlpha) against thinning.
 - GL_OUT_OF_MEMORY upload: reported once, retried.
+- Every sampler a program declares needs a complete texture, used or not (Apple GL: `unit N GLD_TEXTURE_INDEX_2D is
+  unloadable`). Untextured materials bind `pglPipeline::BindWhiteTexture` on unit 0; custom shaders (built with
+  `REFLECTION 1`) and reflection materials without a map also on unit 1 (`glmat.cpp SetupStandard`).
 - Power-of-two sizes only (D3D8 rule, `PDDI_TEX_NOT_POW_2`), except uncompressed `PDDI_USAGE_DYNAMIC` textures
   (mods' video textures): Lock() sizes from xSize/ySize.
 

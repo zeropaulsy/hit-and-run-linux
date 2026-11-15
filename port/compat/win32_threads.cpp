@@ -114,7 +114,13 @@ namespace
         if(closed) FreeObject(t);            // nobody holds the handle any more
     }
 
-    void (*volatile s_threadStartHook)(void) = NULL;
+    void (*s_threadStartHook)(void) = NULL;   // atomic: set by the renderer after some threads started
+
+    void RunStartHook(void)
+    {
+        void (*hook)(void) = __atomic_load_n(&s_threadStartHook, __ATOMIC_ACQUIRE);
+        if(hook) hook();
+    }
 
     void* ThreadTrampoline(void* arg)
     {
@@ -129,7 +135,7 @@ namespace
         pthread_mutex_unlock(&t->lock);
 
         shar_CrashThreadInit();
-        if(s_threadStartHook) s_threadStartHook();
+        RunStartHook();
         DWORD code = t->start(t->param);
         shar_CrashThreadExit();
         FinishThread(t, code);
@@ -151,12 +157,12 @@ namespace
 
 extern "C" void shar_SetThreadStartHook(void (*hook)(void))
 {
-    s_threadStartHook = hook;
+    __atomic_store_n(&s_threadStartHook, hook, __ATOMIC_RELEASE);
 }
 
 extern "C" void shar_RunThreadStartHook(void)
 {
-    if(s_threadStartHook) s_threadStartHook();
+    RunStartHook();
 }
 
 extern "C" HANDLE CreateSemaphore(LPSECURITY_ATTRIBUTES, LONG initialCount, LONG maximumCount, LPCSTR)

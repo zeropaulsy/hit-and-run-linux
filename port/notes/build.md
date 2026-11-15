@@ -43,7 +43,7 @@
 - Saves layout-identical (CharacterSheet 7140, SaveGameInfoData 16).
 - Verified: L1-7, races, interiors, bonus game, mods, ASan clean; `package.sh`. Not yet: long sessions.
 
-## macOS arm64 (branch `mac-arm64`; in progress, steps 1-6 done, step 7 open items left, step 8 awaiting the user's play test)
+## macOS arm64 (branch `macOS`; in progress, steps 1-6 done, step 7 open items left, step 8 awaiting the user's play test)
 Status: native on an Apple M2, Vulkan via MoltenVK by default, OpenGL 4.1 as fallback. Scripted runs only on Vulkan; no full play session yet.
 - Build: `export PATH=/opt/homebrew/bin:$PATH; ninja -C build-macos -j8` (`cmake -S . -B build-macos -G Ninja` if missing).
 - Run (`run/` holds symlinks to `game-files/` and a copy of `shaders/`; both ignored by git):
@@ -53,8 +53,8 @@ Status: native on an Apple M2, Vulkan via MoltenVK by default, OpenGL 4.1 as fal
   ~165 fps; with the example shaders ~85 fps. Vulkan with the example shaders ~167 fps (GL ~80 in the same run), + `SHAR_SUN=low`
   ~133 fps. A self-running demo, not real play: the user's own test is still to do.
 - Next: the user plays on Vulkan, then step 9.
-- Open: Apple GL logged `unit 0 GLD_TEXTURE_INDEX_2D is unloadable` once (a draw with an incomplete texture; cause not
-  found). 30 scripted methods return float, `InvokeVf64` reads the integer register (as on x86-64). Linux x86-64 rechecked after these changes: builds with GCC 15, `gen_cmake.py` output unchanged, scripted runs pass on both renderers.
+- Linux x86-64 rechecked after these changes: builds with GCC 15, `gen_cmake.py` output unchanged, scripted runs pass on both renderers.
+- Linux: the user built this branch there with no issues and it works on the surface; not extensively played.
 - Linux builds have no optimisation either: `gen_cmake.py` sets no build type there, and play.sh/package.sh pass none.
   GCC `-O2` needs `-fno-lifetime-dse`: without it `AnimatedIcon::operator new`'s `mAllocated = true` is dropped, a pool slot is
   handed out twice, SIGSEGV in `AnimatedIcon::Move` (`demo l1`, ~30 s). With the flag: `demo l1`-`l7` clean; ~24% less CPU, same fps on Iris Plus.
@@ -88,9 +88,41 @@ Order of events (each step needs the one before; Linux builds must keep working 
      ignores `SHAR_RESIZE_SCRIPT`), no ini = Vulkan, GL fallback with `SDL_VULKAN_LIBRARY=/nonexistent` and `VK_DRIVER_FILES=/nonexistent.json`.
    - Sun: no ray queries, so Low only (`SHAR_SUN=1` runs Low): bridge girder shadows seen in `demo l1`.
    - User confirmed on Vulkan: Low shadows, gamma. Not reported: stutter on first use, Cmd+Q, a full play session.
-   - Not checked: validation layer (`vulkan-validationlayers` not installed).
-9. Hardening: ASan, TSan for memory-order bugs, long play sessions.
-10. Ship: `.app` packaging and signing; update README and TODO.
+   - Validation (`SHAR_VK_DEBUG=1`, Homebrew `vulkan-validationlayers` 1.4.363): no messages on boot movies and front end;
+     with `VK_KHRONOS_VALIDATION_VALIDATE_SYNC=true` none on `demo l1`-`l7`, MSAA 0/2/4x, shaders off, window resize + minimise. MoltenVK's
+     `Metal does not support disabling primitive restart` (each `vkCmdSetPrimitiveRestartEnable(FALSE)`) is filtered in
+     `vkcore.cpp DebugMessage`: it used up the 300-message cap. Harmless: needs index 0xFFFF in a strip (65536-vertex buffer,
+     the data's largest is ~1200 in L1-L7). Static restart off warns per pipeline instead; restart on for lists needs
+     `VK_EXT_primitive_topology_list_restart`, which MoltenVK 1.4.2 lacks.
+9. Hardening: ASan, TSan for memory-order bugs, long play sessions. ASan and TSan done on scripted runs; long sessions left.
+   - Builds: `cmake -S . -B build-macos-{asan,tsan} -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo` with
+     `-DCMAKE_{C,CXX}_FLAGS="-fsanitize=address|thread -fno-omit-frame-pointer"` and the same `-fsanitize=` in
+     `-DCMAKE_{EXE,SHARED}_LINKER_FLAGS`. TSan: `TSAN_OPTIONS=suppressions=$PWD/port/tsan.supp` (audited radsound listener races).
+     Run with `SDL_AUDIODRIVER=disk SDL_DISKAUDIOFILE=<scratch>` so the mixer thread runs without speakers.
+   - Clean (Vulkan unless noted): boot to menu (also GL), `demo l1`-`l7` (ASan all; TSan l1 l3-l7), GL `demo l1`, `skipfe l2 m1 nofail`,
+     `skipfe race1` driven (`SHAR_KEY_SCRIPT="28@30000-30300,28@36000-36300,28@42000-42300,17@44000-100000"`).
+   - ASan sees system malloc, stacks and globals, not overflows inside the game's heaps (dlmalloc on big blocks).
+   - Fixed: ASan munmapped the crash handler's malloc'd sigaltstack at main-thread exit (`shar_crash.cpp` keeps an
+     existing one); mixer voice settings are relaxed atomics (`radSoundShared`, linuxhal.cpp) and `Play` checks
+     `m_Playing` under the lock; `radThread::m_IsRunning` release/acquire (arm64 could see it before `m_ReturnCode`);
+     thread start hook atomic (`win32_threads.cpp`); `radDrive::SetErrorState` sets `m_InError` under the lock.
+   - With reports pending, TSan exits through abort(): the crash handler's SIGABRT report then is TSan's, not a crash.
+10. Ship: `.app` packaging and signing; update README and TODO. Prerelease packaging done, the user's test of the zip on a clean Mac left.
+   - `port/package_macos.sh [--no-build]` -> `dist/macos/Simpsons Hit & Run.app` + `shar-macos-arm64-<date>.zip` (README from
+     `port/dist_README_macos.md`); symbols + dSYM in `dist/symbols/macos-arm64-<UUID>/`. `macos_bundle_libs.py` copies Homebrew
+     dylibs into Frameworks, rewrites them to `@rpath`, fails on any leftover outside reference. Ad hoc signed, not notarised.
+   - Run-time loads are bundled by hand: sdl2-compat dlopens `@loader_path/libSDL3.dylib`; the launcher sets `SDL_VULKAN_LIBRARY`
+     (bundled loader) and `VK_DRIVER_FILES` (Resources ICD json -> bundled MoltenVK).
+   - Executable `launch` is a Mach-O stub running `Resources/launch.sh` (a script as CFBundleExecutable can't be signed). The
+     script asks for the data folder (Option held: ask again), runs in `~/Library/Application Support/Simpsons Hit & Run/`.
+   - Info.plist is XML: the `&` in the name must be `&amp;` (unescaped = crossed-out icon, "app is incomplete"); the script runs `plutil -lint`.
+     `spctl -a` says `rejected` (ad hoc, not notarised): expected; `malformed` is a real bundle error.
+   - Icon: dev's AppImage SVG in the macOS grid (824/1024), rendered by `qlmanage -t` (no librsvg). Work files in
+     `dist/macos/work/`, overwritten each run; every `rm` in the script is guarded with `${VAR:?}`.
+   - `LSMinimumSystemVersion` is the highest bundled minos: 26.0 with Tahoe Homebrew bottles. Older macOS needs deps built
+     with a lower `MACOSX_DEPLOYMENT_TARGET`.
+   - Test unattended with `HOME=<scratch>` and a preset `.data`. `DYLD_*` doesn't reach the game through the launcher
+     (SIP strips it at `/bin/bash`): run `Contents/MacOS/Simpsons` directly with the two env vars to check loads.
 
 Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
 - Apple GL: `glBufferSubData` on a buffer in use submits and waits for the GPU, even in an unused region (60% of the main
@@ -107,7 +139,9 @@ Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
   that returns memory the game would free (`nm -u srr2 | c++filt`), so `std::string` etc. must stay out of game code.
 - radscript `InvokeVf64` on Apple arm64: `this` + 7 ints in x0-x7, 8 floats in v0-v7. Stack args are packed to natural
   size, so one signature can't place them: `TypeInfoMethod.cpp` aborts on a method needing them. `srrtypes.typ` (454
-  methods, at most 6 parameters) has none.
+  methods, at most 6 parameters) has none. Float returns (30 radsound `Get*` methods) come back wrong on every
+  platform (Win32's was in ST0, not EAX), but it doesn't matter: every `Invoke` caller ignores the result
+  (`radscript.hpp OnMethod`, typeinfodistributor), game code never calls the API, and `scripts.rcf` only calls setters.
 - GL debug output (`SHAR_GL_DEBUG`) is compiled out: macOS OpenGL stops at 4.1.
 - Vulkan via MoltenVK: 1.4.2 on an M2 reports Vulkan 1.4, so `vkcore.cpp`'s 1.3 check passes. `__APPLE__` code enables
   `VK_KHR_portability_enumeration` + `VK_KHR_portability_subset` (features as offered). `pointPolygons` is false: point fill draws solid
@@ -115,7 +149,7 @@ Rules and remaining blockers. Toolchain rules go in `gen_cmake.py`.
 - GL fallback: 3.3 core is available but deprecated on macOS; surfaceless worker contexts are Wayland-only (platform.md).
 - Hardware differences that can expose bugs: weak memory order (x86 forgave unsynchronised flag handoffs between
   threads); out-of-range float -> int saturates (x86: INT_MIN). `char` stays signed on Apple arm64.
-- Tools to replace: valgrind `memcheck.sh` (use ASan), `package.sh`/`--noble` (needs an .app, signing).
+- Tools to replace: valgrind `memcheck.sh` (use ASan); `package.sh` -> `package_macos.sh`.
 - Filesystem is case-insensitive by default: no two tracked paths may differ only in case.
 - Keep the checkout out of iCloud-synced folders (`~/Documents`, `~/Desktop`): sync conflicts leave `name 2.a` copies in build output and could do the same in `.git`. Use `~/Developer`.
 - Intel x86_64 Mac (Big Sur with MacPorts tested; Homebrew at `/usr/local` not): same build, `-DCMAKE_OSX_ARCHITECTURES=x86_64`.

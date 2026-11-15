@@ -44,6 +44,13 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessage(VkDebugUtilsMessageSeverityFl
                                                    VkDebugUtilsMessageTypeFlagsEXT type,
                                                    const VkDebugUtilsMessengerCallbackDataEXT* data, void* user)
 {
+#ifdef __APPLE__
+    // MoltenVK, on every vkCmdSetPrimitiveRestartEnable(FALSE) (each command buffer, vkpipeline.cpp): Metal always
+    // restarts strips at index 0xFFFF. Harmless (needs a 65536-vertex buffer; the data's largest is ~1200), and any
+    // other way of turning restart off warns too. Skipped so it doesn't use up the 300 messages below.
+    if(data->pMessage && strstr(data->pMessage, "does not support disabling primitive restart"))
+        return VK_FALSE;
+#endif
     static int s_count = 0;
     if(s_count++ < 300)
         fprintf(stderr, "Vulkan %s: %s\n", severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT ? "error" : "warning",

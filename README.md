@@ -1,4 +1,4 @@
-# The Simpsons Hit & Run: Linux port
+# The Simpsons Hit & Run: Linux/macOS port
 
 <img width="2538" height="777" alt="Screenshot From 2026-11-02 18-21-11" src="https://github.com/user-attachments/assets/d17480cd-92df-433c-88dd-12667ec562f6" />
 
@@ -144,7 +144,8 @@ The game runs on Vulkan through MoltenVK, or OpenGL 4.1 if the GPU doesn't get V
 
 Boot movies only play in the release build. `port/package.sh` (`--32` legacy 32-bit build) makes a self-contained
 tarball for another Linux machine; add `--noble` to build it in an Ubuntu 24.04 container (needs `podman`) so it runs
-on Ubuntu 24.04 / Linux Mint 22 and newer, not just on systems as new as yours. `--appimage` also makes a single-file `.AppImage` of the x86-64 bundle. The porting details are in [`CLAUDE.md`](CLAUDE.md).
+on Ubuntu 24.04 / Linux Mint 22 and newer, not just on systems as new as yours. `--appimage` also makes a single-file `.AppImage` of the x86-64 bundle. On macOS, `port/package_macos.sh` makes an
+ad hoc signed `.app` and a zip of it (prerelease: not notarised). The porting details are in [`CLAUDE.md`](CLAUDE.md).
 
 `CMakeLists.txt` is generated from the original Visual Studio projects: change `port/gen_cmake.py`, never the generated file.
 
