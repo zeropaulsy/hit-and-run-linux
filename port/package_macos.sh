@@ -77,16 +77,33 @@ cat > "$C/Resources/launch.sh" <<'EOF'
 # Starts the game. The first time it asks for the PC game's data folder (holding art/, scripts/ and the .rcf files)
 # and makes ~/Library/Application Support/Simpsons Hit & Run/ with links to it and copies of simpsons.ini and the
 # saves (the game writes those) and of the shaders. Log: logs/last-session.log there. Hold Option while starting to
-# pick another data folder. Arguments after `open -a "Simpsons Hit & Run" --args` go to the game.
+# pick another data folder. Arguments after `open -a "Simpsons Hit & Run" --args` go to the game, except
+# --mod MOD (repeatable): a Mod Launcher .lmlm file or extracted mod folder, given as a full path (open -a starts the
+# app in /, so relative paths can't be resolved); earlier mods win when two provide the same file (SHAR_MODS).
 C=$(cd "$(dirname "$0")/.." && pwd)
 HERE=$C/MacOS
 APPNAME="Simpsons Hit & Run"
 RUN=$HOME/Library/Application\ Support/$APPNAME
 mkdir -p "$RUN/logs"
-ARGS=()
-for a in "$@"; do case "$a" in -psn_*) ;; *) ARGS+=("$a") ;; esac; done
 
 alert() { osascript -e "display alert \"$APPNAME\" message \"$1\" as critical" > /dev/null 2>&1; }
+add_mod() {
+    case "$1" in /*) ;; *) alert "Give mods as full paths (starting with / or ~): $1"; exit 1 ;; esac
+    case "$1" in *:*) alert "Mod paths cannot contain a colon: $1"; exit 1 ;; esac
+    [ -e "$1" ] || { alert "Mod not found: $1"; exit 1; }
+    MODS=${MODS:+$MODS:}${1%/}
+}
+ARGS=()
+MODS=
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -psn_*) shift ;;
+        --mod) [ $# -ge 2 ] || { alert "--mod needs a .lmlm file or a mod folder."; exit 1; }; add_mod "$2"; shift 2 ;;
+        --mod=*) add_mod "${1#--mod=}"; shift ;;
+        *) ARGS+=("$1"); shift ;;
+    esac
+done
+
 has_data() { [ -n "$(find -L "$1" -maxdepth 1 -type d -iname art)" ] && [ -n "$(find -L "$1" -maxdepth 1 -type d -iname scripts)" ]; }
 option_held() {
     osascript -l JavaScript -e 'ObjC.import("AppKit"); ($.NSEvent.modifierFlags & $.NSEventModifierFlagOption) ? "1" : ""' 2> /dev/null
@@ -123,6 +140,7 @@ done
 
 export SDL_VULKAN_LIBRARY=$C/Frameworks/libvulkan.1.dylib
 export VK_DRIVER_FILES=$C/Resources/vulkan/icd.d/MoltenVK_icd.json
+[ -z "$MODS" ] || export SHAR_MODS=$MODS
 cd "$RUN"
 exec "$HERE/Simpsons" "${ARGS[@]}" > "$RUN/logs/last-session.log" 2>&1
 EOF

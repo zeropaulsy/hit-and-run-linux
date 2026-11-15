@@ -29,3 +29,14 @@ folder itself is left untouched; settings and saves already in it are copied in 
 - Game options can be passed from Terminal: `open -a "Simpsons Hit & Run" --args console` (the developer console; toggle
   it with the ` key and type `help`).
 - Renderer, anti-aliasing, shaders and shadows: Options > Graphics. Shadows are Low only on the Mac (no ray tracing).
+
+## Mods (experimental)
+
+Lucas' Mod Launcher mods load without the launcher. Start the app from Terminal with `--mod` and the mod's full path:
+a `.lmlm` package or an extracted mod folder (the one holding `Meta.ini`):
+```bash
+open -a "Simpsons Hit & Run" --args --mod ~/mods/SomeMod.lmlm --mod ~/mods/AnotherModFolder
+```
+- Repeat `--mod` to load several. If two mods replace the same file, the one given first wins.
+- Mods load only for that start. Start the app normally to play the unmodded game.
+- Total-conversion mods keep their own saves in `ModSaves/` in the folder above.

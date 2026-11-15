@@ -66,6 +66,9 @@ Order of events (each step needs the one before; Linux builds must keep working 
      (bundled loader) and `VK_DRIVER_FILES` (Resources ICD json -> bundled MoltenVK).
    - Executable `launch` is a Mach-O stub running `Resources/launch.sh` (a script as CFBundleExecutable can't be signed). The
      script asks for the data folder (Option held: ask again), runs in `~/Library/Application Support/Simpsons Hit & Run/`.
+     `--mod PATH` (repeatable, also `--mod=`) -> `SHAR_MODS`; full paths only (`open -a` starts in `/`), errors are dialogs.
+     Tested: FHAR Demo alone, FCM Full Game Plus + FHAR Demo (order kept), relative/missing/no-arg errors.
+     Unattended: `HOME=<scratch>` with a preset `.data`, a stub `osascript` first on `PATH` (dialogs block otherwise).
    - Info.plist is XML: the `&` in the name must be `&amp;` (unescaped = crossed-out icon, "app is incomplete"); the script runs `plutil -lint`.
      `spctl -a` says `rejected` (ad hoc, not notarised): expected; `malformed` is a real bundle error.
    - Icon: dev's AppImage SVG in the macOS grid (824/1024), rendered by `qlmanage -t` (no librsvg). Work files in
