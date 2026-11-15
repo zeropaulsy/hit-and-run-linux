@@ -28,6 +28,34 @@
   timing vary: scratch run dir without the `movies` link -> main menu at ~12 s (Right x3 + Enter = Options; Options
   remembers its last item, so Up x6 to reach Display). Pause menu with `skipfe`: Esc at ~30 s, Down x4 = Options.
 
+## Environment switches
+| Variable | Effect |
+|---|---|
+| `SHAR_FPS_CAP=n` | Frame-rate cap (default 60, 0 = off) |
+| `SHAR_VSYNC=0` | Turn vsync off |
+| `SHAR_FRAME_LOG=1` | Print a frame-time histogram every 5 s |
+| `SHAR_NO_AUDIO=1` | Run without an audio device |
+| `SHAR_SHOT_EVERY=n` | Save `shot_NNN.png` in the run directory every n seconds |
+| `SHAR_KEY_SCRIPT="dik@start-end,..."` | Hold DirectInput key codes during time windows (ms; 1000+n = mouse button n) |
+| `SHAR_RESIZE_SCRIPT="WxH@ms,..."` | Resize the window at those times |
+| `SHAR_QUIT_AT=ms` | Close the window at that time (tests shutting down from any context) |
+| `SHAR_KEYPRESS_SCRIPT="M@ms,..."` | Press keys (SDL key names) at those times, through the window's event queue |
+| `SHAR_INPUT_LOG`, `SHAR_NO_INPUT`, `SHAR_NO_MOUSE`, `SHAR_FORCE_MOUSELOOK` | Input debugging |
+| `SHAR_ASSERT_ABORT=1` | Make failed asserts abort instead of logging |
+| `SHAR_LOAD_BUDGET_MS=n` | Time per frame given to the background loader |
+| `SHAR_CRASH_HANDLER=0` | Don't install the crash-report signal handler |
+| `SHAR_MSAA=n` | Anti-aliasing samples, overriding `simpsons.ini` and Options > Graphics (0 = off) |
+| `SHAR_ALPHA_TO_COVERAGE=0` | Hard edges on cut-out textures even with anti-aliasing |
+| `SHAR_MIPMAPS=0`, `SHAR_ANISOTROPY=n` | Texture filtering, overriding `simpsons.ini` |
+| `SHAR_SHADERS=dir`, `SHAR_POST=0` | Shaders folder (default `shaders/`), or one pack in it; post-processing off |
+| `SHAR_MATERIAL_LOG=1` | Print each material's name and type when first drawn (for `materials.ini`) |
+| `SHAR_RENDERER=vulkan\|opengl` | Renderer, overriding `simpsons.ini` and Options > Graphics |
+| `SHAR_SUN=0\|low\|1` | Sun shadows off, Low or High, overriding `simpsons.ini` (0 also skips the ray-tracing setup) |
+| `SHAR_SUN_SOFT`, `SHAR_SUN_RAYS`, `SHAR_SUN_SHADOW`, `SHAR_SUN_ELEVATION`, ... | Sun tuning: edge softness, rays, shade brightness, sun height (all listed in `port/notes/vulkan.md`) |
+| `SHAR_VK_DEBUG=1`, `SHAR_VK_DEVICE=n` | Vulkan validation layers; pick the n-th GPU |
+| `SHAR_VK_PIPELINE_CACHE=0` | Don't read or write `vkpipelines.cache` |
+| `SHAR_GL_DEBUG=1`, `SHAR_GL_STATS=1` | OpenGL debug messages; per-frame draw/upload counts and render times (both renderers) |
+
 ## Memcheck (`port/memcheck.sh`)
 - Valgrind fetched/set up on first use (unstripped i386 ld.so built), `--soname-synonyms=somalloc=nouserintercepts`,
   `--fair-sched=yes` (else load thread starves). Game heaps/FBMemoryPool marked undefined on alloc.
