@@ -61,16 +61,54 @@ cp "$C/MacOS/Simpsons" "$SYM/Simpsons"
 dsymutil "$SYM/Simpsons" -o "$SYM/Simpsons.dSYM" 2> /dev/null
 strip -S -x "$C/MacOS/Simpsons"
 
-# The bundle's executable must be Mach-O to carry a signature: a stub that runs Resources/launch.sh
-printf '%s\n' '#include <mach-o/dyld.h>' '#include <libgen.h>' '#include <limits.h>' '#include <stdio.h>' \
-    '#include <stdlib.h>' '#include <unistd.h>' \
-    'int main(int argc, char** argv) { char exe[PATH_MAX], real[PATH_MAX], sh[PATH_MAX * 2]; uint32_t n = sizeof exe;' \
-    '  if (_NSGetExecutablePath(exe, &n) || !realpath(exe, real)) return 1;' \
-    '  snprintf(sh, sizeof sh, "%s/../Resources/launch.sh", dirname(real));' \
-    '  char** a = calloc(argc + 2, sizeof *a); a[0] = "/bin/bash"; a[1] = sh;' \
-    '  for (int i = 1; i < argc; i++) a[i + 1] = argv[i];' \
-    '  execv(a[0], a); perror(sh); return 1; }' > "$WORK/launch.c"
-cc -O2 -arch "$ARCH" -mmacosx-version-min="$MINOS" -o "$C/MacOS/launch" "$WORK/launch.c"
+# The bundle's executable must be Mach-O to carry a signature: a stub that runs Resources/launch.sh. It starts AppKit
+# only to receive the files the app was opened with (dropped on its icon, Open With, `open -a App file`): AppKit
+# delivers them before applicationDidFinishLaunching, which then execs launch.sh with each file as --mod. Exec keeps
+# the process, so the game runs as the app (Dock icon, Cmd+Q). Files dropped while the game runs are ignored.
+cat > "$WORK/launch.m" <<'EOF'
+#import <AppKit/AppKit.h>
+#include <mach-o/dyld.h>
+#include <libgen.h>
+#include <limits.h>
+static int gArgc;
+static char** gArgv;
+static NSMutableArray<NSString*>* gFiles;
+@interface Launcher : NSObject <NSApplicationDelegate>
+@end
+@implementation Launcher
+- (void)application:(NSApplication*)app openURLs:(NSArray<NSURL*>*)urls {
+    for (NSURL* u in urls)
+        if (u.isFileURL) [gFiles addObject:u.path];
+}
+- (void)applicationDidFinishLaunching:(NSNotification*)note {
+    char exe[PATH_MAX], real[PATH_MAX], sh[PATH_MAX * 2];
+    uint32_t n = sizeof exe;
+    if (_NSGetExecutablePath(exe, &n) || !realpath(exe, real)) exit(1);
+    snprintf(sh, sizeof sh, "%s/../Resources/launch.sh", dirname(real));
+    char** a = calloc(gArgc + 2 + 2 * gFiles.count, sizeof *a);
+    int k = 0;
+    a[k++] = "/bin/bash";
+    a[k++] = sh;
+    for (int i = 1; i < gArgc; i++) a[k++] = gArgv[i];
+    for (NSString* f in gFiles) { a[k++] = "--mod"; a[k++] = strdup(f.fileSystemRepresentation); }
+    execv(a[0], a);
+    perror(sh);
+    exit(1);
+}
+@end
+int main(int argc, char** argv) {
+    gArgc = argc;
+    gArgv = argv;
+    @autoreleasepool {
+        gFiles = [NSMutableArray array];
+        Launcher* d = [Launcher new];
+        NSApplication.sharedApplication.delegate = d;
+        [NSApp run];
+    }
+    return 1;
+}
+EOF
+cc -O2 -fobjc-arc -arch "$ARCH" -mmacosx-version-min="$MINOS" -framework AppKit -o "$C/MacOS/launch" "$WORK/launch.m"
 
 cat > "$C/Resources/launch.sh" <<'EOF'
 #!/bin/bash
@@ -91,6 +129,8 @@ add_mod() {
     case "$1" in /*) ;; *) alert "Give mods as full paths (starting with / or ~): $1"; exit 1 ;; esac
     case "$1" in *:*) alert "Mod paths cannot contain a colon: $1"; exit 1 ;; esac
     [ -e "$1" ] || { alert "Mod not found: $1"; exit 1; }
+    [ ! -d "$1" ] || [ -n "$(find "$1" -maxdepth 1 -iname meta.ini)" ] \
+        || { alert "Not a mod folder (it has no Meta.ini): $1"; exit 1; }
     MODS=${MODS:+$MODS:}${1%/}
 }
 ARGS=()
@@ -180,6 +220,21 @@ cat > "$C/Info.plist" <<EOF
     <key>LSApplicationCategoryType</key><string>public.app-category.games</string>
     <key>NSHighResolutionCapable</key><true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key><string>Mod Launcher mod</string>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+            <key>LSHandlerRank</key><string>Alternate</string>
+            <key>CFBundleTypeExtensions</key><array><string>lmlm</string></array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key><string>Mod folder</string>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+            <key>LSHandlerRank</key><string>Alternate</string>
+            <key>LSItemContentTypes</key><array><string>public.folder</string></array>
+        </dict>
+    </array>
 </dict>
 </plist>
 EOF

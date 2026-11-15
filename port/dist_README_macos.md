@@ -32,11 +32,12 @@ folder itself is left untouched; settings and saves already in it are copied in 
 
 ## Mods (experimental)
 
-Lucas' Mod Launcher mods load without the launcher. Start the app from Terminal with `--mod` and the mod's full path:
-a `.lmlm` package or an extracted mod folder (the one holding `Meta.ini`):
+Lucas' Mod Launcher mods load without the launcher, as a `.lmlm` package or an extracted mod folder (the one holding
+`Meta.ini`). Drag one or more onto the app's icon (in the Dock or the Finder) while the game isn't running, or
+right-click a mod and choose **Open With > Simpsons Hit & Run**. From Terminal, give `--mod` the mod's full path:
 ```bash
 open -a "Simpsons Hit & Run" --args --mod ~/mods/SomeMod.lmlm --mod ~/mods/AnotherModFolder
 ```
-- Repeat `--mod` to load several. If two mods replace the same file, the one given first wins.
+- Repeat `--mod` (or drop several) to load more than one. If two mods replace the same file, the one given first wins.
 - Mods load only for that start. Start the app normally to play the unmodded game.
 - Total-conversion mods keep their own saves in `ModSaves/` in the folder above.

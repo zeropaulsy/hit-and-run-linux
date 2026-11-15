@@ -66,7 +66,11 @@ Order of events (each step needs the one before; Linux builds must keep working 
      (bundled loader) and `VK_DRIVER_FILES` (Resources ICD json -> bundled MoltenVK).
    - Executable `launch` is a Mach-O stub running `Resources/launch.sh` (a script as CFBundleExecutable can't be signed). The
      script asks for the data folder (Option held: ask again), runs in `~/Library/Application Support/Simpsons Hit & Run/`.
-     `--mod PATH` (repeatable, also `--mod=`) -> `SHAR_MODS`; full paths only (`open -a` starts in `/`), errors are dialogs.
+     `--mod PATH` (repeatable, also `--mod=`) -> `SHAR_MODS`; full paths only (`open -a` starts in `/`), errors are dialogs;
+     a folder needs `Meta.ini`. Drag and drop: the stub (`launch.m`, AppKit) gets the opened files in `application:openURLs:`,
+     which comes before `applicationDidFinishLaunching`, then execs launch.sh with each as `--mod` (same process: Dock
+     icon and Cmd+Q stay the game's). Info.plist `CFBundleDocumentTypes`: `.lmlm` and `public.folder`, rank Alternate.
+     Tested with `open -W -n -a <app> --env HOME=<scratch> FILE... --args ...` (two .lmlm in order, non-mod folder, no files); Finder drag not.
      Tested: FHAR Demo alone, FCM Full Game Plus + FHAR Demo (order kept), relative/missing/no-arg errors.
      Unattended: `HOME=<scratch>` with a preset `.data`, a stub `osascript` first on `PATH` (dialogs block otherwise).
    - Info.plist is XML: the `&` in the name must be `&amp;` (unescaped = crossed-out icon, "app is incomplete"); the script runs `plutil -lint`.

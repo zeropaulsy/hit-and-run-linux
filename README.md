@@ -208,7 +208,7 @@ port/play.sh --data "/path/to/simpsons" --mod "/path/to/SomeMod.lmlm"
 port/play.sh --data "/path/to/simpsons" --mod ~/mods/SomeMod.lmlm --mod ~/mods/AnotherModFolder
 ```
 
-On macOS, the app takes the same option from Terminal, with full paths:
+On macOS, drag mods onto the app's icon, or give the app the same option from Terminal, with full paths:
 `open -a "Simpsons Hit & Run" --args --mod ~/mods/SomeMod.lmlm`.
 
 - Repeat `--mod` to load several. If two mods replace the same file, the one given first wins.
