@@ -21,9 +21,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
-      - run: python3 port/gen_cmake.py
       - name: gen_cmake.py output matches the committed file
-        run: git diff --exit-code -- CMakeLists.txt
+        # main leaves out the Visual Studio projects gen_cmake.py reads (build/win32): checked on dev only
+        run: |
+          if [ ! -f build/win32/SRR2.sln ]; then echo "No Visual Studio projects on this branch: skipped"; exit 0; fi
+          python3 port/gen_cmake.py
+          git diff --exit-code -- CMakeLists.txt
 
   linux:
     name: Linux ${{ matrix.name }}
