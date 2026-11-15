@@ -23,8 +23,9 @@ optional post-processing shaders.
 
 ## Running
 
-Ready-made builds are on the [Releases](../../releases) page: a Linux tarball and AppImage, and a macOS app
-(prerelease). Each release's notes explain how to start it.
+**Download the latest release, [v0.3.0](https://github.com/zeropaulsy/hit-and-run-linux/releases/tag/v0.3.0)**: a
+Linux tarball and AppImage, and a macOS app (prerelease). The release notes explain how to start it; older builds
+are on the [Releases](https://github.com/zeropaulsy/hit-and-run-linux/releases) page.
 
 - **Linux:** x86-64, Ubuntu 24.04 / Linux Mint 22 or newer (glibc 2.38+), a Vulkan 1.3 driver (NVIDIA, or Mesa for
   AMD / Intel) or OpenGL 3.3. High shadows need ray tracing (`VK_KHR_ray_query`).
