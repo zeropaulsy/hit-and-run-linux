@@ -958,7 +958,7 @@ IGuiScreenRewards::On3DModelSelectionChange( const PreviewObject* nextModel )
             unicodeString.ReadAscii( nextModel->name );
         }
 
-#ifdef PAL
+#if defined( PAL ) || defined( RAD_LINUX )    // Linux port: long German names
         if( m_ID == GUI_SCREEN_ID_PHONE_BOOTH &&
             CGuiTextBible::GetCurrentLanguage() == Scrooby::XL_GERMAN )
         {

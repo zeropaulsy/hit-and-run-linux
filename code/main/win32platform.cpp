@@ -22,10 +22,15 @@ void pglSetAntialiasing( int samples );     // pddi/gl/display_linux/gldisplay.c
 void pglSetTextureFiltering( int mipmaps, int anisotropy );     // and texture filtering
 void pglSetUserShaders( bool on );          // pddi/gl/glcustom.cpp: the user's shaders (shaders/)
 bool pglGetUserShaders();
+void pglSetShaderPack( const char* name );  // and which of the shader packs in it
+const char* pglGetShaderPack();
+void pglCurrentShaderPack( char* name, size_t size );
+int pglListShaderPacks( char (*names)[ 64 ], int max );
 void pvkSunSetQuality( int quality );       // pddi/vk/vksun.cpp: the sun's shadows (Vulkan): 0 off, 1 low, 2 high
 int pvkSunQuality();
 #endif
 // Pure 3D
+#include <p3d/displayaspect.hpp>
 #include <p3d/anim/compositedrawable.hpp>
 #include <p3d/anim/expression.hpp>
 #include <p3d/anim/multicontroller.hpp>
@@ -1061,6 +1066,9 @@ int Win32Platform::GetNumProperties() const
 
 void Win32Platform::LoadDefaults()
 {
+#ifdef RAD_LINUX
+    pglSetAntialiasing( mAntialiasing );    // no simpsons.ini: the default is the setting
+#endif
 #ifdef RAD_DEBUG
     SetResolution( StartingResolution, StartingBPP, !CommandLineOptions::Get( CLO_WINDOW_MODE ) );
 #else
@@ -1203,14 +1211,31 @@ void Win32Platform::LoadConfig( ConfigString& config )
         }
         else if( _stricmp( property, "shaders" ) == 0 )
         {
-            // Linux port: the user's post-processing and material shaders (shaders/; the M key toggles them)
-            pglSetUserShaders( _stricmp( value, "no" ) != 0 && strcmp( value, "0" ) != 0 );
+            // Linux port: the post-processing and material shaders: a pack in shaders/ by name, yes for the default
+            // one, or no (the M key toggles them)
+            const bool off = _stricmp( value, "no" ) == 0 || _stricmp( value, "off" ) == 0 || strcmp( value, "0" ) == 0;
+            const bool defaultPack = _stricmp( value, "yes" ) == 0 || _stricmp( value, "on" ) == 0 || strcmp( value, "1" ) == 0;
+            pglSetUserShaders( !off );
+            pglSetShaderPack( off || defaultPack ? "" : value );
         }
         else if( _stricmp( property, "renderer" ) == 0 )
         {
             // Linux port: opengl or vulkan; read before the window exists (linuxplatform_sdl.cpp WantVulkan), this is
             // the setting the options menu shows and saves
             mRenderer = _stricmp( value, "vulkan" ) == 0 ? RENDERER_VULKAN : RENDERER_OPENGL;
+        }
+        else if( _stricmp( property, "widehud" ) == 0 )
+        {
+            // Linux port: yes = HUD at the window edges on non-4:3 windows; default no
+            SetWideHud( _stricmp( value, "yes" ) == 0 || _stricmp( value, "on" ) == 0 || strcmp( value, "1" ) == 0 );
+        }
+        else if( _stricmp( property, "language" ) == 0 )
+        {
+            // Linux port: the text and speech language: english, french, german or spanish (English otherwise)
+            CGuiTextBible::SetStartupLanguage( _stricmp( value, "french" ) == 0 ? Scrooby::XL_FRENCH :
+                                               _stricmp( value, "german" ) == 0 ? Scrooby::XL_GERMAN :
+                                               _stricmp( value, "spanish" ) == 0 ? Scrooby::XL_SPANISH :
+                                               Scrooby::XL_ENGLISH );
         }
         else if( _stricmp( property, "shadows" ) == 0 )
         {
@@ -1335,16 +1360,22 @@ void Win32Platform::SaveConfig( ConfigString& config )
     char anisotropy[ 20 ];
     sprintf( anisotropy, "%d", mAnisotropy );
     config.WriteProperty( "anisotropy", anisotropy );
-    config.WriteProperty( "shaders", pglGetUserShaders() ? "yes" : "no" );
+    config.WriteProperty( "shaders", !pglGetUserShaders() ? "no" : pglGetShaderPack()[ 0 ] ? pglGetShaderPack() : "yes" );
     config.WriteProperty( "renderer", mRenderer == RENDERER_VULKAN ? "vulkan" : "opengl" );
     static const char* const SHADOWS[] = { "off", "low", "high" };
     config.WriteProperty( "shadows", SHADOWS[ pvkSunQuality() ] );
+    config.WriteProperty( "widehud", GetWideHud() ? "yes" : "no" );
+    {
+        const Scrooby::XLLanguage lang = CGuiTextBible::GetStartupLanguage();
+        config.WriteProperty( "language", lang == Scrooby::XL_FRENCH ? "french" : lang == Scrooby::XL_GERMAN ? "german" :
+                                          lang == Scrooby::XL_SPANISH ? "spanish" : "english" );
+    }
 #endif
 }
 
 #ifdef RAD_LINUX
 //=============================================================================
-// Win32Platform::SetAntialiasing, SetUserShaders, GetUserShaders, SetShadows, GetShadows
+// Win32Platform::SetAntialiasing, SetUserShaders, GetUserShaders, SetShadows, GetShadows, SetWideHud, GetWideHud
 //=============================================================================
 // Description: Graphics settings, applied at once (SaveConfig writes them).
 //
@@ -1366,6 +1397,21 @@ bool Win32Platform::GetUserShaders() const
     return pglGetUserShaders();
 }
 
+void Win32Platform::SetShaderPack( const char* name )
+{
+    pglSetShaderPack( name );
+}
+
+void Win32Platform::GetCurrentShaderPack( char* name, size_t size ) const
+{
+    pglCurrentShaderPack( name, size );
+}
+
+int Win32Platform::ListShaderPacks( char (*names)[ 64 ], int max ) const
+{
+    return pglListShaderPacks( names, max );
+}
+
 void Win32Platform::SetShadows( int quality )
 {
     pvkSunSetQuality( quality );
@@ -1374,6 +1420,16 @@ void Win32Platform::SetShadows( int quality )
 int Win32Platform::GetShadows() const
 {
     return pvkSunQuality();
+}
+
+void Win32Platform::SetWideHud( bool on )
+{
+    p3d::WideHudEnabled() = on;
+}
+
+bool Win32Platform::GetWideHud() const
+{
+    return p3d::WideHudEnabled();
 }
 #endif
 

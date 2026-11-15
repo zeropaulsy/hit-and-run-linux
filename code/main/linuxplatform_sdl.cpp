@@ -28,6 +28,7 @@
 #include <input/FEMouse.h>
 #include <input/MouseCursor.h>
 #include <main/win32platform.h>
+#include <presentation/gui/guitextbible.h>
 #include <render/RenderFlow/renderflow.h>
 
 static const char ApplicationName[] = "The Simpsons: Hit & Run";
@@ -97,6 +98,30 @@ static bool WantVulkan()
     return vulkan;
 }
 
+// The language (simpsons.ini language=english|french|german|spanish) is needed by the sound system and the front end
+// before the config manager has read simpsons.ini, so it is looked at here too.
+static void ReadStartupLanguage()
+{
+    char value[ 64 ] = "";
+    if( FILE* f = fopen( "simpsons.ini", "r" ) )
+    {
+        char line[ 256 ];
+        while( fgets( line, sizeof( line ), f ) )
+        {
+            if( strncasecmp( line, "language=", 9 ) == 0 )
+            {
+                snprintf( value, sizeof( value ), "%s", line + 9 );
+                value[ strcspn( value, "\r\n" ) ] = '\0';
+            }
+        }
+        fclose( f );
+    }
+    CGuiTextBible::SetStartupLanguage( strcasecmp( value, "french" ) == 0 ? Scrooby::XL_FRENCH :
+                                       strcasecmp( value, "german" ) == 0 ? Scrooby::XL_GERMAN :
+                                       strcasecmp( value, "spanish" ) == 0 ? Scrooby::XL_SPANISH :
+                                       Scrooby::XL_ENGLISH );
+}
+
 //==============================================================================
 // Win32Platform::InitializeWindow
 //==============================================================================
@@ -106,6 +131,8 @@ static bool WantVulkan()
 bool Win32Platform::InitializeWindow( HINSTANCE hInstance )
 {
     mhInstance = hInstance;
+
+    ReadStartupLanguage();
 
     // relative mouse mode (mouse-look in gameplay): use raw relative input, not pointer warping, which
     // reports a spurious one-pixel motion every frame under XWayland
@@ -205,14 +232,16 @@ SDL_Window* Win32Platform::CreateGameWindow( bool vulkan )
     int x, y;
     TranslateResolution( StartingResolution, x, y );
 
+    Uint32 flags = ( vulkan ? SDL_WINDOW_VULKAN : SDL_WINDOW_OPENGL ) |
+                   SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE;
+#if !defined(__APPLE__)
+    flags |= SDL_WINDOW_ALLOW_HIGHDPI;      // Wayland with display scaling: render at the screen's pixels
+                                            // (the display follows SDL_GL_GetDrawableSize). On macOS Retina
+                                            // this would silently 2x the drawable; keep the requested size.
+#endif
     SDL_Window* window = SDL_CreateWindow( ApplicationName,
                                            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                           x, y,
-                                           ( vulkan ? SDL_WINDOW_VULKAN : SDL_WINDOW_OPENGL ) |
-                                           SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE |
-                                           SDL_WINDOW_ALLOW_HIGHDPI );     // Wayland with display scaling: render
-                                                                           // at the screen's pixels (the display
-                                                                           // follows SDL_GL_GetDrawableSize)
+                                           x, y, flags );
     return window;
 }
 

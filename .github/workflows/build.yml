@@ -1,0 +1,79 @@
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy of the MPL
+# was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+# Build-only CI: game data can't be shipped, so nothing runs the game. Catches one platform breaking another,
+# a stale CMakeLists.txt, and C++ operator new/delete leaking out of the executable (port/notes/build.md).
+name: build
+
+on:
+  push:
+    branches: [main, dev, "dev-*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generated:
+    name: CMakeLists.txt up to date
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - run: python3 port/gen_cmake.py
+      - name: gen_cmake.py output matches the committed file
+        run: git diff --exit-code -- CMakeLists.txt
+
+  linux:
+    name: Linux ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: x86-64 release, arch: amd64, cmake: "" }
+          - { name: x86-64 debug, arch: amd64, cmake: "-DSHAR_RAD_DEBUG=ON" }
+          - { name: x86 32-bit legacy, arch: i386, cmake: "-DSHAR_64BIT=OFF" }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: |
+          pkgs="libsdl2-dev libgl-dev libopenal-dev libavformat-dev libavcodec-dev libswscale-dev libswresample-dev libavutil-dev"
+          if [ "${{ matrix.arch }}" = i386 ]; then
+            sudo dpkg --add-architecture i386
+            extra="gcc-multilib g++-multilib libvulkan-dev $(for p in $pkgs; do printf '%s:i386 ' "$p"; done)"
+          else
+            extra="libvulkan-dev $pkgs"
+          fi
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake ninja-build python3 build-essential $extra
+      - name: Configure
+        run: cmake -S . -B build -G Ninja ${{ matrix.cmake }}
+      - name: Build
+        run: ninja -C build -j"$(nproc)"
+      - name: No operator new/delete exported
+        run: |
+          if nm -D --defined-only build/srr2 | grep _Zn; then
+            echo "::error::srr2 exports C++ operator new/delete (compat layer must use malloc)"; exit 1
+          fi
+
+  macos:
+    name: macOS arm64
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+          HOMEBREW_NO_INSTALL_CLEANUP: 1
+        run: brew install cmake ninja pkgconf sdl2 ffmpeg openal-soft molten-vk vulkan-loader vulkan-headers
+      - name: Configure
+        run: cmake -S . -B build-macos -G Ninja
+      - name: Build
+        run: ninja -C build-macos -j"$(sysctl -n hw.ncpu)"
+      - name: No operator new/delete exported
+        run: |
+          if nm -gU build-macos/srr2 | grep -E ' __Z(nwm|nam|dlPv|daPv)$'; then
+            echo "::error::srr2 defines global C++ operator new/delete (compat layer must use malloc)"; exit 1
+          fi

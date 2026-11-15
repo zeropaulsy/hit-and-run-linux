@@ -67,6 +67,7 @@
 #include <mission/charactersheet/charactersheetmanager.h>
 #include <supersprint/supersprintmanager.h>
 #include <main/platform.h>
+#include <main/commandlineoptions.h>
 #include <main/game.h>
 #include <sound/soundmanager.h>
 
@@ -819,6 +820,15 @@ CGuiManagerFrontEnd::StartIntroMovie()
 #endif // SKIP_INTRO_MOVIE_IF_GAME_LOADED
     {
 #ifdef SHOW_INTRO_MOVIE
+        // Linux port: skipmovie goes straight to the main menu, this movie included
+        if( CommandLineOptions::Get( CLO_SKIP_MOVIE ) )
+        {
+            CGuiManager::HandleMessage( GUI_MSG_GOTO_SCREEN,
+                                        CGuiWindow::GUI_SCREEN_ID_INTRO_TRANSITION,
+                                        CLEAR_WINDOW_HISTORY );
+            return;
+        }
+
         // start the intro fmv
         //
         CGuiScreenPlayMovie* playMovieScreen = static_cast<CGuiScreenPlayMovie*>( this->FindWindowByID( CGuiWindow::GUI_SCREEN_ID_PLAY_MOVIE_INTRO ) );

@@ -90,7 +90,7 @@ VehicleAIRender::~VehicleAIRender()
         mAIShader = NULL;
     }
 
-    radDbgWatchDelete( &DropPathPoint );
+    radDbgWatchDelete( (void*) &DropPathPoint );
 }
 
 int VehicleAIRender::RegisterAI( void* ai, int type )

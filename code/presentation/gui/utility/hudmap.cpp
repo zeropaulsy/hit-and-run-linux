@@ -269,6 +269,18 @@ MEMTRACK_PUSH_GROUP( "CHudMap" );
     m_iconsGroup = pPage->GetGroup( name );
     rAssert( m_iconsGroup != NULL );
 
+    // Linux port: Wide HUD; the radar, cone and icons go with the map
+    m_p3dMap->AnchorToPageSide();
+    int edgeX = m_p3dMap->GetEdgeAnchorX();
+    int edgeY = m_p3dMap->GetEdgeAnchorY();
+    if( m_p3dHole != NULL )
+    {
+        m_p3dHole->SetEdgeAnchor( edgeX, edgeY );
+    }
+    m_radar->SetEdgeAnchor( edgeX, edgeY );
+    m_radarCone->SetEdgeAnchor( edgeX, edgeY );
+    m_iconsGroup->SetEdgeAnchor( edgeX, edgeY );
+
 #ifdef DEBUGWATCH
     ::radDbgWatchAddFloat( &MIN_CAMERA_HEIGHT,
                            "Mininum Camera Height",

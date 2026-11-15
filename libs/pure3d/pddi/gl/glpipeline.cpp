@@ -126,6 +126,7 @@ pglPipeline::pglPipeline()
     bound = NULL;
     vao = 0;
     screenTexture = screenFbo = 0;
+    whiteTexture = 0;
     screenWidth = screenHeight = 0;
     screenFrame = 0;
     streamVerts = NULL;
@@ -187,6 +188,14 @@ bool pglPipeline::Init()
     glBindBuffer(GL_ARRAY_BUFFER, streamBuffer);
     glBufferData(GL_ARRAY_BUFFER, streamBufferSize, NULL, GL_STREAM_DRAW);
     streamOffset = 0;
+
+    static const unsigned char white[4] = { 255, 255, 255, 255 };
+    glGenTextures(1, &whiteTexture);
+    glBindTexture(GL_TEXTURE_2D, whiteTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, 0);
 
     ready = true;
     return true;
@@ -522,6 +531,11 @@ void pglPipeline::CaptureScreen()
     glActiveTexture(GL_TEXTURE0);
 }
 
+void pglPipeline::BindWhiteTexture()
+{
+    glBindTexture(GL_TEXTURE_2D, whiteTexture);
+}
+
 void pglPipeline::Prepare()
 {
     int index = material.program >= 0 && material.program < PGL_PROGRAM_COUNT ? material.program : PGL_PROGRAM_SIMPLE;
@@ -708,6 +722,18 @@ void pglPipeline::EndStream()
         glBufferData(GL_ARRAY_BUFFER, streamBufferSize, NULL, GL_STREAM_DRAW);
         streamOffset = 0;
     }
+#ifdef __APPLE__
+    // Apple's GL submits and waits for the GPU on glBufferSubData to a buffer in use, even in an unused region; the
+    // ring never overwrites what draws are reading, so an unsynchronised map is safe and doesn't wait
+    void* dst = glMapBufferRange(GL_ARRAY_BUFFER, streamOffset, size,
+                                 GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_RANGE_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+    if(dst)
+    {
+        memcpy(dst, streamVerts, size);
+        glUnmapBuffer(GL_ARRAY_BUFFER);
+    }
+    else
+#endif
     glBufferSubData(GL_ARRAY_BUFFER, streamOffset, size, streamVerts);
 
     GLsizei stride = sizeof(pglVertex);

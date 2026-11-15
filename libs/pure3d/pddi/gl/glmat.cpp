@@ -386,6 +386,18 @@ void pglMat::SetupStandard(pglPipeline::Material& m, unsigned renderPass)
         texEnv[i].texture->SetSampling(texEnv[i].filterMode, uvTable[texEnv[i].uvMode],
                                        filterMagTable[texEnv[i].filterMode], filterMinTable[texEnv[i].filterMode]);
     }
+    else
+    {
+        pipeline->BindWhiteTexture();
+    }
+    if(m.custom >= 0)
+    {
+        // user material shaders are built with the reflection map's sampler (unit 1) for every material type;
+        // pglReflectionMat binds its map over this
+        glActiveTexture(GL_TEXTURE1);
+        pipeline->BindWhiteTexture();
+        glActiveTexture(GL_TEXTURE0);
+    }
 
     m.alphaCompare = texEnv[i].alphaTest ? (int)texEnv[i].alphaCompareMode : -1;
     m.alphaRef = texEnv[i].alphaRef;
@@ -467,6 +479,12 @@ void pglReflectionMat::SetDevPass(unsigned pass)
         reflectionMap->SetGLState();
         reflectionMap->SetSampling(texEnv[0].filterMode, uvTable[texEnv[0].uvMode],
                                    filterMagTable[texEnv[0].filterMode], filterMinTable[texEnv[0].filterMode]);
+        glActiveTexture(GL_TEXTURE0);
+    }
+    else
+    {
+        glActiveTexture(GL_TEXTURE1);
+        context->GetDisplay()->GetPipeline()->BindWhiteTexture();
         glActiveTexture(GL_TEXTURE0);
     }
     FillGLColour(envBlend, m.envBlend);

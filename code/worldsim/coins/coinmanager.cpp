@@ -214,6 +214,8 @@ CoinManager::CoinManager() :
     mHUDSparkle( 0 ),
     mHUDCoinX( -10.0f ),
     mHUDCoinY( -10.0f ),
+    mHUDCoinEdgeAnchor( 0 ),
+    mHUDCoinEdgeAnchorY( 0 ),
     mHUDCoinAngle( 0.0f ),
     mDrawAfterGui(false)
 {   
@@ -925,6 +927,14 @@ void CoinManager::ClearHUDCoins(void)
 	}
 }
 
+// Linux port: Wide HUD shift of a counter past the 4:3 area, in HUD coin units (mHUDCoinX/Y: the page is 2 wide, 1.5
+// high). 0 when off or on the axis the window isn't extended on.
+static void GetHUDEdgeExtent( float& x, float& y )
+{
+    x = p3d::GetEdgeShift() * 2.0f;
+    y = p3d::GetEdgeShiftY() * 1.5f;
+}
+
 /*=============================================================================
 Render pass called form within the opaque rendering stage of world render. It
 does a simple distance and camera culling check to determine which coins to
@@ -951,7 +961,14 @@ void CoinManager::Render( void )
                     camera->WorldToView( c.Position, &c.Position );
                     // Linux port: the HUD sits in the centred 4:3 area of the window
                     float hudScale = p3d::GetDesignScaleX();
-                    c.Velocity.Sub( rmt::Vector( COUNTER_X * hudScale, COUNTER_Y * hudScale, 0.0f ), c.Position );
+                    // Wide HUD: the target moves with the counter (these units are half the coin's, see
+                    // GetHUDEdgeExtent)
+                    float extentX, extentY;
+                    GetHUDEdgeExtent( extentX, extentY );
+                    float edgeX = mHUDCoinEdgeAnchor * extentX * 0.5f * hudScale;
+                    float edgeY = mHUDCoinEdgeAnchorY * extentY * 0.5f * hudScale;
+                    c.Velocity.Sub( rmt::Vector( COUNTER_X * hudScale + edgeX, COUNTER_Y * hudScale + edgeY, 0.0f ),
+                                    c.Position );
                     c.State = CS_FlyingToHUD;
                     ++mNumHUDFlying;
                     continue;
@@ -1009,7 +1026,7 @@ void CoinManager::Render( void )
     }
 }
 
-void CoinManager::SetHUDCoin( int X, int Y, bool IsShowing )
+void CoinManager::SetHUDCoin( int X, int Y, bool IsShowing, int EdgeAnchor, int EdgeAnchorY )
 {
     const static float ScreenWidthRatio  = 1.0f / 640.0f;
     const static float ScreenHeightRatio = 1.0f / 480.0f;
@@ -1018,6 +1035,8 @@ void CoinManager::SetHUDCoin( int X, int Y, bool IsShowing )
     {
         mHUDCoinX = ( ( ( (float)X * ScreenWidthRatio ) ) - 0.5f ) * ScreenAspect * ScreenAspect;
         mHUDCoinY = ( ( ( (float)Y * ScreenHeightRatio ) ) - 0.5f ) * ScreenAspect;
+        mHUDCoinEdgeAnchor = EdgeAnchor;
+        mHUDCoinEdgeAnchorY = EdgeAnchorY;
     }
     else
     {
@@ -1044,7 +1063,12 @@ void CoinManager::HUDRender( void )
         return;
     }
     bool renderHUDCoin = false;
-    if( mHUDCoinX > -1.0f && mHUDCoinX < 1.0f && mHUDCoinY > -1.0f && mHUDCoinY < 1.0f )
+    // Linux port: Wide HUD moves the coin with its counter; worked out per frame to follow window resizes
+    float extentX, extentY;
+    GetHUDEdgeExtent( extentX, extentY );
+    float coinX = mHUDCoinX + mHUDCoinEdgeAnchor * extentX;
+    float coinY = mHUDCoinY + mHUDCoinEdgeAnchorY * extentY;
+    if( coinX > -1.0f - extentX && coinX < 1.0f + extentX && coinY > -1.0f - extentY && coinY < 1.0f + extentY )
     {
         renderHUDCoin = true;
     }
@@ -1078,14 +1102,14 @@ void CoinManager::HUDRender( void )
             rmt::Matrix transform( coinCos, 0.0f, -coinSin, 0.0f,
                                    0.0f, 1.0f, 0.0f, 0.0f,
                                    coinSin, 0.0f, coinCos, 0.0f,
-                                   mHUDCoinX * 5.0f, mHUDCoinY * 5.0f, 5.0f, 1.0f );
+                                   coinX * 5.0f, coinY * 5.0f, 5.0f, 1.0f );
 #ifndef RAD_RELEASE
             ++dbg_CoinsDrawn;
 #endif
             if( mHUDSparkle <= 0 )
             {
                 rmt::Vector pos;
-                pos.ScaleAdd( rmt::Vector( mHUDCoinX * hudScale, mHUDCoinY * hudScale, 5.0f ), 0.2f, mCoinBounding.centre );
+                pos.ScaleAdd( rmt::Vector( coinX * hudScale, coinY * hudScale, 5.0f ), 0.2f, mCoinBounding.centre );
                 float radius = 0.2f * ( ( coinCos < 0.0f ) ? mCoinBounding.radius : -mCoinBounding.radius );
                 pos.Add( rmt::Vector( coinCos * radius, 0.0f, coinSin * radius ) );
                 GetSparkleManager()->AddSparkle( pos, 1.0f, 0.25f, rmt::Vector( 0.0f, 0.0f, 0.0f ), Sparkle::SE_HUDGlint );

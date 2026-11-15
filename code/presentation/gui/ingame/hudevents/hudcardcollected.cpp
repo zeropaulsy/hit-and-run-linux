@@ -87,6 +87,13 @@ HudCardCollected::HudCardCollected( Scrooby::Page* pPage )
     m_itemsUnlocked = m_itemsComplete->GetText( "ItemsUnlocked" );
     rAssert(m_itemsUnlocked != NULL );
     m_itemsUnlocked->SetTextMode( Scrooby::TEXT_WRAP );
+
+    // Linux port: Wide HUD. The group spans the page, so anchor each part.
+    Scrooby::Drawable* parts[] = { m_cardImage, m_cardText, m_itemsCount, m_itemsComplete };
+    for( int i = 0; i < 4; i++ )
+    {
+        parts[ i ]->AnchorToPageSide();
+    }
 }
 
 HudCardCollected::~HudCardCollected()

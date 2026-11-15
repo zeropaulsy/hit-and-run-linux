@@ -14,6 +14,9 @@
 //========================================
 // Standard Library
 #include <string.h>
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 // Foundation Tech
 #include <raddebug.hpp>
 #include <radobject.hpp>
@@ -279,7 +282,12 @@ static void FindGameData( void )
         return;
     }
     char exe[ PATH_MAX ];
+#ifdef __APPLE__
+    uint32_t exeSize = sizeof( exe );
+    ssize_t len = _NSGetExecutablePath( exe, &exeSize ) == 0 ? (ssize_t) strlen( exe ) : -1;
+#else
     ssize_t len = readlink( "/proc/self/exe", exe, sizeof( exe ) - 1 );
+#endif
     if( len > 0 )
     {
         exe[ len ] = '\0';

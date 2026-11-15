@@ -275,7 +275,7 @@ void radFileSystem::ProcessFileName
     // 
     const char* fname;
     unsigned int length = 0;
-    char* p = strchr( pFileName, ':' );
+    char* p = (char*) strchr( pFileName, ':' );
     if( simpleName==false && p != NULL )
     {
         length = (unsigned int)( p - pFileName ) + 1;

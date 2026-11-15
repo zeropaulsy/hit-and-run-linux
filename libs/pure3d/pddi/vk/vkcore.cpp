@@ -32,6 +32,8 @@ pvkCore::pvkCore()
     pthread_mutex_init(&memoryLock, NULL);
     pthread_mutex_init(&retireLock, NULL);
     requestedSamples = targetSamples = 1;
+    msDepthSampled = false;
+    reportedSamples = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -42,6 +44,13 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessage(VkDebugUtilsMessageSeverityFl
                                                    VkDebugUtilsMessageTypeFlagsEXT type,
                                                    const VkDebugUtilsMessengerCallbackDataEXT* data, void* user)
 {
+#ifdef __APPLE__
+    // MoltenVK, on every vkCmdSetPrimitiveRestartEnable(FALSE) (each command buffer, vkpipeline.cpp): Metal always
+    // restarts strips at index 0xFFFF. Harmless (needs a 65536-vertex buffer; the data's largest is ~1200), and any
+    // other way of turning restart off warns too. Skipped so it doesn't use up the 300 messages below.
+    if(data->pMessage && strstr(data->pMessage, "does not support disabling primitive restart"))
+        return VK_FALSE;
+#endif
     static int s_count = 0;
     if(s_count++ < 300)
         fprintf(stderr, "Vulkan %s: %s\n", severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT ? "error" : "warning",
@@ -62,12 +71,17 @@ bool pvkCore::CreateInstance(SDL_Window* window)
 
     const char* extensions[16];
     unsigned count = 0;
-    if(!SDL_Vulkan_GetInstanceExtensions(window, &count, NULL) || count > 14 ||
+    if(!SDL_Vulkan_GetInstanceExtensions(window, &count, NULL) || count > 13 ||
        !SDL_Vulkan_GetInstanceExtensions(window, &count, extensions))
     {
         fprintf(stderr, "PDDI: SDL has no Vulkan surface for this window (%s)\n", SDL_GetError());
         return false;
     }
+
+#ifdef __APPLE__
+    // MoltenVK is a portability driver: the loader hides it unless asked
+    extensions[count++] = VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+#endif
 
     // SHAR_VK_DEBUG=1: the validation layer (package vulkan-validationlayers) and its messages on stderr
     bool debug = EnvInt("SHAR_VK_DEBUG", 0) != 0;
@@ -93,6 +107,9 @@ bool pvkCore::CreateInstance(SDL_Window* window)
     app.pEngineName = "Pure3D";
     app.apiVersion = VK_API_VERSION_1_3;
     VkInstanceCreateInfo info = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
+#ifdef __APPLE__
+    info.flags = VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
     info.pApplicationInfo = &app;
     info.enabledExtensionCount = count;
     info.ppEnabledExtensionNames = extensions;
@@ -222,6 +239,7 @@ bool pvkCore::CreateDevice()
     bcTextures = available.textureCompressionBC && !getenv("SHAR_GL_NO_S3TC");
     anisotropy = available.samplerAnisotropy != 0;
     fillModeNonSolid = available.fillModeNonSolid != 0;
+    pointPolygons = fillModeNonSolid;
 
     VkPhysicalDeviceVulkan13Features f13 = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
     VkPhysicalDeviceFeatures2 query = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
@@ -283,19 +301,37 @@ bool pvkCore::CreateDevice()
     features.features.samplerAnisotropy = anisotropy;
     features.features.fillModeNonSolid = fillModeNonSolid;
 
+#ifdef __APPLE__
+    // a portability device must get VK_KHR_portability_subset, with what it offers of that subset switched on
+    VkPhysicalDevicePortabilitySubsetFeaturesKHR portability = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR };
+    query.pNext = &portability;
+    vkGetPhysicalDeviceFeatures2(physical, &query);
+    pointPolygons = fillModeNonSolid && portability.pointPolygons;
+    portability.pNext = features.pNext;
+    features.pNext = &portability;
+#endif
+
     float priority = 1.0f;
     VkDeviceQueueCreateInfo q = { VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO };
     q.queueFamilyIndex = queueFamily;
     q.queueCount = 1;
     q.pQueuePriorities = &priority;
-    const char* extensions[5] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,
-                                  VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, VK_KHR_RAY_QUERY_EXTENSION_NAME,
-                                  VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME };
+    const char* extensions[6] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME };
+    unsigned extensionCount = 2;
+#ifdef __APPLE__
+    extensions[extensionCount++] = VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME;
+#endif
+    if(rayQuery)
+    {
+        extensions[extensionCount++] = VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME;
+        extensions[extensionCount++] = VK_KHR_RAY_QUERY_EXTENSION_NAME;
+        extensions[extensionCount++] = VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME;
+    }
     VkDeviceCreateInfo info = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
     info.pNext = &features;
     info.queueCreateInfoCount = 1;
     info.pQueueCreateInfos = &q;
-    info.enabledExtensionCount = rayQuery ? 5 : 2;
+    info.enabledExtensionCount = extensionCount;
     info.ppEnabledExtensionNames = extensions;
     VkResult r = vkCreateDevice(physical, &info, NULL, &device);
     if(r != VK_SUCCESS)
@@ -1044,6 +1080,20 @@ void pvkCore::SetSize(int w, int h)
     targetsDirty = true;
 }
 
+// what the targets really have, once the settings are read (the display starts at a default) and they are made
+void pvkCore::ReportSamples()
+{
+    if(targetsDirty || targetSamples == reportedSamples)
+        return;
+    reportedSamples = targetSamples;
+    if(targetSamples < 2)
+        fprintf(stderr, "PDDI: anti-aliasing off\n");
+    else if(requestedSamples > targetSamples)
+        fprintf(stderr, "PDDI: %dx anti-aliasing (%dx is not available)\n", targetSamples, requestedSamples);
+    else
+        fprintf(stderr, "PDDI: %dx anti-aliasing\n", targetSamples);
+}
+
 void pvkCore::SetSamples(int samples)
 {
     if(samples < 1)
@@ -1083,29 +1133,27 @@ bool pvkCore::CreateTargets()
        !CreateImage(width, height, 1, depthFormat, VK_SAMPLE_COUNT_1_BIT, depthUsage, depthAspect, &scene.depth))
         return false;
 
-    int previous = targetSamples;
     targetSamples = 1;
+    msDepthSampled = false;
     VkSampleCountFlagBits samples = SampleBits(requestedSamples, sampleCounts);
     if(samples > 1)
     {
+        const bool sampled = (properties.limits.sampledImageDepthSampleCounts & samples) != 0;
         if(CreateImage(width, height, 1, VK_FORMAT_R8G8B8A8_UNORM, samples, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                        VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &msTarget.colour) &&
            CreateImage(width, height, 1, depthFormat, samples, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                       VK_IMAGE_USAGE_TRANSFER_DST_BIT, depthAspect, &msTarget.depth))
+                       VK_IMAGE_USAGE_TRANSFER_DST_BIT | (sampled ? VK_IMAGE_USAGE_SAMPLED_BIT : 0), depthAspect,
+                       &msTarget.depth))
+        {
             targetSamples = samples;
+            msDepthSampled = sampled;
+        }
         else
         {
             fprintf(stderr, "PDDI: %dx anti-aliasing unavailable at %dx%d: off\n", (int)samples, width, height);
             Retire(msTarget.colour);
             Retire(msTarget.depth);
         }
-    }
-    if(targetSamples != previous)
-    {
-        if(targetSamples > 1)
-            fprintf(stderr, "PDDI: %dx anti-aliasing\n", targetSamples);
-        else if(previous > 1)
-            fprintf(stderr, "PDDI: anti-aliasing off\n");
     }
 
     // new targets start black, depth 1, stencil 0

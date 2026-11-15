@@ -8,7 +8,11 @@
 #include <raddebugcommunication.hpp>
 #include <pthread.h>
 
+#ifdef __APPLE__
+static pthread_mutex_t s_DbgComMutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+#else
 static pthread_mutex_t s_DbgComMutex = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+#endif
 
 void radDbgComHostGetTargetTable( IRadDbgComTargetTable** pIRadDbgComTargetTable )
 {

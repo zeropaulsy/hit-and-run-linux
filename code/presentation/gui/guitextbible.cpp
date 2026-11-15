@@ -17,6 +17,9 @@
 #include <App.h>
 #include <TextBible.h>
 #include <raddebug.hpp>
+#ifdef RAD_LINUX
+#include <radfile.hpp>
+#endif
 
 #include <sound/soundmanager.h>
 
@@ -369,9 +372,15 @@ namespace
         // the language: the mod's Language setting (ModSettings.ini, by title or file name), else the game's
         // language, else English, else the first file
         const char* setting = single == NULL ? shar_ModConfigFolderLanguage( "CustomText" ) : NULL;
-        static const char* const GAME_LANGUAGES[] = { "English", "French", "German", "Spanish" };
-        int gameLanguage = static_cast<int>( CGuiTextBible::GetCurrentLanguage() );
-        const char* game = gameLanguage >= 0 && gameLanguage < 4 ? GAME_LANGUAGES[ gameLanguage ] : "English";
+        // by name: the Scrooby::XLLanguage values are not indexes into a short list (XL_SPANISH is 7)
+        const char* game = "English";
+        switch( CGuiTextBible::GetCurrentLanguage() )
+        {
+            case Scrooby::XL_FRENCH:  game = "French";  break;
+            case Scrooby::XL_GERMAN:  game = "German";  break;
+            case Scrooby::XL_SPANISH: game = "Spanish"; break;
+            default: break;
+        }
         int bySetting = -1, byGame = -1, byEnglish = -1;
         char* utf8[ 16 ];
         for( int i = 0; i < count; i++ )
@@ -420,6 +429,21 @@ namespace
 
 Scrooby::TextBible* CGuiTextBible::s_textBible = NULL;
 Scrooby::XLLanguage CGuiTextBible::s_currentLanguage = Scrooby::XL_ENGLISH;
+#ifdef RAD_LINUX
+Scrooby::XLLanguage CGuiTextBible::s_startupLanguage = Scrooby::XL_ENGLISH;
+
+bool CGuiTextBible::GameFileExists( const char* filename )
+{
+    IRadFile* file = NULL;
+    radFileOpenSync( &file, filename, false, OpenExisting );
+    const bool exists = file != NULL && file->IsOpen();
+    if( file != NULL )
+    {
+        file->Release();
+    }
+    return exists;
+}
+#endif
 
 //===========================================================================
 // Public Member Functions

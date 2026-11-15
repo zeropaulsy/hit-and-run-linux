@@ -34,6 +34,10 @@
 
 struct IRadNameSpace;
 
+// Defined in namespace.cpp: declared before the inline members below use them (clang rejects it otherwise)
+template<> IRadNameSpace* radLinkedClass< IRadNameSpace >::s_pLinkedClassHead;
+template<> IRadNameSpace* radLinkedClass< IRadNameSpace >::s_pLinkedClassTail;
+
 //============================================================================
 // Factories and functions
 //============================================================================

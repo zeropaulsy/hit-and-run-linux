@@ -53,6 +53,9 @@ HudCoinCollected::HudCoinCollected( Scrooby::Page* pPage )
     m_itemsCount = pPage->GetGroup( "ItemsCount" );
     rAssert( m_itemsCount != NULL );
 
+    // Linux port: Wide HUD; CoinManager::SetHUDCoin keeps the coin beside the count
+    m_itemsCount->AnchorToPageSide();
+
     m_numCoins = m_itemsCount->GetSprite( "ItemsCount" );
     rAssert( m_numCoins != NULL );
     m_numCoins->SetSpriteMode( Scrooby::SPRITE_BITMAP_TEXT );
@@ -193,7 +196,8 @@ HudCoinCollected::Update( float elapsedTime )
                 {
                     static int coinPosX = CGuiScreen::IsWideScreenDisplay() ? 500 : 555;
                     static int coinPosY = 422;
-                    GetCoinManager()->SetHUDCoin( coinPosX, coinPosY, true );
+                    GetCoinManager()->SetHUDCoin( coinPosX, coinPosY, true, m_itemsCount->GetEdgeAnchorX(),
+                                            m_itemsCount->GetEdgeAnchorY() );
 
                     int currentBankValue = GetCoinManager()->GetBankValue();
 

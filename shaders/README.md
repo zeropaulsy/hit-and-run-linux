@@ -1,6 +1,20 @@
 # Shaders
 
-Two kinds of GLSL shaders of your own, both plain text files you can edit while the game runs (changes show up
+Shaders come in **packs**, one folder per look. Choose one in **Options > Graphics > Shaders**, which cycles through
+Off and every pack in this folder and switches at once:
+
+| Pack | Look |
+|---|---|
+| `soft-pack/` | the default: ambient occlusion, bloom and tone mapping, soft lighting on the characters |
+| `toon-pack/` | ink outlines and flat colours, banded light on car paint |
+| `vanilla-pack/` | every example shader below, to build your own from |
+
+To make a pack, add a folder here with a `post.ini` and/or a `materials.ini` and the shaders they name (copy what you
+need from `vanilla-pack/`): it shows up in the menu the next time the Graphics screen opens, named after the folder.
+Paths in those files are relative to the pack, so a pack holds only the shaders it uses. The choice is saved in
+`simpsons.ini` as `shaders=toon-pack` (`shaders=yes`: the default pack, `shaders=no`: off).
+
+A pack holds two kinds of GLSL shaders, both plain text files you can edit while the game runs (changes show up
 within a second):
 
 - **Post-processing** (`post.ini`, `post/`): passes over the picture each frame: anti-aliasing, bloom, colour
@@ -21,9 +35,12 @@ A shader that does not compile is reported on the console with its line numbers 
 
 ## Where they go
 
-The game reads the `shaders/` folder in its working directory (or the folder named by the `SHAR_SHADERS`
+The game reads the packs in the `shaders/` folder in its working directory (or the folder named by the `SHAR_SHADERS`
 environment variable). `port/play.sh` sets it up: your game folder's `shaders/` if it has one, otherwise a copy of
 this folder in `run/shaders/` (edit that copy, not this one). `SHAR_POST=0` turns post-processing off.
+
+A `post.ini` or `materials.ini` directly in that folder (a `shaders/` from before packs) still works: it is the menu's
+**Custom** entry and the default. `SHAR_SHADERS=shaders/toon-pack` runs one pack directly.
 
 ## Choosing passes: post.ini
 
@@ -75,6 +92,12 @@ void main()
 
 Settings are best written as `const float NAME = value;` at the top of the file (the examples do that).
 
+A pass can read every anti-aliasing sample of the depth buffer: with `#pragma shar_depth_samples`, while the Vulkan
+renderer has anti-aliasing on, it also gets `SHAR_DEPTH_SAMPLES` (samples per pixel, a `#define`) and
+`float DepthSample(ivec2 pixel, int s)` (raw depth; pixel as `ivec2(vUV * uResolution)`, clamped to the picture). OpenGL
+and anti-aliasing off leave them undefined, so use `#ifdef SHAR_DEPTH_SAMPLES` and fall back to `uDepth`
+(`post/outline.glsl` does).
+
 A pass can use images: `#pragma shar_texture uName file.png` (up to four per pass) declares `uniform sampler2D
 uName` holding the PNG, the path relative to the pass's own file; the image's top row is at `v = 0`. Images reload
 when they change too.
@@ -90,10 +113,11 @@ stage always works at full size.
 
 `uDepth` is copied only when a pass uses it. In the final stage it also holds what the HUD and menus drew.
 
-## The examples (post/)
+## The examples (vanilla-pack/post/)
 
 | File | Stage | What it does |
 |------|-------|--------------|
+| `outline.glsl` | scene | ink lines round objects and along sharp corners, from the depth buffer alone: put it after `tonemap.glsl` (settings at its top). Anti-aliased with the Vulkan renderer's MSAA; otherwise hard, and `fxaa.glsl` after it smooths them |
 | `ssao.glsl`, `ssao_blur_h.glsl`, `ssao_blur_v.glsl` | scene | ambient occlusion: darkens corners, recesses and the ground around objects (three passes, in this order: the occlusion, then an edge-aware blur that also darkens the picture; `SHOW_AO` in `ssao_blur_v.glsl` shows it alone; works at full size, `#pragma shar_scale` in `ssao.glsl`: 0.5 is a quarter of the cost) |
 | `tonemap.glsl` | scene | filmic tone mapping (`CURVE`: ACES, Hable, Reinhard): softer highlights, richer midtones; mid grey stays put; `SATURATION` sets how much of the curve's colour boost to keep |
 | `grade.glsl` | scene | colour grading: white balance, exposure, contrast, saturation, vibrance, lift / gamma / gain, split toning |
@@ -223,7 +247,7 @@ Most of the world is unlit: its lighting is painted into the vertex colours and 
 then the same across each object), so lighting-based effects work on lit materials (characters, cars). `StandardColour()`
 and `vColour` are the way to include the world's own shading.
 
-## The examples (materials/)
+## The examples (vanilla-pack/materials/)
 
 | File | For | What it does |
 |------|-----|--------------|
@@ -253,7 +277,7 @@ Both kinds work this way: post-processing passes and material shaders.
 ## How it works
 
 1. Write the shader as a `.frag` file (examples: `post/vulkan/`, `materials/vulkan/`).
-2. Compile it: `python3 port/spirv.py post/vulkan/name.frag` writes `post/vulkan/name.spv` beside it. This uses the
+2. Compile it: `python3 port/spirv.py <pack>/post/vulkan/name.frag` writes `name.spv` beside it. This uses the
    game's own compiler (`libshar_glslang.so` from the build), so no Vulkan SDK is needed, and it expands
    `#include "file"` (relative to the source). Other compilers work too (`glslc`, `glslangValidator -V`), as long as
    they can find the include and keep the names (no stripping).

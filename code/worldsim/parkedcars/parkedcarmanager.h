@@ -103,6 +103,7 @@ private:
     //Free "Moment" cars
     ParkedCarInfo mFreeCar;
     CarStartLocator* mFreeCarLocator;
+    bool mFreeCarLoading;   // Linux port: its file is queued, mFreeCar.mName and mFreeCarLocator belong to that load
 
     ParkedCarManager();
     virtual ~ParkedCarManager();

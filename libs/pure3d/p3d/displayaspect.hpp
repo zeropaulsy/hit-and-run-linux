@@ -44,6 +44,25 @@ namespace p3d
         return ( a < DESIGN_ASPECT ) ? a / DESIGN_ASPECT : 1.0f;
     }
 
+    // simpsons.ini widehud=yes: elements with Scrooby::Drawable::SetEdgeAnchor move to the edges of non-4:3 windows
+    inline bool& WideHudEnabled()
+    {
+        static bool enabled = false;
+        return enabled;
+    }
+
+    // Shift of an edge-anchored element out of the 4:3 area, in 4:3 page widths (X) and heights (Y). 0 when widehud is
+    // off or the window isn't extended on that axis.
+    inline float GetEdgeShift()
+    {
+        return WideHudEnabled() ? ( 1.0f / GetDesignScaleX() - 1.0f ) * 0.5f : 0.0f;
+    }
+
+    inline float GetEdgeShiftY()
+    {
+        return WideHudEnabled() ? ( 1.0f / GetDesignScaleY() - 1.0f ) * 0.5f : 0.0f;
+    }
+
     // The centred 4:3 area in window pixels
     inline pddiRect GetDesignRect()
     {

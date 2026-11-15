@@ -16,7 +16,6 @@
 //========================================
 #include <radcontroller.hpp>
 #include <list>
-using namespace std;
 
 //========================================
 // Nested Includes
@@ -31,8 +30,8 @@ class UserController;
     Some typedefs for convienince
  ****************************************/
 typedef ref< IRadController > RADCONTROLLER;
-typedef list< IRadControllerInputPoint* > RADINPUTPOINTLIST;
-typedef list< IRadControllerInputPoint* >::iterator INPUTPOINTITER;
+typedef std::list< IRadControllerInputPoint* > RADINPUTPOINTLIST;
+typedef std::list< IRadControllerInputPoint* >::iterator INPUTPOINTITER;
 
 //=============================================================================
 // Enumerations

@@ -16,7 +16,7 @@
 #include "pch.hpp"
 
 #if defined RAD_WIN32
-#include <Windows.h>            // IsBadReadPtr( )
+#include <windows.h>            // IsBadReadPtr( )
 #elif defined RAD_XBOX
 #include <Xtl.h>                // IsBadReadPtr( )
 #endif

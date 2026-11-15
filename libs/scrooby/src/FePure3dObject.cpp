@@ -481,6 +481,12 @@ void FePure3dObject::Render()
         r = 0.5f + ( r - 0.5f ) * sx;
         t = 0.5f + ( t - 0.5f ) * sy;
         b = 0.5f + ( b - 0.5f ) * sy;
+
+        // Wide HUD shift (FeOwner::Display); the view has its own scissor (SetClip below). Up is smaller here.
+        l += FeDrawable::sEdgeShiftX * sx;
+        r += FeDrawable::sEdgeShiftX * sx;
+        t -= FeDrawable::sEdgeShiftY * sy;
+        b -= FeDrawable::sEdgeShiftY * sy;
         tCamera::SetTargetAspect( p3d::DESIGN_ASPECT );
     }
 

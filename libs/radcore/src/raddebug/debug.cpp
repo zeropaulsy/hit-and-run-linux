@@ -316,7 +316,11 @@ void rDebugValidFail_Implementation
            // Issue an int 3 instead of DebugBreak. MSDEV 5.0 does not
            // work correctly when DebugBreak is used.
            //
+#if defined(__i386__) || defined(__x86_64__)
           __asm__ volatile("int3");   // was MSVC "int 3" breakpoint
+#else
+          __builtin_debugtrap();
+#endif
         }
         else
         {

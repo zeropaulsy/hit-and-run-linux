@@ -91,6 +91,16 @@ public:
     virtual void SetTranslation( int x, int y );
     virtual void Translate( int x, int y );
 
+    // Linux port: see Scrooby::Drawable::SetEdgeAnchor
+    virtual void SetEdgeAnchor( int sideX, int sideY ) { mEdgeAnchorX = sideX; mEdgeAnchorY = sideY; }
+    virtual void AnchorToPageSide();
+    virtual int GetEdgeAnchorX() const { return mEdgeAnchorX; }
+    virtual int GetEdgeAnchorY() const { return mEdgeAnchorY; }
+    // Current element's edge shift in page widths/heights (right and up positive). Set by FeOwner::Display, read by
+    // FePure3dObject, which draws in its own view.
+    static float sEdgeShiftX;
+    static float sEdgeShiftY;
+
     virtual void SetVisible( bool v );
 
 
@@ -139,7 +149,6 @@ protected:
 
     FeDrawable* mParent;
     bool        mVisible;
-
     rmt::Matrix m_matrix;
     bool        m_clip;
     mutable     pddiRect    m_rect;
@@ -150,6 +159,9 @@ protected:
 
     float        mPosX;    // position of object in the screen
     float        mPosY;  
+
+    int          mEdgeAnchorX;  // Linux port: -1, 0 or +1, see SetEdgeAnchor
+    int          mEdgeAnchorY;
 
     #ifdef DEBUGWATCH
         int          mPosXInt;      //used for output via watcher only

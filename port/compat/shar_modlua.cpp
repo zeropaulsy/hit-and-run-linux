@@ -238,9 +238,53 @@ int L_GetModTitle( lua_State* L )
     return 1;
 }
 
+int L_GetModVersion( lua_State* L )
+{
+    Mod* mod = lua_isnoneornil( L, 1 ) ? ModOf( L ) : FindMod( luaL_checkstring( L, 1 ) );
+    if ( mod == NULL )
+    {
+        return 0;
+    }
+    lua_pushstring( L, mod->version );
+    return 1;
+}
+
+// GetEnabledMods( callback ): callback( internalName ) for each mod, until it returns false
+int L_GetEnabledMods( lua_State* L )
+{
+    luaL_checktype( L, 1, LUA_TFUNCTION );
+    for ( int i = 0; i < g_NumMods; i++ )
+    {
+        lua_pushvalue( L, 1 );
+        lua_pushstring( L, g_Mods[ i ].name );
+        lua_call( L, 1, 1 );
+        bool more = lua_toboolean( L, -1 );
+        lua_pop( L, 1 );
+        if ( !more )
+        {
+            break;
+        }
+    }
+    return 0;
+}
+
+// The launcher's message box: to the log, nobody is there to press OK
+int L_Alert( lua_State* L )
+{
+    fprintf( stderr, "mods: %s: alert: %s\n", ModOf( L )->name, luaL_tolstring( L, 1, NULL ) );
+    return 0;
+}
+
+int L_Pause( lua_State* L )
+{
+    (void)L;
+    return 0;
+}
+
 int L_IsModEnabled( lua_State* L )
 {
-    lua_pushboolean( L, FindMod( luaL_checkstring( L, 1 ) ) != NULL );
+    const char* name = luaL_checkstring( L, 1 );
+    lua_pushboolean( L, FindMod( name ) != NULL || ModSettingHackCovered( name ) );
     return 1;
 }
 
@@ -301,6 +345,13 @@ int L_GetSettings( lua_State* L )
     lua_newtable( L );
     for ( int i = 0; mod != NULL && i < mod->numSettings; i++ )
     {
+        if ( mod->settings[ i ].type == MOD_SETTING_CHOICE )
+        {
+            // 1-based here, 0-based in GetSetting (launcher docs)
+            lua_pushinteger( L, atoi( mod->settings[ i ].value ) + 1 );
+            lua_setfield( L, -2, mod->settings[ i ].name );
+            continue;
+        }
         PushSetting( L, mod->settings[ i ] );
         lua_setfield( L, -2, mod->settings[ i ].name );
     }
@@ -535,6 +586,10 @@ const luaL_Reg FUNCTIONS[] = {
     { "GetModPath", L_GetModPath },
     { "GetModName", L_GetModName },
     { "GetModTitle", L_GetModTitle },
+    { "GetModVersion", L_GetModVersion },
+    { "GetEnabledMods", L_GetEnabledMods },
+    { "Alert", L_Alert },
+    { "Pause", L_Pause },
     { "IsModEnabled", L_IsModEnabled },
     { "IsHackLoaded", L_IsHackLoaded },
     { "GetSetting", L_GetSetting },
@@ -709,7 +764,18 @@ int ModLuaRunHandler( Mod* mod, const char* script, const char* gamePath, int* f
     if ( ok && h.hasOutput )
     {
         // The output as a file of its own: an anonymous in-memory one
+#ifdef __APPLE__
+        // no memfd on macOS: an unlinked temporary file behaves the same
+        char tmpPath[] = "/tmp/shar-mod-output-XXXXXX";
+        int memfd = mkstemp( tmpPath );
+        if ( memfd >= 0 )
+        {
+            unlink( tmpPath );
+            fcntl( memfd, F_SETFD, FD_CLOEXEC );
+        }
+#else
         int memfd = memfd_create( "shar-mod-output", MFD_CLOEXEC );
+#endif
         size_t done = 0;
         while ( memfd >= 0 && done < h.outputSize )
         {

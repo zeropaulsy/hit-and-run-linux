@@ -267,7 +267,7 @@ public:
                 return i;
             }
         }
-        Grow(Size()*2);
+        Grow(this->Size()*2);
         data[oldSize] = t;
         return oldSize;
 

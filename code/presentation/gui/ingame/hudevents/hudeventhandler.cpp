@@ -33,6 +33,9 @@ HudEventHandler::HudEventHandler( Scrooby::Group* drawableGroup )
 {
     rAssert( drawableGroup != NULL );
     drawableGroup->SetVisible( false );
+
+    // Linux port: Wide HUD
+    drawableGroup->AnchorToPageSide();
 }
 
 HudEventHandler::~HudEventHandler()

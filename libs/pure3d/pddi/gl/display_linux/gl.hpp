@@ -13,9 +13,14 @@
 #ifndef _PGL_GL_HPP_
 #define _PGL_GL_HPP_
 
+#ifdef __APPLE__
+#define GL_SILENCE_DEPRECATION
+#include <OpenGL/gl3.h>
+#else
 #ifndef GL_GLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES
 #endif
 #include <GL/glcorearb.h>
+#endif
 
 #endif

@@ -2455,7 +2455,7 @@ void CharacterManager::ClearTeleportDests(void)
 {
     for(unsigned i = 0; i < s_numTeleportDests; i++)
     {
-        radDbgWatchDelete( &DoTeleport );
+        radDbgWatchDelete( (void*) &DoTeleport );
     }
     tRefCounted::Release(s_dynaloadLoc);
     s_numTeleportDests = 0;

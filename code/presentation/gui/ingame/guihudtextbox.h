@@ -33,6 +33,11 @@ const float MESSAGE_BOX_HORIZONTAL_STRETCH = 1.1f;
 #ifdef PAL
     const int MESSAGE_TEXT_VERTICAL_TRANSLATION = +10;
     const float MESSAGE_BOX_VERTICAL_STRETCH = 1.2f;
+#elif defined( RAD_LINUX )
+    // Linux port: the PAL values for the longer translated text; English stays as it was
+    #include <presentation/gui/guitextbible.h>
+    #define MESSAGE_TEXT_VERTICAL_TRANSLATION ( CGuiTextBible::GetCurrentLanguage() == Scrooby::XL_ENGLISH ? 0 : +10 )
+    #define MESSAGE_BOX_VERTICAL_STRETCH ( CGuiTextBible::GetCurrentLanguage() == Scrooby::XL_ENGLISH ? 1.0f : 1.2f )
 #else
     const int MESSAGE_TEXT_VERTICAL_TRANSLATION = 0;
     const float MESSAGE_BOX_VERTICAL_STRETCH = 1.0f;

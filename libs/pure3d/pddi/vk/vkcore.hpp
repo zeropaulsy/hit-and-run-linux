@@ -80,6 +80,7 @@ public:
     bool bcTextures;            // textureCompressionBC (DXT)
     bool anisotropy;            // samplerAnisotropy
     bool fillModeNonSolid;
+    bool pointPolygons;
     VkFormat depthFormat;       // D24S8, else D32S8
     VkSampleCountFlags sampleCounts;    // usable for colour and depth targets
     bool rayQuery;              // acceleration structures + ray queries + buffer device addresses (SHAR_SUN)
@@ -121,12 +122,17 @@ public:
     // draw targets: the frame's (multisampled when anti-aliasing is on), resized with the window
     void SetSize(int width, int height);
     void SetSamples(int samples);       // 1 = off; clamped to what the device has
+    void ReportSamples();               // logs the targets' samples when that changed
     int Samples() const { return targetSamples; }
     int Width() const { return scene.colour.image ? scene.colour.width : width; }      // of the targets as made
     int Height() const { return scene.colour.image ? scene.colour.height : height; }
     pvkTarget& Target() { return msActive ? msTarget : scene; }
     int ActiveSamples() const { return msActive ? targetSamples : 1; }  // of Target(): pipelines are made for it
     pvkTarget& Scene() { return scene; }        // the single-sampled one (what is presented)
+    // for post passes (shar_depth_samples): the multisampled depth buffer, kept after the resolve, and its samples per
+    // pixel (0: anti-aliasing off, or the device can't sample depth at this count)
+    pvkImage& MultisampledDepth() { return msTarget.depth; }
+    int DepthSamples() const { return msDepthSampled ? targetSamples : 0; }
     // dynamic rendering into the current target (contents kept); EndRendering before transfers
     void BeginRendering();
     void EndRendering();
@@ -188,8 +194,9 @@ private:
     bool frameOpen;
 
     int width, height;              // draw targets' size
-    int requestedSamples, targetSamples;
+    int requestedSamples, targetSamples, reportedSamples;
     pvkTarget scene, msTarget;
+    bool msDepthSampled;            // msTarget.depth can be sampled
     bool msActive;                  // this frame draws into msTarget (until ResolveTarget)
     bool rendering;
     unsigned renderingGeneration;

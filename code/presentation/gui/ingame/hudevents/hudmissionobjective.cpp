@@ -30,12 +30,22 @@
 // Pure3D
 #include <p3d/utility.hpp>
 #include <p3d/sprite.hpp>
+#include <p3d/displayaspect.hpp>
 
 //===========================================================================
 // Global Data, Local Data, Local Classes
 //===========================================================================
 
 const int HUD_ICON_SLIDE_DISTANCE = 310; // vertical distance in pixels
+
+// Linux port: Wide HUD anchors the icon to the top edge of a tall window. It starts beside the message, so offset it
+// back down (page pixels) until it slides up.
+static const float PAGE_HEIGHT = 480.0f;
+
+static int GetIconPopUpOffset()
+{
+    return -static_cast< int >( p3d::GetEdgeShiftY() * PAGE_HEIGHT );
+}
 
 //===========================================================================
 // Public Member Functions
@@ -52,6 +62,12 @@ HudMissionObjective::HudMissionObjective( Scrooby::Page* pPage )
 
     m_missionIcon = pPage->GetSprite( "ObjectiveIcon" );
     rAssert( m_missionIcon != NULL );
+
+    // Linux port: the group holds the message, which stays in the 4:3 area, so anchor only the icon: to the top, where
+    // it rests (GetIconPopUpOffset).
+    m_drawableGroup->SetEdgeAnchor( 0, 0 );
+    m_missionIcon->AnchorToPageSide();
+    m_missionIcon->SetEdgeAnchor( m_missionIcon->GetEdgeAnchorX(), 1 );
 
     m_iconTranslator.SetDrawable( m_missionIcon );
     m_iconTranslator.SetStartOffscreenBottom( m_missionIcon );
@@ -154,6 +170,9 @@ HudMissionObjective::Update( float elapsedTime )
                     m_currentSubState++;
                 }
 
+                // Linux port: beside the message, see GetIconPopUpOffset
+                m_missionIcon->Translate( 0, GetIconPopUpOffset() );
+
                 break;
             }
             case STATE_ICON_DISPLAY_HOLD:
@@ -184,7 +203,10 @@ HudMissionObjective::Update( float elapsedTime )
 
                 if( m_elapsedTime < SLIDE_UP_TIME )
                 {
-                    int translateY = (int)( (m_elapsedTime / SLIDE_UP_TIME) * HUD_ICON_SLIDE_DISTANCE );
+                    // Linux port: from where it was beside the message (GetIconPopUpOffset)
+                    int offset = GetIconPopUpOffset();
+                    int translateY = offset + (int)( (m_elapsedTime / SLIDE_UP_TIME) *
+                                                     ( HUD_ICON_SLIDE_DISTANCE - offset ) );
                     m_missionIcon->Translate( 0, translateY );
                 }
                 else

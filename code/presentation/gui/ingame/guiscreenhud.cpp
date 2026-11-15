@@ -400,6 +400,12 @@ MEMTRACK_PUSH_GROUP( "CGUIScreenHud" );
         rAssert( m_overlays[ i ] );
         m_overlays[ i ]->SetVisible( false );
 
+        // Linux port: Wide HUD. The help message and action prompt stay in the 4:3 area, by the player.
+        if( i != HUD_MESSAGE && i != HUD_ACTION_BUTTON )
+        {
+            m_overlays[ i ]->AnchorToPageSide();
+        }
+
         m_elapsedTime[ i ] = 0;
     }
 
@@ -1464,6 +1470,9 @@ CGuiScreenHud::SetNumCoinsDisplay( Scrooby::Sprite* pSprite )
         pSprite->SetBitmapTextSpacing( NUMERIC_TEXT_SPACING );
         pSprite->SetVisible( false ); // hide by default
 
+        // Linux port: Wide HUD; CoinManager::SetHUDCoin follows the counter
+        pSprite->AnchorToPageSide();
+
 #ifdef RAD_WIN32
         pSprite->ResetTransformation();
         pSprite->Translate( 70, 0 );
@@ -1482,7 +1491,8 @@ CGuiScreenHud::UpdateNumCoinsDisplay( int numCoins, bool show )
 
     static int coinPosX = CGuiScreen::IsWideScreenDisplay() ? 540 : 605;
     static int coinPosY = 432;
-    GetCoinManager()->SetHUDCoin( coinPosX, coinPosY, show );
+    GetCoinManager()->SetHUDCoin( coinPosX, coinPosY, show, s_numCoinsDisplay->GetEdgeAnchorX(),
+                                    s_numCoinsDisplay->GetEdgeAnchorY() );
 
     if( show )
     {
