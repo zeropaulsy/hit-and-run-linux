@@ -70,7 +70,7 @@ Order of events (each step needs the one before; Linux builds must keep working 
      a folder needs `Meta.ini`. Drag and drop: the stub (`launch.m`, AppKit) gets the opened files in `application:openURLs:`,
      which comes before `applicationDidFinishLaunching`, then execs launch.sh with each as `--mod` (same process: Dock
      icon and Cmd+Q stay the game's). Info.plist `CFBundleDocumentTypes`: `.lmlm` and `public.folder`, rank Alternate.
-     Tested with `open -W -n -a <app> --env HOME=<scratch> FILE... --args ...` (two .lmlm in order, non-mod folder, no files); Finder drag not.
+     Tested with `open -W -n -a <app> --env HOME=<scratch> FILE... --args ...` (two .lmlm in order, non-mod folder, no files); Finder drags user-confirmed.
      Tested: FHAR Demo alone, FCM Full Game Plus + FHAR Demo (order kept), relative/missing/no-arg errors.
      Unattended: `HOME=<scratch>` with a preset `.data`, a stub `osascript` first on `PATH` (dialogs block otherwise).
    - Info.plist is XML: the `&` in the name must be `&amp;` (unescaped = crossed-out icon, "app is incomplete"); the script runs `plutil -lint`.
