@@ -12,7 +12,7 @@
 #                (the x86-64 build is the default; --64 is accepted and changes nothing)
 #   --no-build   skip the ninja step
 # env: SHAR_RUN   run directory (default run/), set up on first use: symlinks to the data,
-#                 private copies of simpsons.ini and Save1-4 (the game writes them)
+#                 private copies of simpsons.ini and Save1-8 (the game writes them)
 #      SHAR_BUILD build dir (overrides --debug)
 # The console output goes to logs/last-session.log in the run dir too. If the game crashes (or exits non-zero, or is
 # interrupted), the log is kept as crashes/crash-<date>-<time>.log with its backtrace resolved to source lines
@@ -77,7 +77,7 @@ for f in ambience.rcf carsound.rcf dialog.rcf dialogf.rcf dialogg.rcf dialogs.rc
          scripts.rcf soundfx.rcf opening.bnr art movies scripts sound; do
     [ -e "$DATA/$f" ] && [ ! -e "$RUN/$f" ] && ln -s "$DATA/$f" "$RUN/$f"
 done
-for f in simpsons.ini Save1 Save2 Save3 Save4; do
+for f in simpsons.ini Save1 Save2 Save3 Save4 Save5 Save6 Save7 Save8; do
     [ -e "$DATA/$f" ] && [ ! -e "$RUN/$f" ] && cp "$DATA/$f" "$RUN/$f"
 done
 # Shaders (post-processing, materials): the game dir's shaders/ if it has one, else a copy of the examples (yours to
