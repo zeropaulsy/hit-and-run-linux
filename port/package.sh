@@ -177,7 +177,7 @@ if [ "$RUN" != "$HOMEDIR" ]; then
             if [ -L "$RUN/$f" ] || [ ! -e "$RUN/$f" ]; then ln -sfn "$DATA/$f" "$RUN/$f"; fi
         elif [ -L "$RUN/$f" ]; then rm -f "$RUN/$f"; fi
     done
-    for f in simpsons.ini Save1 Save2 Save3 Save4; do
+    for f in simpsons.ini Save1 Save2 Save3 Save4 Save5 Save6 Save7 Save8; do
         [ -e "$DATA/$f" ] && [ ! -e "$RUN/$f" ] && cp "$DATA/$f" "$RUN/$f"
     done
 fi
