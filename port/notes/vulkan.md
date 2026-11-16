@@ -17,13 +17,15 @@ fails. ini `renderer=vulkan|opengl` (Options > Graphics, next start); `SHAR_REND
   VideoTextureSupport). Validation and sync validation clean on boot, movies, front end, L1 (8x MSAA, post passes).
 - Movies match GL (MSAA target kept across the resolve, see Design; edge strip: `port/notes/platform.md`).
 - macOS arm64 (MoltenVK, Apple M2): scripted runs match GL, see macos.md step 8.
+- AMD RX 7900 XT (Mesa 26.2.3 RADV, 64-bit, X11 under gamescope's Xwayland): L1 in game, walking, driving, saving
+  and loading that save, 4x MSAA, Low sun, toon-pack; 60 fps (capped) at 1920x1080 and 2448x1848.
 - Not yet tested: long sessions, other levels/interiors/cutscenes/bonus game, mods in play (HoverCarRefraction,
-  video textures), Mesa on real AMD/Intel GPUs (lavapipe: L1 with High sun, 8x MSAA, validation clean), X11, fullscreen switches, memcheck/ASan runs on the Vulkan path.
+  video textures), Mesa on a real Intel GPU (lavapipe: L1 with High sun, 8x MSAA, validation clean), X11, fullscreen switches, memcheck/ASan runs on the Vulkan path.
 - Not done: `Screenshot()`, GPU times in `SHAR_GL_STATS` (draws, pipelines and their CPU ms only).
 
 ## Next
 1. User play-tests on Vulkan (the same coverage GL had); compare with GL by screenshot when something looks off.
-2. Mesa on an AMD/Intel GPU (lavapipe passes); `SHAR_VK_DEVICE=n` picks the device.
+2. Mesa on an Intel GPU (lavapipe and RADV pass); `SHAR_VK_DEVICE=n` picks the device.
 3. Memcheck/ASan on the Vulkan path.
 4. Merge into `main`, then the platform goals above.
 
