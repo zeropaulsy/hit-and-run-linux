@@ -169,11 +169,11 @@ for f in "${RUN:?}"/*; do [ -L "$f" ] && rm "$f"; done
 for f in "$DATA"/*; do
     n=$(basename "$f")
     case "$(echo "$n" | tr A-Z a-z)" in
-        simpsons.ini|save[1-4]|logs|crashes|shaders|vkpipelines.cache) continue ;;
+        simpsons.ini|save[1-8]|logs|crashes|shaders|vkpipelines.cache) continue ;;
     esac
     [ -e "$RUN/$n" ] || ln -s "$f" "$RUN/$n"
 done
-for f in simpsons.ini Save1 Save2 Save3 Save4; do
+for f in simpsons.ini Save1 Save2 Save3 Save4 Save5 Save6 Save7 Save8; do
     [ -e "$DATA/$f" ] && [ ! -e "$RUN/$f" ] && cp "$DATA/$f" "$RUN/$f"
 done
 [ -e "$RUN/shaders" ] || cp -R "$C/Resources/shaders" "$RUN/shaders"

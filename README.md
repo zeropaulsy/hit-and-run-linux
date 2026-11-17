@@ -94,7 +94,7 @@ mod problem, include the mod's name and version and that log.
 | macOS Apple silicon / Intel | **Prerelease.** Runs end to end on an Apple M2 (MoltenVK) and Intel Big Sur (OpenGL); no long play session yet |
 | Windows x64 | Planned |
 
-Vulkan is tested on NVIDIA and Mesa's lavapipe; AMD / Intel hardware not yet.
+Vulkan is tested on NVIDIA, AMD (Mesa RADV) and Mesa's lavapipe; Intel hardware not yet.
 
 ## Credits
 
